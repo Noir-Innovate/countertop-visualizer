@@ -1,26 +1,169 @@
 @import "tailwindcss";
 
+/* Accent Countertops Color Scheme */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary - Deep charcoal/slate */
+  --color-primary: #2d3436;
+  --color-primary-light: #636e72;
+  --color-primary-dark: #1e272e;
+  
+  /* Accent - Accent Countertops Green (RGB: 160, 204, 89) */
+  --color-accent: #A0CC59;
+  --color-accent-light: #B8D97A;
+  --color-accent-dark: #88B03F;
+  
+  /* Neutral backgrounds */
+  --color-bg: #fafafa;
+  --color-bg-secondary: #f5f5f5;
+  --color-bg-card: #ffffff;
+  
+  /* Text colors */
+  --color-text: #2d3436;
+  --color-text-secondary: #636e72;
+  --color-text-muted: #95a5a6;
+  
+  /* Status colors */
+  --color-success: #27ae60;
+  --color-error: #e74c3c;
+  --color-warning: #f39c12;
+  
+  /* Borders */
+  --color-border: #e0e0e0;
+  --color-border-light: #f0f0f0;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Button base styles */
+.btn {
+  @apply px-6 py-3 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-dark)] focus:ring-[var(--color-primary)];
+}
+
+.btn-accent {
+  @apply bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-dark)] focus:ring-[var(--color-accent)];
+}
+
+.btn-outline {
+  @apply border-2 border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-2xl shadow-lg border border-[var(--color-border-light)];
+}
+
+/* Input styles */
+.input {
+  @apply w-full px-4 py-3 rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition-all;
+}
+
+/* Animation keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+/* Gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, var(--color-accent-light) 0%, var(--color-accent) 100%);
+}
+
+.gradient-hero {
+  background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-secondary) 100%);
 }

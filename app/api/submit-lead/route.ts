@@ -1,0 +1,136 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@/lib/supabase'
+import { notifySalesTeam, sendUserConfirmation } from '@/lib/twilio'
+import { createContact } from '@/lib/ghl'
+
+interface LeadData {
+  name: string
+  email: string
+  address: string
+  phone?: string
+  selectedSlabId?: string
+  selectedSlabName?: string
+  selectedImageUrl?: string
+  abVariant?: string
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const data: LeadData = await request.json()
+
+    // Validate required fields
+    if (!data.name || !data.email || !data.address) {
+      return NextResponse.json(
+        { error: 'Name, email, and address are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(data.email)) {
+      return NextResponse.json(
+        { error: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createServerClient()
+
+    // Get user session if phone exists
+    let sessionId = null
+    if (data.phone) {
+      const { data: session } = await supabase
+        .from('user_sessions')
+        .select('id')
+        .eq('phone', data.phone)
+        .single()
+      
+      if (session) {
+        sessionId = session.id
+      }
+    }
+
+    // Store lead in Supabase
+    const { data: lead, error: insertError } = await supabase
+      .from('leads')
+      .insert({
+        session_id: sessionId,
+        name: data.name,
+        email: data.email,
+        address: data.address,
+        phone: data.phone || null,
+        selected_slab_id: data.selectedSlabId || null,
+        selected_image_url: data.selectedImageUrl || null,
+        ab_variant: data.abVariant || null,
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('Failed to store lead:', insertError)
+      return NextResponse.json(
+        { error: 'Failed to submit lead' },
+        { status: 500 }
+      )
+    }
+
+    // Create contact in GHL
+    const contactResult = await createContact({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      tags: ['countertop-lead', `variant-${data.abVariant || 'unknown'}`],
+      customFields: {
+        selected_slab: data.selectedSlabName || 'Not specified',
+      },
+    })
+
+    if (!contactResult.success) {
+      console.error('Failed to create GHL contact:', contactResult.error)
+      // Don't fail the request - lead is already stored
+    }
+
+    // Notify sales team via SMS
+    const salesPhones = process.env.SALES_TEAM_PHONES?.split(',').filter(Boolean) || []
+    
+    if (salesPhones.length > 0) {
+      await notifySalesTeam(salesPhones, {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        selectedSlab: data.selectedSlabName || 'Not specified',
+      })
+    }
+
+    // Send confirmation to user if they have a phone
+    if (data.phone) {
+      await sendUserConfirmation(
+        data.phone, 
+        data.name,
+        data.selectedSlabName || undefined,
+        data.selectedImageUrl || undefined,
+        {
+          email: data.email,
+          address: data.address,
+        }
+      )
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      leadId: lead.id,
+      message: 'Lead submitted successfully' 
+    })
+  } catch (error) {
+    console.error('Submit lead error:', error)
+    return NextResponse.json(
+      { error: 'Failed to submit lead' },
+      { status: 500 }
+    )
+  }
+}
+
+

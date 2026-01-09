@@ -1,65 +1,427 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
+import imageCompression from 'browser-image-compression'
+import ImageUpload from '@/components/ImageUpload'
+import SlabSelector from '@/components/SlabSelector'
+import ResultDisplay from '@/components/ResultDisplay'
+import PhoneVerificationModal from '@/components/PhoneVerificationModal'
+import { trackEvent, trackABEvent } from '@/lib/posthog'
+import { 
+  getABVariant, 
+  shouldShowLimitedSlabs, 
+  hasUnlockedSlabs, 
+  unlockSlabs,
+  getVerifiedPhone,
+  setVerifiedPhone,
+  type ABVariant 
+} from '@/lib/ab-testing'
+import { SLABS, FEATURED_SLAB_IDS, type Slab, type GenerationResult } from '@/lib/types'
 
 export default function Home() {
+  const [kitchenImage, setKitchenImage] = useState<string | null>(null)
+  const [selectedSlabs, setSelectedSlabs] = useState<Slab[]>([])
+  const [generationResults, setGenerationResults] = useState<GenerationResult[]>([])
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showVerificationModal, setShowVerificationModal] = useState(false)
+  
+  // AB Testing state
+  const [abVariant, setAbVariant] = useState<ABVariant>('A')
+  const [isUnlocked, setIsUnlocked] = useState(false)
+  const [verifiedPhone, setVerifiedPhoneState] = useState<string | null>(null)
+
+  // Initialize AB variant and unlock state on mount
+  useEffect(() => {
+    const variant = getABVariant()
+    setAbVariant(variant)
+    setIsUnlocked(hasUnlockedSlabs())
+    setVerifiedPhoneState(getVerifiedPhone())
+    
+    trackABEvent(variant, 'page_view')
+  }, [])
+
+  // Determine which slabs to show based on AB variant and unlock status
+  const visibleSlabs = shouldShowLimitedSlabs(abVariant) && !isUnlocked
+    ? SLABS.filter(slab => FEATURED_SLAB_IDS.includes(slab.id))
+    : SLABS
+
+  const isLimited = shouldShowLimitedSlabs(abVariant) && !isUnlocked
+
+  const handleImageUpload = (base64Image: string) => {
+    setKitchenImage(base64Image)
+    setGenerationResults([])
+    setError(null)
+    trackABEvent(abVariant, 'image_uploaded')
+  }
+
+  const handleSlabSelect = (slab: Slab) => {
+    setSelectedSlabs(prev => {
+      if (prev.find(s => s.id === slab.id)) {
+        return prev.filter(s => s.id !== slab.id)
+      } else if (prev.length < 3) {
+        trackABEvent(abVariant, 'slab_selected', { slabId: slab.id })
+        return [...prev, slab]
+      }
+      return prev
+    })
+    setError(null)
+  }
+
+  const handleUnlockClick = () => {
+    trackABEvent(abVariant, 'unlock_clicked')
+    setShowVerificationModal(true)
+  }
+
+  const handleVerified = (phone: string) => {
+    unlockSlabs()
+    setVerifiedPhone(phone)
+    setIsUnlocked(true)
+    setVerifiedPhoneState(phone)
+    trackABEvent(abVariant, 'phone_verified')
+  }
+
+  const compressImage = async (base64Image: string): Promise<string> => {
+    try {
+      const response = await fetch(base64Image)
+      const blob = await response.blob()
+      
+      const options = {
+        maxSizeMB: 4,
+        maxWidthOrHeight: 2560,
+        useWebWorker: true,
+        fileType: 'image/jpeg' as const,
+        initialQuality: 0.9,
+      }
+      
+      const compressedBlob = await imageCompression(blob as File, options)
+      
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(compressedBlob)
+      })
+    } catch (error) {
+      console.error('Compression error:', error)
+      return base64Image
+    }
+  }
+
+  const generateSingleImage = useCallback(async (slab: Slab, compressedKitchenImage: string): Promise<GenerationResult> => {
+    try {
+      // Fetch and compress slab image
+      const slabImageResponse = await fetch(slab.imageUrl)
+      const slabBlob = await slabImageResponse.blob()
+      const slabBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(slabBlob)
+      })
+      
+      const compressedSlabImage = await compressImage(slabBase64)
+      
+      const response = await fetch('/api/generate-countertop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kitchenImage: compressedKitchenImage,
+          slabImage: compressedSlabImage,
+          slabId: slab.id,
+          slabName: slab.name,
+          slabDescription: slab.description,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate image')
+      }
+
+      const data = await response.json()
+      return {
+        slabId: slab.id,
+        slabName: slab.name,
+        imageData: data.imageData,
+        isLoading: false,
+        error: null,
+      }
+    } catch (err) {
+      return {
+        slabId: slab.id,
+        slabName: slab.name,
+        imageData: null,
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'An error occurred',
+      }
+    }
+  }, [])
+
+  const handleGenerate = async () => {
+    if (!kitchenImage || selectedSlabs.length === 0) {
+      setError('Please upload a kitchen image and select at least one slab')
+      return
+    }
+
+    setIsGenerating(true)
+    setError(null)
+    trackABEvent(abVariant, 'generation_started', { slabCount: selectedSlabs.length })
+
+    // Initialize results with loading states
+    const initialResults: GenerationResult[] = selectedSlabs.map(slab => ({
+      slabId: slab.id,
+      slabName: slab.name,
+      imageData: null,
+      isLoading: true,
+      error: null,
+    }))
+    setGenerationResults(initialResults)
+
+    try {
+      const compressedKitchenImage = await compressImage(kitchenImage)
+      
+      const results = await Promise.all(
+        selectedSlabs.map(slab => generateSingleImage(slab, compressedKitchenImage))
+      )
+      
+      setGenerationResults(results)
+      trackABEvent(abVariant, 'generation_completed', { 
+        successCount: results.filter(r => r.imageData).length 
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      trackEvent('generation_error')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handleReset = () => {
+    setKitchenImage(null)
+    setSelectedSlabs([])
+    setGenerationResults([])
+    setError(null)
+    trackABEvent(abVariant, 'reset')
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+    <div className="min-h-screen gradient-hero pb-32">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Header */}
+        <header className="text-center mb-12 animate-slide-up">
+          <div className="flex justify-center mb-6">
             <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              src="/AccentCountertopsLogo.png"
+              alt="Accent Countertops"
+              width={200}
+              height={80}
+              className="h-16 md:h-20 w-auto"
+              priority
+              // unoptimized
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-[var(--color-text)] mb-3">
+            Countertop Visualizer
+          </h1>
+          <p className="text-lg text-[var(--color-text-secondary)] max-w-2xl mx-auto">
+            See your dream countertops come to life with AI. Upload a photo of your kitchen and visualize different materials instantly.
+          </p>
+        </header>
+
+        {/* Main Content */}
+        {generationResults.length === 0 ? (
+          <div className="space-y-8 mb-8">
+            {/* Upload Kitchen */}
+            <div className="card p-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+              <h2 className="text-2xl font-semibold text-[var(--color-text)] mb-4 flex items-center gap-3">
+                <span className="w-8 h-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-sm font-bold">1</span>
+                Upload Your Kitchen
+              </h2>
+              {!kitchenImage ? (
+                <ImageUpload onImageUpload={handleImageUpload} />
+              ) : (
+                <div>
+                  <div className="relative rounded-xl overflow-hidden bg-[var(--color-bg-secondary)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={kitchenImage}
+                      alt="Uploaded kitchen"
+                      className="w-full max-h-[500px] object-contain"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setKitchenImage(null)}
+                    className="mt-3 w-full px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] font-medium border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors"
+                  >
+                    Change Image
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Choose Slabs */}
+            <div className="card p-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+              <div className="sticky top-0 bg-white z-10 py-2 mb-4 border-b border-[var(--color-border)]">
+                <h2 className="text-2xl font-semibold text-[var(--color-text)] flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-sm font-bold">2</span>
+                  Choose Your Slabs
+                  <span className="ml-auto text-base font-normal text-[var(--color-text-secondary)]">
+                    {selectedSlabs.length} of 3 selected
+                  </span>
+                </h2>
+              </div>
+              <SlabSelector
+                slabs={visibleSlabs}
+                selectedSlabs={selectedSlabs}
+                onSlabSelect={handleSlabSelect}
+                showUnlockPrompt={isLimited}
+                onUnlockClick={handleUnlockClick}
+                isLimited={isLimited}
+              />
+            </div>
+          </div>
+        ) : (
+          <ResultDisplay
+            generationResults={generationResults}
+            originalImage={kitchenImage}
+            onReset={handleReset}
+            verifiedPhone={verifiedPhone}
+            abVariant={abVariant}
+            onRetryGeneration={async (slabId: string) => {
+              // Skip if it's the original image
+              if (slabId === 'original' || !kitchenImage) return
+
+              // Find the slab from the SLABS array (not selectedSlabs, as it might have been deselected)
+              const slab = SLABS.find(s => s.id === slabId)
+              if (!slab) {
+                console.error('Slab not found:', slabId)
+                return
+              }
+
+              setIsGenerating(true)
+              setError(null)
+
+              // Find and update the specific result
+              const resultIndex = generationResults.findIndex(r => r.slabId === slabId)
+              if (resultIndex === -1) {
+                console.error('Generation result not found for slab:', slabId)
+                setIsGenerating(false)
+                return
+              }
+
+              // Set loading state for this specific result
+              const updatedResults = [...generationResults]
+              updatedResults[resultIndex] = {
+                ...updatedResults[resultIndex],
+                isLoading: true,
+                error: null,
+                imageData: null,
+              }
+              setGenerationResults(updatedResults)
+
+              try {
+                const compressedKitchenImage = await compressImage(kitchenImage)
+                const result = await generateSingleImage(slab, compressedKitchenImage)
+                
+                updatedResults[resultIndex] = result
+                setGenerationResults(updatedResults)
+                trackABEvent(abVariant, 'retry_generation', { slabId })
+              } catch (err) {
+                updatedResults[resultIndex] = {
+                  ...updatedResults[resultIndex],
+                  isLoading: false,
+                  error: err instanceof Error ? err.message : 'Failed to regenerate',
+                }
+                setGenerationResults(updatedResults)
+              } finally {
+                setIsGenerating(false)
+              }
+            }}
+          />
+        )}
+
+        {/* Loading Animation */}
+        {isGenerating && (
+          <div className="card p-8 mb-8 text-center animate-fade-in">
+            <div className="w-20 h-20 mx-auto mb-4 relative">
+              <div className="absolute inset-0 rounded-full border-4 border-[var(--color-accent)]/20"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[var(--color-accent)] animate-spin"></div>
+              <div className="absolute inset-2 rounded-full border-4 border-transparent border-t-[var(--color-accent-light)] animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
+            </div>
+            <h3 className="text-xl font-semibold text-[var(--color-text)] mb-2">
+              Creating Your Visualizations
+            </h3>
+            <p className="text-[var(--color-text-secondary)]">
+              Our AI is transforming your kitchen with {selectedSlabs.length} different countertop{selectedSlabs.length > 1 ? 's' : ''}...
+            </p>
+            <p className="text-sm text-[var(--color-text-muted)] mt-2">
+              This usually takes 15-30 seconds per image
+            </p>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg animate-fade-in">
+            <p className="text-red-700 text-center">{error}</p>
+          </div>
+        )}
+
+        {/* Generate Button */}
+        {generationResults.length === 0 && (
+          <div className="fixed bottom-0 left-0 right-0 pt-4 pb-6 bg-gradient-to-t from-[var(--color-bg)] via-[var(--color-bg)] to-transparent z-50">
+            <div className="container mx-auto px-4 max-w-7xl">
+              <div className="text-center">
+                <button
+                  onClick={handleGenerate}
+                  disabled={!kitchenImage || selectedSlabs.length === 0 || isGenerating}
+                  className={`
+                    px-10 py-4 text-xl font-semibold rounded-full shadow-lg
+                    transition-all duration-300 transform
+                    ${kitchenImage && selectedSlabs.length > 0 && !isGenerating
+                      ? 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white hover:scale-105 hover:shadow-xl'
+                      : 'bg-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed'
+                    }
+                    ${selectedSlabs.length === 3 && kitchenImage
+                      ? 'animate-pulse-ring ring-4 ring-[var(--color-accent)]/30'
+                      : ''
+                    }
+                  `}
+                >
+                  {isGenerating ? (
+                    <span className="flex items-center gap-3">
+                      <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    'See It!'
+                  )}
+                </button>
+                {!kitchenImage && (
+                  <p className="mt-3 text-sm text-[var(--color-text-muted)]">
+                    Upload a kitchen photo to get started
+                  </p>
+                )}
+                {kitchenImage && selectedSlabs.length === 0 && (
+                  <p className="mt-3 text-sm text-[var(--color-text-muted)]">
+                    Select at least one slab to visualize
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Phone Verification Modal */}
+      <PhoneVerificationModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        onVerified={handleVerified}
+      />
     </div>
-  );
+  )
 }
