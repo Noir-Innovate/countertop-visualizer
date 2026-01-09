@@ -9,7 +9,23 @@ const nextConfig: NextConfig = {
     // Unoptimized for base64 data URLs
     unoptimized: false,
     remotePatterns: [
-      // Add any external image hosts here if needed
+      {
+        protocol: 'https',
+        hostname: 'ggpyvviweofgpbfwkfbm.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '54321',
+        pathname: '/storage/v1/object/public/**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '54321',
+        pathname: '/storage/v1/object/public/**',
+      },
     ],
   },
   // Increase serverless function timeout for AI generation

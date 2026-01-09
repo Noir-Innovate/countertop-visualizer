@@ -138,9 +138,12 @@ export const OLD_SLABS: Slab[] = [
   }
 ]
 
-// Helper function to get image URL with correct extension
+// Helper function to get image URL from Supabase storage
 function getImageUrl(name: string, extension: string = '.jpg'): string {
-  return `/accent-countertops-slabs/${name}${extension}`
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ggpyvviweofgpbfwkfbm.supabase.co'
+  const fileName = `${name}${extension}`
+  // Bucket: public-assets, Folder: accent-countertops
+  return `${supabaseUrl}/storage/v1/object/public/public-assets/accent-countertops/${fileName}`
 }
 
 // Accent Countertops Signature Series Quartz Slabs
