@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { trackEvent } from "@/lib/posthog";
+import PhoneVerificationModal from "@/components/PhoneVerificationModal";
+import { setVerifiedPhone } from "@/lib/ab-testing";
 import type { LeadFormData } from "@/lib/types";
 
 interface QuoteModalProps {
@@ -26,6 +28,8 @@ export default function QuoteModal({
   abVariant,
   onSubmitSuccess,
 }: QuoteModalProps) {
+  const [step, setStep] = useState<'verify' | 'form'>('verify');
+  const [currentVerifiedPhone, setCurrentVerifiedPhone] = useState<string | null>(verifiedPhone);
   const [formData, setFormData] = useState<LeadFormData>({
     name: "",
     email: "",
@@ -36,6 +40,22 @@ export default function QuoteModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Reset step when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (verifiedPhone) {
+        setStep('form');
+        setCurrentVerifiedPhone(verifiedPhone);
+        setFormData(prev => ({ ...prev, phone: verifiedPhone }));
+      } else {
+        setStep('verify');
+        setCurrentVerifiedPhone(null);
+      }
+      setSuccess(false);
+      setError(null);
+    }
+  }, [isOpen, verifiedPhone]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -49,8 +69,22 @@ export default function QuoteModal({
     setError(null);
   };
 
+  const handleVerified = (phone: string) => {
+    setCurrentVerifiedPhone(phone);
+    setVerifiedPhone(phone);
+    setFormData(prev => ({ ...prev, phone }));
+    setStep('form');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Require phone verification
+    if (!currentVerifiedPhone) {
+      setError("Please verify your phone number first");
+      setStep('verify');
+      return;
+    }
 
     // Validation
     if (!formData.name.trim()) {
@@ -111,6 +145,18 @@ export default function QuoteModal({
   };
 
   if (!isOpen) return null;
+
+  // Show phone verification first if not verified
+  if (step === 'verify') {
+    return (
+      <PhoneVerificationModal
+        isOpen={isOpen}
+        onClose={onClose}
+        onVerified={handleVerified}
+        autoClose={false}
+      />
+    );
+  }
 
   return (
     <div
@@ -250,17 +296,36 @@ export default function QuoteModal({
                   >
                     Phone Number *
                   </label>
-                  <input
-                    type="tel"
-                    id="quote-phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="(555) 555-5555"
-                    className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition-all"
-                    disabled={isSubmitting}
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      id="quote-phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="(555) 555-5555"
+                      className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition-all pr-20"
+                      disabled={isSubmitting || !!currentVerifiedPhone}
+                      required
+                    />
+                    {currentVerifiedPhone && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-[var(--color-success)]">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Verified
+                      </div>
+                    )}
+                  </div>
+                  {!currentVerifiedPhone && (
+                    <button
+                      type="button"
+                      onClick={() => setStep('verify')}
+                      className="mt-2 text-sm text-white/80 hover:text-white underline"
+                    >
+                      Verify phone number
+                    </button>
+                  )}
                 </div>
 
                 <div>

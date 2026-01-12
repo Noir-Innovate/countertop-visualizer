@@ -6,25 +6,15 @@ import imageCompression from "browser-image-compression";
 import ImageUpload from "@/components/ImageUpload";
 import SlabSelector from "@/components/SlabSelector";
 import ResultDisplay from "@/components/ResultDisplay";
-import PhoneVerificationModal from "@/components/PhoneVerificationModal";
 import { trackEvent, trackABEvent } from "@/lib/posthog";
 import {
   getABVariant,
-  shouldShowLimitedSlabs,
-  hasUnlockedSlabs,
-  unlockSlabs,
   getVerifiedPhone,
-  setVerifiedPhone,
   type ABVariant,
 } from "@/lib/ab-testing";
-import {
-  SLABS,
-  FEATURED_SLAB_IDS,
-  type Slab,
-  type GenerationResult,
-} from "@/lib/types";
+import { SLABS, type Slab, type GenerationResult } from "@/lib/types";
 import { useMaterialLine } from "@/lib/material-line";
-import { getSlabsForMaterialLine, getFeaturedSlabs } from "@/lib/slabs";
+import { getSlabsForMaterialLine } from "@/lib/slabs";
 import {
   trackPageView,
   trackSlabSelected,
@@ -40,17 +30,13 @@ export default function Home() {
   >([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   // Dynamic slabs state
   const [dynamicSlabs, setDynamicSlabs] = useState<Slab[]>([]);
-  const [featuredSlabIds, setFeaturedSlabIds] =
-    useState<string[]>(FEATURED_SLAB_IDS);
   const [slabsLoading, setSlabsLoading] = useState(true);
 
   // AB Testing state
   const [abVariant, setAbVariant] = useState<ABVariant>("A");
-  const [isUnlocked, setIsUnlocked] = useState(false);
   const [verifiedPhone, setVerifiedPhoneState] = useState<string | null>(null);
 
   // Load slabs dynamically based on material line context
@@ -68,7 +54,6 @@ export default function Home() {
           );
           if (slabs.length > 0) {
             setDynamicSlabs(slabs);
-            setFeaturedSlabIds(getFeaturedSlabs(slabs));
           } else {
             // Fall back to default slabs if none found
             setDynamicSlabs(SLABS);
@@ -87,11 +72,10 @@ export default function Home() {
     loadSlabs();
   }, [materialLine]);
 
-  // Initialize AB variant and unlock state on mount
+  // Initialize AB variant on mount
   useEffect(() => {
     const variant = getABVariant();
     setAbVariant(variant);
-    setIsUnlocked(hasUnlockedSlabs());
     setVerifiedPhoneState(getVerifiedPhone());
 
     trackABEvent(variant, "page_view");
@@ -104,14 +88,6 @@ export default function Home() {
 
   // Use dynamic slabs if available, otherwise fall back to default
   const allSlabs = dynamicSlabs.length > 0 ? dynamicSlabs : SLABS;
-
-  // Determine which slabs to show based on AB variant and unlock status
-  const visibleSlabs =
-    shouldShowLimitedSlabs(abVariant) && !isUnlocked
-      ? allSlabs.filter((slab) => featuredSlabIds.includes(slab.id))
-      : allSlabs;
-
-  const isLimited = shouldShowLimitedSlabs(abVariant) && !isUnlocked;
 
   const handleImageUpload = (base64Image: string) => {
     setKitchenImage(base64Image);
@@ -140,19 +116,6 @@ export default function Home() {
       return prev;
     });
     setError(null);
-  };
-
-  const handleUnlockClick = () => {
-    trackABEvent(abVariant, "unlock_clicked");
-    setShowVerificationModal(true);
-  };
-
-  const handleVerified = (phone: string) => {
-    unlockSlabs();
-    setVerifiedPhone(phone);
-    setIsUnlocked(true);
-    setVerifiedPhoneState(phone);
-    trackABEvent(abVariant, "phone_verified");
   };
 
   const compressImage = async (base64Image: string): Promise<string> => {
@@ -323,7 +286,7 @@ export default function Home() {
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-[var(--color-text)] mb-3">
             {materialLine?.name
-              ? `${materialLine.name} Visualizer`
+              ? `${materialLine.name}`
               : "Countertop Visualizer"}
           </h1>
           <p className="text-lg text-[var(--color-text-secondary)] max-w-2xl mx-auto">
@@ -389,12 +352,9 @@ export default function Home() {
                 </h2>
               </div>
               <SlabSelector
-                slabs={visibleSlabs}
+                slabs={allSlabs}
                 selectedSlabs={selectedSlabs}
                 onSlabSelect={handleSlabSelect}
-                showUnlockPrompt={isLimited}
-                onUnlockClick={handleUnlockClick}
-                isLimited={isLimited}
               />
             </div>
           </div>
@@ -564,13 +524,6 @@ export default function Home() {
           </div>
         )}
       </div>
-
-      {/* Phone Verification Modal */}
-      <PhoneVerificationModal
-        isOpen={showVerificationModal}
-        onClose={() => setShowVerificationModal(false)}
-        onVerified={handleVerified}
-      />
     </div>
   );
 }

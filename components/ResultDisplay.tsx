@@ -210,6 +210,11 @@ export default function ResultDisplay({
               onLeftIndexChange={setCompareLeftIndex}
               onRightIndexChange={setCompareRightIndex}
               onImageClick={openModal}
+              onGetQuote={(imageId, imageName, imageUrl) => {
+                if (imageId !== 'original') {
+                  handleGetQuote(imageId, imageName, imageUrl)
+                }
+              }}
             />
           </div>
         )}

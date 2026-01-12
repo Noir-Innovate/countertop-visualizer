@@ -7,6 +7,7 @@ interface PhoneVerificationModalProps {
   isOpen: boolean
   onClose: () => void
   onVerified: (phone: string) => void
+  autoClose?: boolean // If false, won't auto-close after verification (for multi-step flows)
 }
 
 type Step = 'phone' | 'code' | 'success'
@@ -15,6 +16,7 @@ export default function PhoneVerificationModal({
   isOpen,
   onClose,
   onVerified,
+  autoClose = true,
 }: PhoneVerificationModalProps) {
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
@@ -171,10 +173,12 @@ export default function PhoneVerificationModal({
       trackEvent('verification_successful')
       setStep('success')
       
-      // After a brief delay, close and notify parent
+      // After a brief delay, notify parent and optionally close
       setTimeout(() => {
         onVerified(`+1${digits}`)
-        onClose()
+        if (autoClose) {
+          onClose()
+        }
       }, 1500)
     } catch (err) {
       trackEvent('verification_failed')
@@ -217,10 +221,10 @@ export default function PhoneVerificationModal({
               </div>
               
               <h2 className="text-2xl font-bold text-[var(--color-text)] mb-2">
-                Unlock All Countertops
+                Verify Your Phone Number
               </h2>
               <p className="text-[var(--color-text-secondary)] mb-6">
-                Enter your phone number to access all 19 premium countertop styles
+                We'll send you a verification code to confirm your phone number
               </p>
 
               <div className="mb-4">
@@ -351,7 +355,7 @@ export default function PhoneVerificationModal({
                 Verified!
               </h2>
               <p className="text-[var(--color-text-secondary)]">
-                You now have access to all countertop styles
+                Your phone number has been verified. You can now continue with your quote request.
               </p>
             </div>
           )}

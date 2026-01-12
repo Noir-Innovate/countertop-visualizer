@@ -16,6 +16,7 @@ interface ImageComparisonProps {
   onLeftIndexChange: (index: number) => void
   onRightIndexChange: (index: number) => void
   onImageClick: (imageUrl: string, alt: string) => void
+  onGetQuote?: (imageId: string, imageName: string, imageUrl: string) => void
 }
 
 export default function ImageComparison({
@@ -25,6 +26,7 @@ export default function ImageComparison({
   onLeftIndexChange,
   onRightIndexChange,
   onImageClick,
+  onGetQuote,
 }: ImageComparisonProps) {
   if (images.length < 2) return null
 
@@ -69,6 +71,19 @@ export default function ImageComparison({
               </option>
             ))}
           </select>
+
+          {/* Get Quote Button - only for non-original */}
+          {!leftImage.isOriginal && onGetQuote && (
+            <button
+              onClick={() => onGetQuote(leftImage.id, leftImage.name, leftImage.imageUrl)}
+              className="w-full px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-1.5"
+            >
+              Get Quote
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Right Image */}
@@ -105,6 +120,19 @@ export default function ImageComparison({
               </option>
             ))}
           </select>
+
+          {/* Get Quote Button - only for non-original */}
+          {!rightImage.isOriginal && onGetQuote && (
+            <button
+              onClick={() => onGetQuote(rightImage.id, rightImage.name, rightImage.imageUrl)}
+              className="w-full px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-1.5"
+            >
+              Get Quote
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
