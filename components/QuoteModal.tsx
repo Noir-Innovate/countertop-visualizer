@@ -5,6 +5,7 @@ import Image from "next/image";
 import { trackEvent } from "@/lib/posthog";
 import PhoneVerificationModal from "@/components/PhoneVerificationModal";
 import { setVerifiedPhone } from "@/lib/ab-testing";
+import { useMaterialLine } from "@/lib/material-line";
 import type { LeadFormData } from "@/lib/types";
 
 interface QuoteModalProps {
@@ -15,8 +16,6 @@ interface QuoteModalProps {
   selectedImageUrl: string | null;
   verifiedPhone: string | null;
   abVariant: string;
-  materialLineId?: string | null;
-  organizationId?: string | null;
   onSubmitSuccess: () => void;
 }
 
@@ -28,10 +27,9 @@ export default function QuoteModal({
   selectedImageUrl,
   verifiedPhone,
   abVariant,
-  materialLineId,
-  organizationId,
   onSubmitSuccess,
 }: QuoteModalProps) {
+  const materialLine = useMaterialLine();
   const [step, setStep] = useState<'verify' | 'form'>('verify');
   const [currentVerifiedPhone, setCurrentVerifiedPhone] = useState<string | null>(verifiedPhone);
   const [formData, setFormData] = useState<LeadFormData>({
@@ -121,8 +119,8 @@ export default function QuoteModal({
           selectedSlabName,
           selectedImageUrl,
           abVariant,
-          materialLineId: materialLineId || null,
-          organizationId: organizationId || null,
+          materialLineId: materialLine?.id || null,
+          organizationId: materialLine?.organizationId || null,
         }),
       });
 

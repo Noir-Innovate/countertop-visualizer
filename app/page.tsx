@@ -371,8 +371,6 @@ export default function Home() {
             onReset={handleReset}
             verifiedPhone={verifiedPhone}
             abVariant={abVariant}
-            materialLineId={materialLine?.id}
-            organizationId={materialLine?.organizationId}
             onRetryGeneration={async (slabId: string) => {
               // Skip if it's the original image
               if (slabId === "original" || !kitchenImage) return;

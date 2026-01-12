@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trackEvent } from "@/lib/posthog";
+import { useMaterialLine } from "@/lib/material-line";
 import type { LeadFormData } from "@/lib/types";
 
 interface LeadCaptureFormProps {
@@ -10,8 +11,6 @@ interface LeadCaptureFormProps {
   selectedImageUrl: string | null;
   verifiedPhone: string | null;
   abVariant: string;
-  materialLineId?: string | null;
-  organizationId?: string | null;
   onSubmitSuccess: () => void;
 }
 
@@ -21,10 +20,9 @@ export default function LeadCaptureForm({
   selectedImageUrl,
   verifiedPhone,
   abVariant,
-  materialLineId,
-  organizationId,
   onSubmitSuccess,
 }: LeadCaptureFormProps) {
+  const materialLine = useMaterialLine();
   const [formData, setFormData] = useState<LeadFormData>({
     name: "",
     email: "",
@@ -82,8 +80,8 @@ export default function LeadCaptureForm({
           selectedSlabName,
           selectedImageUrl,
           abVariant,
-          materialLineId: materialLineId || null,
-          organizationId: organizationId || null,
+          materialLineId: materialLine?.id || null,
+          organizationId: materialLine?.organizationId || null,
         }),
       });
 
