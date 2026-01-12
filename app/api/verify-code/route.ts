@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServiceClient } from "@/lib/supabase/server";
 import { verifyCode } from "@/lib/twilio";
 
 export async function POST(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Code is verified, create or update user session in Supabase
     // Use service role client to bypass RLS
-    const supabase = createServerClient();
+    const supabase = await createServiceClient();
 
     // Create or update user session
     const { data: existingSession } = await supabase

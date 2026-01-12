@@ -101,20 +101,26 @@ export default function Home() {
       if (prev.find((s) => s.id === slab.id)) {
         return prev.filter((s) => s.id !== slab.id);
       } else if (prev.length < 3) {
-        trackABEvent(abVariant, "slab_selected", { slabId: slab.id });
-        // Track with material line context
-        if (materialLine) {
-          trackSlabSelected(
-            materialLine.id,
-            materialLine.organizationId,
-            slab.id,
-            slab.name
-          );
-        }
         return [...prev, slab];
       }
       return prev;
     });
+
+    // Track only when adding a new slab (not removing)
+    const wasSelected = selectedSlabs.find((s) => s.id === slab.id);
+    if (!wasSelected && selectedSlabs.length < 3) {
+      trackABEvent(abVariant, "slab_selected", { slabId: slab.id });
+      // Track with material line context
+      if (materialLine) {
+        trackSlabSelected(
+          slab.id,
+          slab.name,
+          materialLine.id,
+          materialLine.organizationId
+        );
+      }
+    }
+
     setError(null);
   };
 
@@ -214,10 +220,10 @@ export default function Home() {
     // Track with material line context
     if (materialLine) {
       trackGenerationStarted(
-        materialLine.id,
-        materialLine.organizationId,
         selectedSlabs.length,
-        selectedSlabs.map((s) => s.id)
+        selectedSlabs.map((s) => s.id),
+        materialLine.id,
+        materialLine.organizationId
       );
     }
 

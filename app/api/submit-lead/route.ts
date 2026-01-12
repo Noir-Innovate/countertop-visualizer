@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServiceClient } from "@/lib/supabase/server";
 import { notifySalesTeam, sendUserConfirmation } from "@/lib/twilio";
 import { createContact } from "@/lib/ghl";
 import { trackQuoteSubmitted } from "@/lib/analytics";
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use service role client to bypass RLS
-    const supabase = createServerClient();
+    const supabase = await createServiceClient();
 
     // Get user session if phone exists (optional - for linking leads to sessions)
     let sessionId = null;
@@ -84,13 +84,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Track analytics event
-    if (data.materialLineId && data.organizationId) {
-      await trackQuoteSubmitted(data.materialLineId, data.organizationId, {
+    await trackQuoteSubmitted(
+      {
         name: data.name,
         email: data.email,
         selectedSlab: data.selectedSlabName,
-      });
-    }
+      },
+      data.materialLineId || null,
+      data.organizationId || null
+    );
 
     // Create contact in GHL
     const contactResult = await createContact({
