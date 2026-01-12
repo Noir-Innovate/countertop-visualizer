@@ -10,6 +10,8 @@ interface LeadCaptureFormProps {
   selectedImageUrl: string | null;
   verifiedPhone: string | null;
   abVariant: string;
+  materialLineId?: string | null;
+  organizationId?: string | null;
   onSubmitSuccess: () => void;
 }
 
@@ -19,6 +21,8 @@ export default function LeadCaptureForm({
   selectedImageUrl,
   verifiedPhone,
   abVariant,
+  materialLineId,
+  organizationId,
   onSubmitSuccess,
 }: LeadCaptureFormProps) {
   const [formData, setFormData] = useState<LeadFormData>({
@@ -78,6 +82,8 @@ export default function LeadCaptureForm({
           selectedSlabName,
           selectedImageUrl,
           abVariant,
+          materialLineId: materialLineId || null,
+          organizationId: organizationId || null,
         }),
       });
 

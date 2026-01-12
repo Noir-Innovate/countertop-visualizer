@@ -15,6 +15,8 @@ interface QuoteModalProps {
   selectedImageUrl: string | null;
   verifiedPhone: string | null;
   abVariant: string;
+  materialLineId?: string | null;
+  organizationId?: string | null;
   onSubmitSuccess: () => void;
 }
 
@@ -26,6 +28,8 @@ export default function QuoteModal({
   selectedImageUrl,
   verifiedPhone,
   abVariant,
+  materialLineId,
+  organizationId,
   onSubmitSuccess,
 }: QuoteModalProps) {
   const [step, setStep] = useState<'verify' | 'form'>('verify');
@@ -117,6 +121,8 @@ export default function QuoteModal({
           selectedSlabName,
           selectedImageUrl,
           abVariant,
+          materialLineId: materialLineId || null,
+          organizationId: organizationId || null,
         }),
       });
 

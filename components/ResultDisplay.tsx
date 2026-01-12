@@ -14,6 +14,8 @@ interface ResultDisplayProps {
   verifiedPhone: string | null;
   abVariant: string;
   onRetryGeneration: (slabId: string) => Promise<void>;
+  materialLineId?: string | null;
+  organizationId?: string | null;
 }
 
 type ViewMode = "carousel" | "compare";
@@ -25,6 +27,8 @@ export default function ResultDisplay({
   verifiedPhone,
   abVariant,
   onRetryGeneration,
+  materialLineId,
+  organizationId,
 }: ResultDisplayProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageAlt, setSelectedImageAlt] = useState("");
@@ -300,6 +304,8 @@ export default function ResultDisplay({
           selectedImageUrl={selectedForQuote.imageUrl}
           verifiedPhone={verifiedPhone}
           abVariant={abVariant}
+          materialLineId={materialLineId}
+          organizationId={organizationId}
           onSubmitSuccess={() => setShowLeadForm(false)}
         />
       )}
