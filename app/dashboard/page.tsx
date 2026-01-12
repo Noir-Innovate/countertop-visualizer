@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { getPostHogEventCounts } from "@/lib/posthog-server";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -60,9 +61,29 @@ export default async function DashboardPage() {
       })
       .filter((org) => org.id) || [];
 
-  // Analytics queries removed - will be re-implemented with PostHog API later
-  const totalPageViews = 0;
-  const totalQuoteRequests = 0;
+  // Fetch analytics from PostHog
+  const allMaterialLineIds = organizations.flatMap(
+    (org) => org.material_lines?.map((ml) => ml.id) || []
+  );
+
+  let totalPageViews = 0;
+  let totalQuoteRequests = 0;
+
+  if (allMaterialLineIds.length > 0) {
+    const [pageViews, quoteRequests] = await getPostHogEventCounts([
+      {
+        eventName: "page_view",
+        materialLineIds: allMaterialLineIds,
+      },
+      {
+        eventName: "quote_submitted",
+        materialLineIds: allMaterialLineIds,
+      },
+    ]);
+
+    totalPageViews = pageViews;
+    totalQuoteRequests = quoteRequests;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

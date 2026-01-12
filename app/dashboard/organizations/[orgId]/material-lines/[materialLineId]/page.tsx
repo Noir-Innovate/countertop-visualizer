@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { getPostHogEventCounts } from "@/lib/posthog-server";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -58,11 +59,33 @@ export default async function MaterialLinePage({ params }: Props) {
       file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i)
     ).length || 0;
 
-  // Analytics queries removed - will be re-implemented with PostHog API later
-  const pageViews = 0;
-  const quoteRequests = 0;
-  const generationsStarted = 0;
-  const slabsSelected = 0;
+  // Fetch analytics from PostHog for last 30 days
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [pageViews, quoteRequests, generationsStarted, slabsSelected] =
+    await getPostHogEventCounts([
+      {
+        eventName: "page_view",
+        materialLineIds: [materialLineId],
+        startDate: thirtyDaysAgo,
+      },
+      {
+        eventName: "quote_submitted",
+        materialLineIds: [materialLineId],
+        startDate: thirtyDaysAgo,
+      },
+      {
+        eventName: "generation_started",
+        materialLineIds: [materialLineId],
+        startDate: thirtyDaysAgo,
+      },
+      {
+        eventName: "slab_selected",
+        materialLineIds: [materialLineId],
+        startDate: thirtyDaysAgo,
+      },
+    ]);
 
   // Fetch recent leads
   const { data: recentLeads } = await supabase
