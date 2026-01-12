@@ -43,36 +43,10 @@ export default async function OrganizationPage({ params }: Props) {
     notFound()
   }
 
-  // Fetch analytics for all material lines in this org
-  const materialLineIds = org.material_lines?.map(ml => ml.id) || []
-  
-  let pageViews = 0
-  let quoteRequests = 0
-  let generationsStarted = 0
-
-  if (materialLineIds.length > 0) {
-    const { count: pv } = await supabase
-      .from('analytics_events')
-      .select('*', { count: 'exact', head: true })
-      .in('material_line_id', materialLineIds)
-      .eq('event_type', 'page_view')
-
-    const { count: qr } = await supabase
-      .from('analytics_events')
-      .select('*', { count: 'exact', head: true })
-      .in('material_line_id', materialLineIds)
-      .eq('event_type', 'quote_submitted')
-
-    const { count: gs } = await supabase
-      .from('analytics_events')
-      .select('*', { count: 'exact', head: true })
-      .in('material_line_id', materialLineIds)
-      .eq('event_type', 'generation_started')
-
-    pageViews = pv || 0
-    quoteRequests = qr || 0
-    generationsStarted = gs || 0
-  }
+  // Analytics queries removed - will be re-implemented with PostHog API later
+  const pageViews = 0
+  const quoteRequests = 0
+  const generationsStarted = 0
 
   const conversionRate = pageViews > 0 
     ? ((quoteRequests / pageViews) * 100).toFixed(1) 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifySalesTeam, sendUserConfirmation } from "@/lib/twilio";
 import { createContact } from "@/lib/ghl";
-import { trackQuoteSubmitted } from "@/lib/analytics";
+import { PostHog } from "posthog-node";
 
 interface LeadData {
   name: string;
@@ -83,16 +83,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Track analytics event
-    await trackQuoteSubmitted(
-      {
-        name: data.name,
-        email: data.email,
-        selectedSlab: data.selectedSlabName,
-      },
-      data.materialLineId || null,
-      data.organizationId || null
-    );
+    // Track analytics event with PostHog
+    if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+      const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
+        host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+      });
+
+      posthog.capture({
+        distinctId: sessionId || "anonymous",
+        event: "quote_submitted",
+        properties: {
+          name: data.name,
+          email: data.email,
+          selectedSlab: data.selectedSlabName,
+          materialLineId: data.materialLineId || null,
+          organizationId: data.organizationId || null,
+        },
+      });
+
+      await posthog.shutdown();
+    }
 
     // Create contact in GHL
     const contactResult = await createContact({

@@ -60,30 +60,9 @@ export default async function DashboardPage() {
       })
       .filter((org) => org.id) || [];
 
-  // Calculate total stats across all orgs
-  const allMaterialLineIds = organizations.flatMap(
-    (org) => org.material_lines?.map((ml) => ml.id) || []
-  );
-
-  let totalPageViews = 0;
-  let totalQuoteRequests = 0;
-
-  if (allMaterialLineIds.length > 0) {
-    const { count: pageViews } = await supabase
-      .from("analytics_events")
-      .select("*", { count: "exact", head: true })
-      .in("material_line_id", allMaterialLineIds)
-      .eq("event_type", "page_view");
-
-    const { count: quotes } = await supabase
-      .from("analytics_events")
-      .select("*", { count: "exact", head: true })
-      .in("material_line_id", allMaterialLineIds)
-      .eq("event_type", "quote_submitted");
-
-    totalPageViews = pageViews || 0;
-    totalQuoteRequests = quotes || 0;
-  }
+  // Analytics queries removed - will be re-implemented with PostHog API later
+  const totalPageViews = 0;
+  const totalQuoteRequests = 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

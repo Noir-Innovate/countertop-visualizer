@@ -58,37 +58,11 @@ export default async function MaterialLinePage({ params }: Props) {
       file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i)
     ).length || 0;
 
-  // Fetch analytics for this material line
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-  const { count: pageViews } = await supabase
-    .from("analytics_events")
-    .select("*", { count: "exact", head: true })
-    .eq("material_line_id", materialLineId)
-    .eq("event_type", "page_view")
-    .gte("created_at", thirtyDaysAgo.toISOString());
-
-  const { count: quoteRequests } = await supabase
-    .from("analytics_events")
-    .select("*", { count: "exact", head: true })
-    .eq("material_line_id", materialLineId)
-    .eq("event_type", "quote_submitted")
-    .gte("created_at", thirtyDaysAgo.toISOString());
-
-  const { count: generationsStarted } = await supabase
-    .from("analytics_events")
-    .select("*", { count: "exact", head: true })
-    .eq("material_line_id", materialLineId)
-    .eq("event_type", "generation_started")
-    .gte("created_at", thirtyDaysAgo.toISOString());
-
-  const { count: slabsSelected } = await supabase
-    .from("analytics_events")
-    .select("*", { count: "exact", head: true })
-    .eq("material_line_id", materialLineId)
-    .eq("event_type", "slab_selected")
-    .gte("created_at", thirtyDaysAgo.toISOString());
+  // Analytics queries removed - will be re-implemented with PostHog API later
+  const pageViews = 0;
+  const quoteRequests = 0;
+  const generationsStarted = 0;
+  const slabsSelected = 0;
 
   // Fetch recent leads
   const { data: recentLeads } = await supabase

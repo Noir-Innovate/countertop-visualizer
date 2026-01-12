@@ -15,11 +15,7 @@ import {
 import { SLABS, type Slab, type GenerationResult } from "@/lib/types";
 import { useMaterialLine } from "@/lib/material-line";
 import { getSlabsForMaterialLine } from "@/lib/slabs";
-import {
-  trackPageView,
-  trackSlabSelected,
-  trackGenerationStarted,
-} from "@/lib/analytics";
+import posthog from "posthog-js";
 
 export default function Home() {
   const materialLine = useMaterialLine();
@@ -81,8 +77,14 @@ export default function Home() {
     trackABEvent(variant, "page_view");
 
     // Track page view with material line context
-    if (materialLine) {
-      trackPageView(materialLine.id, materialLine.organizationId);
+    if (materialLine && typeof window !== "undefined") {
+      posthog.capture("page_view", {
+        materialLineId: materialLine.id,
+        organizationId: materialLine.organizationId,
+        url: window.location.href,
+        referrer: document.referrer,
+        userAgent: navigator.userAgent,
+      });
     }
   }, [materialLine]);
 
@@ -111,13 +113,13 @@ export default function Home() {
     if (!wasSelected && selectedSlabs.length < 3) {
       trackABEvent(abVariant, "slab_selected", { slabId: slab.id });
       // Track with material line context
-      if (materialLine) {
-        trackSlabSelected(
-          slab.id,
-          slab.name,
-          materialLine.id,
-          materialLine.organizationId
-        );
+      if (materialLine && typeof window !== "undefined") {
+        posthog.capture("slab_selected", {
+          slabId: slab.id,
+          slabName: slab.name,
+          materialLineId: materialLine.id,
+          organizationId: materialLine.organizationId,
+        });
       }
     }
 
@@ -218,13 +220,13 @@ export default function Home() {
     });
 
     // Track with material line context
-    if (materialLine) {
-      trackGenerationStarted(
-        selectedSlabs.length,
-        selectedSlabs.map((s) => s.id),
-        materialLine.id,
-        materialLine.organizationId
-      );
+    if (materialLine && typeof window !== "undefined") {
+      posthog.capture("generation_started", {
+        slabCount: selectedSlabs.length,
+        slabIds: selectedSlabs.map((s) => s.id),
+        materialLineId: materialLine.id,
+        organizationId: materialLine.organizationId,
+      });
     }
 
     // Initialize results with loading states
