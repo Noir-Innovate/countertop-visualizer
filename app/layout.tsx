@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Libre_Franklin } from "next/font/google";
 import "./globals.css";
-import { PostHogProvider } from "./providers";
+import { PostHogProvider, MaterialLineProviderWrapper } from "./providers";
+import { getMaterialLineFromHeaders, generateThemeStyles } from "@/lib/material-line-server";
 
 const libreFranklin = Libre_Franklin({
   variable: "--font-libre-franklin",
@@ -15,16 +16,24 @@ export const metadata: Metadata = {
   keywords: ["countertop", "visualizer", "kitchen", "AI", "marble", "granite", "quartz"],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const materialLine = await getMaterialLineFromHeaders();
+  const themeStyles = generateThemeStyles(materialLine);
+
   return (
     <html lang="en">
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: themeStyles }} />
+      </head>
       <body className={`${libreFranklin.variable} font-sans antialiased`}>
         <PostHogProvider>
-          {children}
+          <MaterialLineProviderWrapper materialLine={materialLine}>
+            {children}
+          </MaterialLineProviderWrapper>
         </PostHogProvider>
       </body>
     </html>

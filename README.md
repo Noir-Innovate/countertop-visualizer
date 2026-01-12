@@ -33,18 +33,21 @@ A Next.js application that lets users visualize different countertop materials i
 ### Installation
 
 1. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 2. **Set up environment variables**
-   
+
    Copy the example env file and fill in your values:
+
    ```bash
    cp .env.local.example .env.local
    ```
 
    Required environment variables:
+
    ```bash
    # Supabase
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
@@ -70,17 +73,24 @@ A Next.js application that lets users visualize different countertop materials i
 
    # Sales Team Phone Numbers (comma-separated)
    SALES_TEAM_PHONES=+1234567890,+0987654321
+
+   # Vercel (for custom domain management)
+   VERCEL_API_TOKEN=your_vercel_api_token
+   VERCEL_PROJECT_ID=your_vercel_project_id
+   VERCEL_TEAM_ID=your_vercel_team_id  # Optional, only if using Vercel teams
    ```
 
 3. **Set up Supabase database**
-   
+
    Run the migration in your Supabase SQL Editor:
+
    ```bash
    # Copy contents from:
    supabase/migrations/001_initial_schema.sql
    ```
 
 4. **Run the development server**
+
    ```bash
    npm run dev
    ```
@@ -130,15 +140,18 @@ The app implements two variants:
 - **Variant B (Full Access)**: Shows all 19 countertops immediately without verification.
 
 PostHog feature flag: `countertop-slab-access`
+
 - `limited` → Variant A
 - `full-access` → Variant B
 
 ## API Routes
 
 ### POST /api/generate-countertop
+
 Generates a visualization using Gemini AI.
 
 **Request Body:**
+
 ```json
 {
   "kitchenImage": "base64_encoded_image",
@@ -150,9 +163,11 @@ Generates a visualization using Gemini AI.
 ```
 
 ### POST /api/send-verification
+
 Sends SMS verification code via Twilio.
 
 **Request Body:**
+
 ```json
 {
   "phone": "+15551234567"
@@ -160,9 +175,11 @@ Sends SMS verification code via Twilio.
 ```
 
 ### POST /api/verify-code
+
 Verifies the SMS code.
 
 **Request Body:**
+
 ```json
 {
   "phone": "+15551234567",
@@ -171,9 +188,11 @@ Verifies the SMS code.
 ```
 
 ### POST /api/submit-lead
+
 Submits lead information.
 
 **Request Body:**
+
 ```json
 {
   "name": "John Smith",

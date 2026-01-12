@@ -18,6 +18,7 @@ export interface LeadFormData {
   email: string
   address: string
   phone?: string
+  smsNotifications?: boolean
 }
 
 // Old/demo slab options (kept for reference, not used)

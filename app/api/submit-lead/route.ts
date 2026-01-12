@@ -2,16 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { notifySalesTeam, sendUserConfirmation } from '@/lib/twilio'
 import { createContact } from '@/lib/ghl'
+import { trackQuoteSubmitted } from '@/lib/analytics'
 
 interface LeadData {
   name: string
   email: string
   address: string
   phone?: string
+  smsNotifications?: boolean
   selectedSlabId?: string
   selectedSlabName?: string
   selectedImageUrl?: string
   abVariant?: string
+  materialLineId?: string
+  organizationId?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -60,9 +64,12 @@ export async function POST(request: NextRequest) {
         email: data.email,
         address: data.address,
         phone: data.phone || null,
+        sms_notifications: data.smsNotifications || false,
         selected_slab_id: data.selectedSlabId || null,
         selected_image_url: data.selectedImageUrl || null,
         ab_variant: data.abVariant || null,
+        material_line_id: data.materialLineId || null,
+        organization_id: data.organizationId || null,
       })
       .select()
       .single()
@@ -73,6 +80,15 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to submit lead' },
         { status: 500 }
       )
+    }
+
+    // Track analytics event
+    if (data.materialLineId && data.organizationId) {
+      await trackQuoteSubmitted(data.materialLineId, data.organizationId, {
+        name: data.name,
+        email: data.email,
+        selectedSlab: data.selectedSlabName,
+      })
     }
 
     // Create contact in GHL
@@ -105,8 +121,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Send confirmation to user if they have a phone
-    if (data.phone) {
+    // Send confirmation to user if they have a phone and opted in for SMS notifications
+    if (data.phone && data.smsNotifications) {
       await sendUserConfirmation(
         data.phone, 
         data.name,
