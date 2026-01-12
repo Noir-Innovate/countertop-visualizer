@@ -30,8 +30,10 @@ export default function QuoteModal({
   onSubmitSuccess,
 }: QuoteModalProps) {
   const materialLine = useMaterialLine();
-  const [step, setStep] = useState<'verify' | 'form'>('verify');
-  const [currentVerifiedPhone, setCurrentVerifiedPhone] = useState<string | null>(verifiedPhone);
+  const [step, setStep] = useState<"verify" | "form">("verify");
+  const [currentVerifiedPhone, setCurrentVerifiedPhone] = useState<
+    string | null
+  >(verifiedPhone);
   const [formData, setFormData] = useState<LeadFormData>({
     name: "",
     email: "",
@@ -47,11 +49,11 @@ export default function QuoteModal({
   useEffect(() => {
     if (isOpen) {
       if (verifiedPhone) {
-        setStep('form');
+        setStep("form");
         setCurrentVerifiedPhone(verifiedPhone);
-        setFormData(prev => ({ ...prev, phone: verifiedPhone }));
+        setFormData((prev) => ({ ...prev, phone: verifiedPhone }));
       } else {
-        setStep('verify');
+        setStep("verify");
         setCurrentVerifiedPhone(null);
       }
       setSuccess(false);
@@ -74,8 +76,8 @@ export default function QuoteModal({
   const handleVerified = (phone: string) => {
     setCurrentVerifiedPhone(phone);
     setVerifiedPhone(phone);
-    setFormData(prev => ({ ...prev, phone }));
-    setStep('form');
+    setFormData((prev) => ({ ...prev, phone }));
+    setStep("form");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,7 +86,7 @@ export default function QuoteModal({
     // Require phone verification
     if (!currentVerifiedPhone) {
       setError("Please verify your phone number first");
-      setStep('verify');
+      setStep("verify");
       return;
     }
 
@@ -151,7 +153,7 @@ export default function QuoteModal({
   if (!isOpen) return null;
 
   // Show phone verification first if not verified
-  if (step === 'verify') {
+  if (step === "verify") {
     return (
       <PhoneVerificationModal
         isOpen={isOpen}
@@ -314,8 +316,18 @@ export default function QuoteModal({
                     />
                     {currentVerifiedPhone && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-[var(--color-success)]">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
                         Verified
                       </div>
@@ -324,7 +336,7 @@ export default function QuoteModal({
                   {!currentVerifiedPhone && (
                     <button
                       type="button"
-                      onClick={() => setStep('verify')}
+                      onClick={() => setStep("verify")}
                       className="mt-2 text-sm text-white/80 hover:text-white underline"
                     >
                       Verify phone number
