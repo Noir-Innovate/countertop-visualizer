@@ -4,7 +4,7 @@
  *
  * Required environment variables:
  * - POSTHOG_API_KEY: PostHog Personal API Key with query:read permissions
- * - POSTHOG_PROJECT_ID or NEXT_PUBLIC_POSTHOG_PROJECT_ID: Your PostHog project ID
+ * - POSTHOG_PROJECT_ID: Your PostHog project ID (numeric)
  * - NEXT_PUBLIC_POSTHOG_HOST: PostHog host URL (e.g., https://app.posthog.com or https://us.i.posthog.com)
  */
 
@@ -14,6 +14,126 @@ interface PostHogEventCountParams {
   organizationId?: string;
   startDate?: Date;
   endDate?: Date;
+}
+
+// Cache project ID to avoid repeated API calls
+let cachedProjectId: string | null = null;
+
+/**
+ * Get PostHog project ID from API or environment variables
+ */
+async function getPostHogProjectId(): Promise<string | null> {
+  // Check cache first
+  if (cachedProjectId) {
+    return cachedProjectId;
+  }
+
+  // Check environment variable - only use POSTHOG_PROJECT_ID
+  const envProjectId = process.env.POSTHOG_PROJECT_ID;
+
+  if (envProjectId) {
+    // Validate it's not an API key (API keys start with phc_ or phx_)
+    if (!envProjectId.startsWith("phc_") && !envProjectId.startsWith("phx_")) {
+      cachedProjectId = envProjectId;
+      return envProjectId;
+    } else {
+      console.warn(
+        "[PostHog] POSTHOG_PROJECT_ID appears to be an API key, not a project ID. " +
+          "Project IDs are numeric or UUIDs. Attempting to fetch project ID from API..."
+      );
+    }
+  }
+
+  // Try to extract from API key format (some PostHog keys contain project info)
+  const apiKey = process.env.POSTHOG_API_KEY;
+  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+
+  if (!apiKey) {
+    return null;
+  }
+
+  // Try to fetch project ID from PostHog API
+  // Personal API keys are scoped to a project, so we can query the user/me endpoint
+  try {
+    // Try /api/users/@me/ to get user info which might include project
+    const userResponse = await fetch(`${host}/api/users/@me/`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+
+    if (userResponse.ok) {
+      const userData = await userResponse.json();
+      // Check if user data contains project information
+      if (userData.team?.organization?.projects?.[0]?.id) {
+        const projectId = userData.team.organization.projects[0].id.toString();
+        cachedProjectId = projectId;
+        return projectId;
+      }
+    }
+
+    // Alternative: Try /api/projects/ endpoint
+    const projectsResponse = await fetch(`${host}/api/projects/`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+
+    if (projectsResponse.ok) {
+      const projectsData = await projectsResponse.json();
+
+      // Debug: log the response structure
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "[PostHog] Projects API response:",
+          JSON.stringify(projectsData, null, 2)
+        );
+      }
+
+      // Handle both paginated and non-paginated responses
+      const projects =
+        projectsData.results ||
+        (Array.isArray(projectsData) ? projectsData : []);
+      if (projects.length > 0) {
+        // Personal API keys are typically scoped to one project
+        // Project ID can be in 'id' field (numeric) or 'uuid' field
+        const project = projects[0];
+        const projectId =
+          project.id?.toString() ||
+          project.uuid ||
+          project.project_id?.toString();
+
+        if (projectId) {
+          console.log(
+            `[PostHog] Successfully fetched project ID from API: ${projectId}`
+          );
+          cachedProjectId = projectId;
+          return projectId;
+        } else {
+          console.warn(
+            "[PostHog] Project found but no ID field detected. Project structure:",
+            Object.keys(project)
+          );
+        }
+      } else {
+        console.warn(
+          "[PostHog] No projects found in API response. Make sure your API key has access to projects."
+        );
+      }
+    } else {
+      const errorText = await projectsResponse.text().catch(() => "");
+      console.warn(
+        `[PostHog] Could not fetch projects: ${projectsResponse.status} ${projectsResponse.statusText}`,
+        errorText
+      );
+    }
+  } catch (error) {
+    console.warn("[PostHog] Could not fetch project ID from API:", error);
+  }
+
+  return null;
 }
 
 /**
@@ -61,11 +181,22 @@ export async function getPostHogEventCount({
     }
 
     if (startDate) {
-      conditions.push(`timestamp >= '${startDate.toISOString()}'`);
+      // Use toDateTime() function to convert string to DateTime in HogQL
+      conditions.push(
+        `timestamp >= toDateTime('${startDate
+          .toISOString()
+          .replace("T", " ")
+          .replace("Z", "")}')`
+      );
     }
 
     if (endDate) {
-      conditions.push(`timestamp <= '${endDate.toISOString()}'`);
+      conditions.push(
+        `timestamp <= toDateTime('${endDate
+          .toISOString()
+          .replace("T", " ")
+          .replace("Z", "")}')`
+      );
     }
 
     const whereClause = conditions.join(" AND ");
@@ -74,20 +205,42 @@ export async function getPostHogEventCount({
     // Note: PostHog properties are accessed via JSONExtractString or direct property access
     const query = `SELECT count() as event_count FROM events WHERE ${whereClause}`;
 
-    // Get project ID from environment variable
-    // PostHog requires project ID for API queries
-    const projectId =
-      process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID ||
-      process.env.POSTHOG_PROJECT_ID;
+    // Get project ID (from env or API)
+    const projectId = await getPostHogProjectId();
 
     if (!projectId) {
-      console.warn(
-        "[PostHog] POSTHOG_PROJECT_ID or NEXT_PUBLIC_POSTHOG_PROJECT_ID not set, returning 0"
+      console.error(
+        "[PostHog] Could not determine project ID.\n" +
+          "Please set POSTHOG_PROJECT_ID environment variable.\n" +
+          "\n" +
+          "To find your Project ID:\n" +
+          "1. Go to your PostHog dashboard: " +
+          (host || "https://app.posthog.com") +
+          "\n" +
+          "2. Navigate to Project Settings (or check the URL)\n" +
+          "3. The Project ID is a NUMBER (not phc_...), shown in:\n" +
+          "   - URL: /project/12345/ (12345 is the project ID)\n" +
+          "   - Project Settings page\n" +
+          "\n" +
+          "NOTE: Project ID is NOT the same as your API key (phc_...)\n" +
+          "The Project ID is a numeric identifier for your project."
+      );
+      return 0;
+    }
+
+    // Validate project ID format (should not be an API key)
+    if (projectId.startsWith("phc_") || projectId.startsWith("phx_")) {
+      console.error(
+        `[PostHog] Invalid project ID format: ${projectId}\n` +
+          "This appears to be an API key, not a project ID.\n" +
+          "Project IDs are numeric (e.g., 12345) or UUIDs, not API keys (phc_...)."
       );
       return 0;
     }
 
     // Make request to PostHog Query API
+    // Based on error: query object needs a 'kind' discriminator field
+    // Format: { "query": { "kind": "HogQLQuery", "query": "SELECT ..." } }
     const response = await fetch(`${host}/api/projects/${projectId}/query/`, {
       method: "POST",
       headers: {
@@ -95,17 +248,35 @@ export async function getPostHogEventCount({
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        kind: "HogQLQuery",
-        query,
+        query: {
+          kind: "HogQLQuery",
+          query: query,
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      let errorDetails = errorText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorDetails = JSON.stringify(errorJson, null, 2);
+      } catch {
+        // Keep as text if not JSON
+      }
+
       console.error(
         `[PostHog] Query failed: ${response.status} ${response.statusText}`,
-        errorText
+        `\nProject ID used: ${projectId}`,
+        `\nHost: ${host}`,
+        `\nError: ${errorDetails}`
       );
+
+      // If project not found, clear cache to retry fetching
+      if (response.status === 404) {
+        cachedProjectId = null;
+      }
+
       return 0;
     }
 
