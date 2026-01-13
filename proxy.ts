@@ -97,10 +97,14 @@ export async function proxy(request: NextRequest) {
 
   // For dashboard routes, check authentication
   if (isDashboardRoute) {
-    // Allow access to login and signup pages without auth
-    if (pathname === "/dashboard/login" || pathname === "/dashboard/signup") {
-      // If already logged in, redirect to dashboard
-      if (user) {
+    // Allow access to login, signup, and invitation pages without auth
+    if (
+      pathname === "/dashboard/login" ||
+      pathname === "/dashboard/signup" ||
+      pathname.startsWith("/dashboard/invitations/")
+    ) {
+      // If already logged in and on login/signup, redirect to dashboard
+      if (user && (pathname === "/dashboard/login" || pathname === "/dashboard/signup")) {
         const url = request.nextUrl.clone();
         url.pathname = "/dashboard";
         return NextResponse.redirect(url);

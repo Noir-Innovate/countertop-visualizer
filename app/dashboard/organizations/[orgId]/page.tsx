@@ -253,7 +253,7 @@ export default async function OrganizationPage({ params }: Props) {
       <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Team</h2>
-          {membership.role === "owner" && (
+          {(membership.role === "owner" || membership.role === "admin") && (
             <Link
               href={`/dashboard/organizations/${orgId}/team`}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"

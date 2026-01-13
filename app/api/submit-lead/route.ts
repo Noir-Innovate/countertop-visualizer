@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { notifySalesTeam, sendUserConfirmation } from "@/lib/twilio";
+import { notifySalesTeam, sendUserConfirmation, sendMMS } from "@/lib/twilio";
+import { sendLeadNotificationEmail } from "@/lib/resend";
 import { createContact } from "@/lib/ghl";
 import { PostHog } from "posthog-node";
+import { uploadLeadImage } from "@/lib/storage";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 interface LeadData {
   name: string;
@@ -13,6 +16,7 @@ interface LeadData {
   selectedSlabId?: string;
   selectedSlabName?: string;
   selectedImageUrl?: string;
+  selectedImageBase64?: string; // Base64 image data
   abVariant?: string;
   materialLineId?: string;
   organizationId?: string;
@@ -56,6 +60,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle image upload if base64 image is provided
+    let imageStoragePath: string | null = null;
+    let imageSignedUrl: string | null = data.selectedImageUrl || null;
+
+    if (
+      data.selectedImageBase64 &&
+      data.materialLineId &&
+      data.organizationId
+    ) {
+      // Fetch organization slug and material line slug
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("slug")
+        .eq("id", data.organizationId)
+        .single();
+
+      const { data: materialLine } = await supabase
+        .from("material_lines")
+        .select("slug")
+        .eq("id", data.materialLineId)
+        .single();
+
+      if (org?.slug && materialLine?.slug) {
+        // Detect MIME type from base64 data
+        const mimeMatch = data.selectedImageBase64.match(
+          /data:image\/(\w+);base64/
+        );
+        const mimeType = mimeMatch ? `image/${mimeMatch[1]}` : "image/jpeg";
+
+        // Upload image to storage
+        const uploadResult = await uploadLeadImage(
+          org.slug,
+          materialLine.slug,
+          data.selectedImageBase64,
+          mimeType
+        );
+
+        if (uploadResult.path && uploadResult.url) {
+          imageStoragePath = uploadResult.path;
+          imageSignedUrl = uploadResult.url;
+        } else {
+          console.error("Failed to upload image:", uploadResult.error);
+          // Continue without image if upload fails
+        }
+      }
+    }
+
     // Store lead in Supabase
     const { data: lead, error: insertError } = await supabase
       .from("leads")
@@ -67,7 +118,8 @@ export async function POST(request: NextRequest) {
         phone: data.phone || null,
         sms_notifications: data.smsNotifications || false,
         selected_slab_id: data.selectedSlabId || null,
-        selected_image_url: data.selectedImageUrl || null,
+        selected_image_url: imageSignedUrl,
+        image_storage_path: imageStoragePath,
         ab_variant: data.abVariant || null,
         material_line_id: data.materialLineId || null,
         organization_id: data.organizationId || null,
@@ -121,7 +173,101 @@ export async function POST(request: NextRequest) {
       // Don't fail the request - lead is already stored
     }
 
-    // Notify sales team via SMS
+    // Send notifications to assigned users
+    if (data.materialLineId) {
+      // Fetch notification assignments for this material line
+      const { data: notifications } = await supabase
+        .from("material_line_notifications")
+        .select(
+          `
+          profile_id,
+          sms_enabled,
+          email_enabled,
+          profiles(id, full_name, phone)
+        `
+        )
+        .eq("material_line_id", data.materialLineId);
+
+      if (notifications && notifications.length > 0) {
+        // Get material line name for notifications
+        const { data: materialLine } = await supabase
+          .from("material_lines")
+          .select("name")
+          .eq("id", data.materialLineId)
+          .single();
+
+        const materialLineName = materialLine?.name || "Countertop Visualizer";
+
+        // Get user emails from auth.users
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (supabaseUrl && serviceRoleKey) {
+          const serviceClient = createSupabaseClient(
+            supabaseUrl,
+            serviceRoleKey
+          );
+
+          // Send notifications to each assigned user
+          for (const notification of notifications) {
+            // Get user email
+            const { data: authUser } =
+              await serviceClient.auth.admin.getUserById(
+                notification.profile_id
+              );
+            const userEmail = authUser?.user?.email;
+            // Handle profiles as array (Supabase relation)
+            const profile = Array.isArray(notification.profiles)
+              ? notification.profiles[0]
+              : notification.profiles;
+            const userPhone = profile?.phone;
+
+            const leadInfo = {
+              name: data.name,
+              email: data.email,
+              phone: data.phone,
+              address: data.address,
+              selectedSlab: data.selectedSlabName || "Not specified",
+            };
+
+            // Send SMS/MMS if enabled
+            if (notification.sms_enabled && userPhone) {
+              const message = `🏠 New Countertop Lead!\n\nName: ${
+                leadInfo.name
+              }\nEmail: ${leadInfo.email}\n${
+                leadInfo.phone ? `Phone: ${leadInfo.phone}\n` : ""
+              }Address: ${leadInfo.address}\nSelected: ${
+                leadInfo.selectedSlab
+              }\n\nFollow up ASAP!`;
+
+              if (imageSignedUrl) {
+                // Send MMS with image
+                await sendMMS({
+                  phone: userPhone,
+                  message,
+                  mediaUrl: imageSignedUrl,
+                });
+              } else {
+                // Send SMS without image
+                await notifySalesTeam([userPhone], leadInfo);
+              }
+            }
+
+            // Send email if enabled
+            if (notification.email_enabled && userEmail) {
+              await sendLeadNotificationEmail({
+                to: userEmail,
+                leadInfo,
+                kitchenImageUrl: imageSignedUrl || undefined,
+                materialLineName,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Legacy: Notify sales team via SMS (keep for backward compatibility)
     const salesPhones =
       process.env.SALES_TEAM_PHONES?.split(",").filter(Boolean) || [];
 

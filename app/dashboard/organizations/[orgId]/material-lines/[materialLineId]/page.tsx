@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getPostHogEventCounts } from "@/lib/posthog-server";
+import NotificationButton from "./components/NotificationButton";
+import NotificationList from "./components/NotificationList";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -218,7 +220,7 @@ export default async function MaterialLinePage({ params }: Props) {
       </div>
 
       {/* Recent Leads */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Recent Leads</h2>
         </div>
@@ -244,6 +246,25 @@ export default async function MaterialLinePage({ params }: Props) {
           </div>
         )}
       </div>
+
+      {/* Lead Notifications - Only visible to owners/admins */}
+      {(membership.role === "owner" || membership.role === "admin") && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Lead Notifications
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Assign team members to receive SMS and/or email notifications
+                when new leads are created for this material line.
+              </p>
+            </div>
+            <NotificationButton materialLineId={materialLineId} orgId={orgId} />
+          </div>
+          <NotificationList materialLineId={materialLineId} />
+        </div>
+      )}
 
       {/* Quick Links */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">

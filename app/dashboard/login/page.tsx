@@ -41,37 +41,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleMagicLink = async () => {
-    if (!email) {
-      setError('Please enter your email address')
-      return
-    }
-
-    setError(null)
-    setLoading(true)
-
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${next}`,
-        },
-      })
-
-      if (error) {
-        setError(error.message)
-        return
-      }
-
-      setError(null)
-      alert('Check your email for the login link!')
-    } catch {
-      setError('An unexpected error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 px-4">
@@ -127,23 +96,6 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-slate-500">or</span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleMagicLink}
-            disabled={loading}
-            className="w-full py-3 px-4 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 focus:ring-4 focus:ring-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            Send Magic Link
-          </button>
 
           <p className="mt-6 text-center text-sm text-slate-600">
             Don&apos;t have an account?{' '}
