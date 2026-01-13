@@ -104,7 +104,10 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith("/dashboard/invitations/")
     ) {
       // If already logged in and on login/signup, redirect to dashboard
-      if (user && (pathname === "/dashboard/login" || pathname === "/dashboard/signup")) {
+      if (
+        user &&
+        (pathname === "/dashboard/login" || pathname === "/dashboard/signup")
+      ) {
         const url = request.nextUrl.clone();
         url.pathname = "/dashboard";
         return NextResponse.redirect(url);
@@ -125,14 +128,25 @@ export async function proxy(request: NextRequest) {
   }
 
   // For non-dashboard routes, resolve material line from hostname
-  // Skip material line resolution for localhost in development
+  // Allow subdomain testing on localhost (e.g., subdomain.localhost:3000)
   const isLocalhost =
     hostname.includes("localhost") || hostname.includes("127.0.0.1");
+  const isLocalhostSubdomain =
+    isLocalhost && hostname.includes(".") && !hostname.startsWith("www.");
 
-  if (!isLocalhost) {
+  // Resolve material line for subdomains (including localhost subdomains)
+  if (!isLocalhost || isLocalhostSubdomain) {
+    // For localhost subdomains, extract the port from hostname or use default
+    let effectiveAppDomain = appDomain;
+    if (isLocalhostSubdomain) {
+      // Extract port from hostname (e.g., "subdomain.localhost:3000" -> "localhost:3000")
+      const portMatch = hostname.match(/:(\d+)$/);
+      const port = portMatch ? portMatch[1] : "3000";
+      effectiveAppDomain = `localhost:${port}`;
+    }
     const materialLine = await getMaterialLineBySlugOrDomain(
       hostname,
-      appDomain
+      effectiveAppDomain
     );
 
     if (materialLine) {
@@ -171,11 +185,12 @@ export async function proxy(request: NextRequest) {
       // If no material line found and not an API route, could redirect to error page
       // For now, we'll allow access (could be main domain or localhost)
     }
+  } else {
+    // Plain localhost without subdomain - use default behavior (no material line)
   }
 
   return supabaseResponse;
 }
-
 export const config = {
   matcher: [
     /*

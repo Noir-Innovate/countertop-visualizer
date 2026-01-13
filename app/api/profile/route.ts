@@ -169,8 +169,9 @@ export async function GET(request: NextRequest) {
           full_name: null,
           phone: null,
           avatar_url: null,
+          email: user.email || null,
         },
-        email: user.email,
+        email: profile?.email || user.email,
       },
       { status: 200 }
     );

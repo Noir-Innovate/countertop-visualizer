@@ -9,6 +9,7 @@ interface Profile {
   full_name: string | null
   phone: string | null
   avatar_url: string | null
+  email: string | null
 }
 
 interface ProfileFormProps {

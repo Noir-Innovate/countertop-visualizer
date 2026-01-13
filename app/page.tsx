@@ -6,13 +6,19 @@ import imageCompression from "browser-image-compression";
 import ImageUpload from "@/components/ImageUpload";
 import SlabSelector from "@/components/SlabSelector";
 import ResultDisplay from "@/components/ResultDisplay";
+import ThemeDebug from "@/components/ThemeDebug";
 import { trackEvent, trackABEvent } from "@/lib/posthog";
 import {
   getABVariant,
   getVerifiedPhone,
   type ABVariant,
 } from "@/lib/ab-testing";
-import { SLABS, type Slab, type GenerationResult } from "@/lib/types";
+import {
+  SLABS,
+  EXAMPLE_SLABS,
+  type Slab,
+  type GenerationResult,
+} from "@/lib/types";
 import { useMaterialLine } from "@/lib/material-line";
 import { getSlabsForMaterialLine } from "@/lib/slabs";
 import posthog from "posthog-js";
@@ -38,6 +44,13 @@ export default function Home() {
   // Load slabs dynamically based on material line context
   useEffect(() => {
     const loadSlabs = async () => {
+      // If it's an example (no material line or default), use example slabs
+      if (!materialLine || materialLine.id === "default") {
+        setDynamicSlabs(EXAMPLE_SLABS);
+        setSlabsLoading(false);
+        return;
+      }
+
       if (
         materialLine &&
         materialLine.supabaseFolder &&
@@ -88,8 +101,37 @@ export default function Home() {
     }
   }, [materialLine]);
 
+  // Listen for localStorage changes to sync verification state (cross-tab sync)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "verified_phone") {
+        setVerifiedPhoneState(e.newValue);
+      }
+    };
+
+    // Listen for storage events (from other tabs/windows)
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
+
+  // Handle verification updates from child components
+  const handleVerificationUpdate = (phone: string) => {
+    setVerifiedPhoneState(phone);
+  };
+
+  // Determine if we're showing an example (no material line or default)
+  const isExample = !materialLine || materialLine.id === "default";
+
   // Use dynamic slabs if available, otherwise fall back to default
-  const allSlabs = dynamicSlabs.length > 0 ? dynamicSlabs : SLABS;
+  // For examples, use OLD_SLABS (from public/slabs), otherwise use dynamic or default SLABS
+  const allSlabs = isExample
+    ? EXAMPLE_SLABS
+    : dynamicSlabs.length > 0
+    ? dynamicSlabs
+    : SLABS;
 
   const handleImageUpload = (base64Image: string) => {
     setKitchenImage(base64Image);
@@ -274,7 +316,13 @@ export default function Home() {
         {/* Header */}
         <header className="text-center mb-12 animate-slide-up">
           <div className="flex justify-center mb-6">
-            {materialLine?.logoUrl ? (
+            {isExample ? (
+              <div className="h-16 md:h-20 flex items-center justify-center px-8 py-4 border-2 border-dashed border-[var(--color-border)] rounded-lg">
+                <span className="text-xl md:text-2xl font-semibold text-[var(--color-text-secondary)]">
+                  Your Logo Here
+                </span>
+              </div>
+            ) : materialLine?.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={materialLine.logoUrl}
@@ -293,7 +341,7 @@ export default function Home() {
             )}
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-[var(--color-text)] mb-3">
-            {materialLine?.name
+            {materialLine?.name && !isExample
               ? `${materialLine.name}`
               : "Countertop Visualizer"}
           </h1>
@@ -373,6 +421,7 @@ export default function Home() {
             onReset={handleReset}
             verifiedPhone={verifiedPhone}
             abVariant={abVariant}
+            onVerificationUpdate={handleVerificationUpdate}
             onRetryGeneration={async (slabId: string) => {
               // Skip if it's the original image
               if (slabId === "original" || !kitchenImage) return;
@@ -488,7 +537,7 @@ export default function Home() {
                     }
                     ${
                       selectedSlabs.length === 3 && kitchenImage
-                        ? "animate-pulse-ring ring-4 ring-[var(--color-accent)]/30"
+                        ? "animate-hop ring-4 ring-[var(--color-accent)]/30"
                         : ""
                     }
                   `}
@@ -532,6 +581,7 @@ export default function Home() {
           </div>
         )}
       </div>
+      <ThemeDebug />
     </div>
   );
 }

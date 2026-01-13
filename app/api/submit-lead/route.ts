@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
-import { notifySalesTeam, sendUserConfirmation, sendMMS } from "@/lib/twilio";
-import { sendLeadNotificationEmail } from "@/lib/resend";
-import { createContact } from "@/lib/ghl";
+import { sendUserConfirmation } from "@/lib/twilio";
+import {
+  sendLeadNotificationEmail,
+  sendUserQuoteConfirmationEmail,
+} from "@/lib/resend";
 import { PostHog } from "posthog-node";
 import { uploadLeadImage } from "@/lib/storage";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { NoirMessenger } from "@/lib/noir-sms";
 
 interface LeadData {
   name: string;
@@ -15,15 +17,70 @@ interface LeadData {
   smsNotifications?: boolean;
   selectedSlabId?: string;
   selectedSlabName?: string;
-  selectedImageUrl?: string;
-  selectedImageBase64?: string; // Base64 image data
+  selectedImageBase64?: string; // Base64 image data (data:image/...)
+  originalImageBase64?: string; // Base64 image data (data:image/...)
   abVariant?: string;
   materialLineId?: string;
   organizationId?: string;
 }
 
+// Convert "default" to null, otherwise return the value or null
+function sanitizeUUID(value: string | null | undefined): string | null {
+  if (!value || value === "default") {
+    return null;
+  }
+  return value;
+}
+
+// Parse base64 image data to extract MIME type
+export function parseBase64Image(
+  base64Data: string | undefined
+): { mimeType: string; data: string } | null {
+  if (!base64Data || !base64Data.startsWith("data:image")) {
+    return null;
+  }
+
+  // Detect MIME type from base64 data URL
+  const mimeMatch = base64Data.match(/data:image\/(\w+);base64/);
+  const mimeType = mimeMatch ? `image/${mimeMatch[1]}` : "image/jpeg";
+
+  return { mimeType, data: base64Data };
+}
+
+// Upload an image to storage
+export async function uploadImage(
+  base64Data: string | undefined,
+  orgSlug: string,
+  materialLineSlug: string
+): Promise<{ storagePath: string | null; signedUrl: string | null }> {
+  // Parse base64 data
+  const parsed = parseBase64Image(base64Data);
+  if (!parsed) {
+    return { storagePath: null, signedUrl: null };
+  }
+
+  // Upload image to storage
+  const uploadResult = await uploadLeadImage(
+    orgSlug,
+    materialLineSlug,
+    parsed.data,
+    parsed.mimeType
+  );
+
+  if (uploadResult.path && uploadResult.url) {
+    return {
+      storagePath: uploadResult.path,
+      signedUrl: uploadResult.url,
+    };
+  } else {
+    console.error("Failed to upload image:", uploadResult.error);
+    return { storagePath: null, signedUrl: null };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
+    console.log("Swag 1");
     const data: LeadData = await request.json();
 
     // Validate required fields
@@ -44,7 +101,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Use service role client to bypass RLS
-    const supabase = await createServiceClient();
+    // Use direct Supabase client with service role key to properly bypass RLS
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Get user session if phone exists (optional - for linking leads to sessions)
     let sessionId = null;
@@ -60,52 +121,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Handle image upload if base64 image is provided
-    let imageStoragePath: string | null = null;
-    let imageSignedUrl: string | null = data.selectedImageUrl || null;
+    // Sanitize UUIDs - convert "default" to null
+    const materialLineId = sanitizeUUID(data.materialLineId);
+    const organizationId = sanitizeUUID(data.organizationId);
 
-    if (
-      data.selectedImageBase64 &&
-      data.materialLineId &&
-      data.organizationId
-    ) {
-      // Fetch organization slug and material line slug
+    // Get organization and material line slugs if available
+    let orgSlug = "default";
+    let materialLineSlug = "default";
+
+    if (organizationId) {
       const { data: org } = await supabase
         .from("organizations")
         .select("slug")
-        .eq("id", data.organizationId)
+        .eq("id", organizationId)
         .single();
+      if (org?.slug) {
+        orgSlug = org.slug;
+      }
+    }
 
+    if (materialLineId) {
       const { data: materialLine } = await supabase
         .from("material_lines")
         .select("slug")
-        .eq("id", data.materialLineId)
+        .eq("id", materialLineId)
         .single();
-
-      if (org?.slug && materialLine?.slug) {
-        // Detect MIME type from base64 data
-        const mimeMatch = data.selectedImageBase64.match(
-          /data:image\/(\w+);base64/
-        );
-        const mimeType = mimeMatch ? `image/${mimeMatch[1]}` : "image/jpeg";
-
-        // Upload image to storage
-        const uploadResult = await uploadLeadImage(
-          org.slug,
-          materialLine.slug,
-          data.selectedImageBase64,
-          mimeType
-        );
-
-        if (uploadResult.path && uploadResult.url) {
-          imageStoragePath = uploadResult.path;
-          imageSignedUrl = uploadResult.url;
-        } else {
-          console.error("Failed to upload image:", uploadResult.error);
-          // Continue without image if upload fails
-        }
+      if (materialLine?.slug) {
+        materialLineSlug = materialLine.slug;
       }
     }
+
+    // Upload both images in parallel
+    console.log("Swag 2 - Uploading images in parallel");
+    const [selectedImageResult, originalImageResult] = await Promise.all([
+      uploadImage(data.selectedImageBase64, orgSlug, materialLineSlug),
+      uploadImage(data.originalImageBase64, orgSlug, materialLineSlug),
+    ]);
+
+    // Extract results
+    const imageStoragePath = selectedImageResult.storagePath;
+    const imageSignedUrl = selectedImageResult.signedUrl;
+    const originalImageStoragePath = originalImageResult.storagePath;
+    const originalImageSignedUrl = originalImageResult.signedUrl;
 
     // Store lead in Supabase
     const { data: lead, error: insertError } = await supabase
@@ -120,9 +177,11 @@ export async function POST(request: NextRequest) {
         selected_slab_id: data.selectedSlabId || null,
         selected_image_url: imageSignedUrl,
         image_storage_path: imageStoragePath,
+        original_image_url: originalImageSignedUrl,
+        original_image_storage_path: originalImageStoragePath,
         ab_variant: data.abVariant || null,
-        material_line_id: data.materialLineId || null,
-        organization_id: data.organizationId || null,
+        material_line_id: materialLineId,
+        organization_id: organizationId,
       })
       .select()
       .single();
@@ -148,151 +207,127 @@ export async function POST(request: NextRequest) {
           name: data.name,
           email: data.email,
           selectedSlab: data.selectedSlabName,
-          materialLineId: data.materialLineId || null,
-          organizationId: data.organizationId || null,
+          materialLineId: materialLineId,
+          organizationId: organizationId,
         },
       });
 
       await posthog.shutdown();
     }
 
-    // Create contact in GHL
-    const contactResult = await createContact({
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      tags: ["countertop-lead", `variant-${data.abVariant || "unknown"}`],
-      customFields: {
-        selected_slab: data.selectedSlabName || "Not specified",
-      },
-    });
-
-    if (!contactResult.success) {
-      console.error("Failed to create GHL contact:", contactResult.error);
-      // Don't fail the request - lead is already stored
+    // Get material line name for notifications and user confirmation
+    let materialLineName: string | undefined = undefined;
+    if (materialLineId) {
+      const { data: materialLine } = await supabase
+        .from("material_lines")
+        .select("name")
+        .eq("id", materialLineId)
+        .single();
+      materialLineName = materialLine?.name || undefined;
     }
 
     // Send notifications to assigned users
-    if (data.materialLineId) {
+    if (materialLineId) {
+      console.log("Material Line ID", materialLineId);
       // Fetch notification assignments for this material line
-      const { data: notifications } = await supabase
+      const { data: notifications, error: notificationsError } = await supabase
         .from("material_line_notifications")
         .select(
           `
           profile_id,
           sms_enabled,
           email_enabled,
-          profiles(id, full_name, phone)
+          profiles(id, full_name, phone, email)
         `
         )
-        .eq("material_line_id", data.materialLineId);
+        .eq("material_line_id", materialLineId);
+
+      if (notificationsError) {
+        console.error("Failed to fetch notifications:", notificationsError);
+      }
+
+      console.log("notifications", notifications);
 
       if (notifications && notifications.length > 0) {
-        // Get material line name for notifications
-        const { data: materialLine } = await supabase
-          .from("material_lines")
-          .select("name")
-          .eq("id", data.materialLineId)
-          .single();
+        console.log("Swag 3");
+        const notificationMaterialLineName =
+          materialLineName || "Countertop Visualizer";
 
-        const materialLineName = materialLine?.name || "Countertop Visualizer";
+        // Send notifications to each assigned user
+        for (const notification of notifications) {
+          // Handle profiles as array (Supabase relation)
+          const profile = Array.isArray(notification.profiles)
+            ? notification.profiles[0]
+            : notification.profiles;
+          const userEmail = profile?.email;
+          const userPhone = profile?.phone;
 
-        // Get user emails from auth.users
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          const leadInfo = {
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            address: data.address,
+            selectedSlab: data.selectedSlabName || "Not specified",
+          };
 
-        if (supabaseUrl && serviceRoleKey) {
-          const serviceClient = createSupabaseClient(
-            supabaseUrl,
-            serviceRoleKey
-          );
+          // Send SMS if enabled using NoirMessenger
+          if (notification.sms_enabled && userPhone) {
+            let message = `🏠 New Countertop Lead!\n\nName: ${
+              leadInfo.name
+            }\nEmail: ${leadInfo.email}\n${
+              leadInfo.phone ? `Phone: ${leadInfo.phone}\n` : ""
+            }Address: ${leadInfo.address}\nSelected: ${
+              leadInfo.selectedSlab
+            }\n\nCall them immediately!`;
 
-          // Send notifications to each assigned user
-          for (const notification of notifications) {
-            // Get user email
-            const { data: authUser } =
-              await serviceClient.auth.admin.getUserById(
-                notification.profile_id
-              );
-            const userEmail = authUser?.user?.email;
-            // Handle profiles as array (Supabase relation)
-            const profile = Array.isArray(notification.profiles)
-              ? notification.profiles[0]
-              : notification.profiles;
-            const userPhone = profile?.phone;
-
-            const leadInfo = {
-              name: data.name,
-              email: data.email,
-              phone: data.phone,
-              address: data.address,
-              selectedSlab: data.selectedSlabName || "Not specified",
-            };
-
-            // Send SMS/MMS if enabled
-            if (notification.sms_enabled && userPhone) {
-              const message = `🏠 New Countertop Lead!\n\nName: ${
-                leadInfo.name
-              }\nEmail: ${leadInfo.email}\n${
-                leadInfo.phone ? `Phone: ${leadInfo.phone}\n` : ""
-              }Address: ${leadInfo.address}\nSelected: ${
-                leadInfo.selectedSlab
-              }\n\nFollow up ASAP!`;
-
+            // Add image URLs to message if available
+            if (originalImageSignedUrl || imageSignedUrl) {
+              message += "\n\nImages:";
+              if (originalImageSignedUrl) {
+                message += `\nBefore: ${originalImageSignedUrl}`;
+              }
               if (imageSignedUrl) {
-                // Send MMS with image
-                await sendMMS({
-                  phone: userPhone,
-                  message,
-                  mediaUrl: imageSignedUrl,
-                });
-              } else {
-                // Send SMS without image
-                await notifySalesTeam([userPhone], leadInfo);
+                message += `\nWants Quote For: ${imageSignedUrl}`;
               }
             }
 
-            // Send email if enabled
-            if (notification.email_enabled && userEmail) {
-              await sendLeadNotificationEmail({
-                to: userEmail,
-                leadInfo,
-                kitchenImageUrl: imageSignedUrl || undefined,
-                materialLineName,
-              });
+            try {
+              const messenger = new NoirMessenger();
+              await messenger.sendMessage(userPhone, message, leadInfo.name);
+            } catch (error) {
+              console.error("Failed to send SMS notification:", error);
+              // Continue - don't fail the request if SMS fails
             }
+          }
+
+          // Send email if enabled
+          if (notification.email_enabled && userEmail) {
+            await sendLeadNotificationEmail({
+              to: userEmail,
+              leadInfo,
+              kitchenImageUrl: imageSignedUrl || undefined,
+              originalImageUrl: originalImageSignedUrl || undefined,
+              materialLineName: notificationMaterialLineName,
+            });
           }
         }
       }
     }
 
-    // Legacy: Notify sales team via SMS (keep for backward compatibility)
-    const salesPhones =
-      process.env.SALES_TEAM_PHONES?.split(",").filter(Boolean) || [];
-
-    if (salesPhones.length > 0) {
-      await notifySalesTeam(salesPhones, {
+    // Send quote confirmation email to user
+    try {
+      await sendUserQuoteConfirmationEmail({
+        to: data.email,
         name: data.name,
-        email: data.email,
-        phone: data.phone,
+        selectedSlab: data.selectedSlabName || undefined,
         address: data.address,
-        selectedSlab: data.selectedSlabName || "Not specified",
+        kitchenImageUrl: imageSignedUrl || undefined,
+        originalImageUrl: originalImageSignedUrl || undefined,
+        materialLineName: materialLineName,
       });
-    }
-
-    // Send confirmation to user if they have a phone and opted in for SMS notifications
-    if (data.phone && data.smsNotifications) {
-      await sendUserConfirmation(
-        data.phone,
-        data.name,
-        data.selectedSlabName || undefined,
-        data.selectedImageUrl || undefined,
-        {
-          email: data.email,
-          address: data.address,
-        }
-      );
+    } catch (error) {
+      console.error("Failed to send user confirmation email:", error);
+      // Continue - don't fail the request if email fails
     }
 
     return NextResponse.json({

@@ -68,7 +68,7 @@ export default function SlabSelector({
 
               {/* Selected Indicator */}
               {selected && (
-                <div className="absolute top-2 right-2 bg-[var(--color-accent)] text-white rounded-full p-1.5 shadow-lg">
+                <div className="absolute top-2 right-2 bg-[var(--color-success)] text-white rounded-full p-1.5 shadow-lg">
                   <svg
                     className="w-4 h-4"
                     fill="currentColor"

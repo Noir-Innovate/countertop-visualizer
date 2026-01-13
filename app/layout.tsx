@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Libre_Franklin } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider, MaterialLineProviderWrapper } from "./providers";
-import { getMaterialLineFromHeaders, generateThemeStyles } from "@/lib/material-line-server";
+import { getMaterialLineFromHeaders } from "@/lib/material-line-server";
+import ThemeInjector from "@/components/ThemeInjector";
 
 const libreFranklin = Libre_Franklin({
   variable: "--font-libre-franklin",
@@ -12,9 +13,22 @@ const libreFranklin = Libre_Franklin({
 
 export const metadata: Metadata = {
   title: "Countertop Visualizer | See Your Dream Countertops",
-  description: "Visualize your dream countertops with AI. Upload a photo of your kitchen and see how different countertop materials would look.",
-  keywords: ["countertop", "visualizer", "kitchen", "AI", "marble", "granite", "quartz"],
+  description:
+    "Visualize your dream countertops with AI. Upload a photo of your kitchen and see how different countertop materials would look.",
+  keywords: [
+    "countertop",
+    "visualizer",
+    "kitchen",
+    "AI",
+    "marble",
+    "granite",
+    "quartz",
+  ],
 };
+
+// Force dynamic rendering to prevent caching (especially important for localhost)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function RootLayout({
   children,
@@ -22,16 +36,13 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const materialLine = await getMaterialLineFromHeaders();
-  const themeStyles = generateThemeStyles(materialLine);
 
   return (
     <html lang="en">
-      <head>
-        <style dangerouslySetInnerHTML={{ __html: themeStyles }} />
-      </head>
       <body className={`${libreFranklin.variable} font-sans antialiased`}>
         <PostHogProvider>
           <MaterialLineProviderWrapper materialLine={materialLine}>
+            <ThemeInjector />
             {children}
           </MaterialLineProviderWrapper>
         </PostHogProvider>

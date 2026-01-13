@@ -22,7 +22,7 @@ export interface LeadFormData {
 }
 
 // Old/demo slab options (kept for reference, not used)
-export const OLD_SLABS: Slab[] = [
+export const EXAMPLE_SLABS: Slab[] = [
   {
     id: "alabaster-beige",
     name: "Alabaster Beige",

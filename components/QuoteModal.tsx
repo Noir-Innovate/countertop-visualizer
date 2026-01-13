@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { trackEvent } from "@/lib/posthog";
 import PhoneVerificationModal from "@/components/PhoneVerificationModal";
-import { setVerifiedPhone } from "@/lib/ab-testing";
+import { setVerifiedPhone, getVerifiedPhone } from "@/lib/ab-testing";
 import { useMaterialLine } from "@/lib/material-line";
 import type { LeadFormData } from "@/lib/types";
 
@@ -14,9 +14,11 @@ interface QuoteModalProps {
   selectedSlabId: string | null;
   selectedSlabName: string | null;
   selectedImageUrl: string | null;
+  originalImageUrl: string | null;
   verifiedPhone: string | null;
   abVariant: string;
   onSubmitSuccess: () => void;
+  onVerificationUpdate?: (phone: string) => void;
 }
 
 export default function QuoteModal({
@@ -25,9 +27,11 @@ export default function QuoteModal({
   selectedSlabId,
   selectedSlabName,
   selectedImageUrl,
+  originalImageUrl,
   verifiedPhone,
   abVariant,
   onSubmitSuccess,
+  onVerificationUpdate,
 }: QuoteModalProps) {
   const materialLine = useMaterialLine();
   const [step, setStep] = useState<"verify" | "form">("verify");
@@ -45,13 +49,16 @@ export default function QuoteModal({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Reset step when modal opens
+  // Reset step when modal opens - check both prop and localStorage
   useEffect(() => {
     if (isOpen) {
-      if (verifiedPhone) {
+      // Check localStorage in case prop is stale
+      const storedVerifiedPhone = getVerifiedPhone() || verifiedPhone;
+
+      if (storedVerifiedPhone) {
         setStep("form");
-        setCurrentVerifiedPhone(verifiedPhone);
-        setFormData((prev) => ({ ...prev, phone: verifiedPhone }));
+        setCurrentVerifiedPhone(storedVerifiedPhone);
+        setFormData((prev) => ({ ...prev, phone: storedVerifiedPhone }));
       } else {
         setStep("verify");
         setCurrentVerifiedPhone(null);
@@ -78,6 +85,10 @@ export default function QuoteModal({
     setVerifiedPhone(phone);
     setFormData((prev) => ({ ...prev, phone }));
     setStep("form");
+    // Notify parent component about verification update
+    if (onVerificationUpdate) {
+      onVerificationUpdate(phone);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,6 +123,14 @@ export default function QuoteModal({
     });
 
     try {
+      // Extract base64 data from image URLs if they are data URLs
+      const selectedImageBase64 = selectedImageUrl?.startsWith("data:image")
+        ? selectedImageUrl
+        : undefined;
+      const originalImageBase64 = originalImageUrl?.startsWith("data:image")
+        ? originalImageUrl
+        : undefined;
+
       const response = await fetch("/api/submit-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,7 +138,8 @@ export default function QuoteModal({
           ...formData,
           selectedSlabId,
           selectedSlabName,
-          selectedImageUrl,
+          selectedImageBase64,
+          originalImageBase64,
           abVariant,
           materialLineId: materialLine?.id || null,
           organizationId: materialLine?.organizationId || null,
@@ -134,10 +154,6 @@ export default function QuoteModal({
 
       trackEvent("lead_submission_successful");
       setSuccess(true);
-      setTimeout(() => {
-        onSubmitSuccess();
-        onClose();
-      }, 2000);
     } catch (err) {
       trackEvent("lead_submission_failed");
       setError(
@@ -198,7 +214,7 @@ export default function QuoteModal({
         </button>
 
         {success ? (
-          <div className="p-8 text-center">
+          <div className="p-8 text-center flex flex-col items-center justify-center min-h-[300px]">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--color-success)]/10 flex items-center justify-center">
               <svg
                 className="w-8 h-8 text-[var(--color-success)]"
@@ -217,10 +233,19 @@ export default function QuoteModal({
             <h3 className="text-2xl font-bold text-[var(--color-text)] mb-2">
               Thank You!
             </h3>
-            <p className="text-[var(--color-text-secondary)]">
-              Our team will be in touch with you shortly. Check your phone for a
-              confirmation message!
+            <p className="text-[var(--color-text-secondary)] mb-6">
+              Our team will be in touch with you shortly. Check your email for a
+              confirmation message with your quote details!
             </p>
+            <button
+              onClick={() => {
+                onSubmitSuccess();
+                onClose();
+              }}
+              className="px-8 py-3 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white font-semibold rounded-lg transition-all duration-200"
+            >
+              OK
+            </button>
           </div>
         ) : (
           <div className="flex flex-col h-full md:h-auto flex-1">

@@ -28,12 +28,15 @@ export default async function InvitationPage({ params }: Props) {
     );
   }
 
-  const { createClient: createSupabaseClient } = await import("@supabase/supabase-js");
+  const { createClient: createSupabaseClient } = await import(
+    "@supabase/supabase-js"
+  );
   const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
 
   const { data: invitationData, error: inviteError } = await serviceClient
     .from("organization_invitations")
-    .select(`
+    .select(
+      `
       id,
       email,
       role,
@@ -41,7 +44,8 @@ export default async function InvitationPage({ params }: Props) {
       accepted_at,
       created_at,
       organizations(id, name)
-    `)
+    `
+    )
     .eq("token", token)
     .single();
 
@@ -78,8 +82,11 @@ export default async function InvitationPage({ params }: Props) {
   // The AcceptInvitationForm will handle login requirement
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <AcceptInvitationForm invitation={invitation} token={token} userEmail={user?.email || null} />
+      <AcceptInvitationForm
+        invitation={invitation}
+        token={token}
+        userEmail={user?.email || null}
+      />
     </div>
   );
 }
-

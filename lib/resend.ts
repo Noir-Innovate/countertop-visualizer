@@ -152,6 +152,7 @@ export async function sendLeadNotificationEmail({
   to,
   leadInfo,
   kitchenImageUrl,
+  originalImageUrl,
   materialLineName,
 }: {
   to: string;
@@ -163,6 +164,7 @@ export async function sendLeadNotificationEmail({
     selectedSlab?: string;
   };
   kitchenImageUrl?: string;
+  originalImageUrl?: string;
   materialLineName?: string;
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   const html = `
@@ -180,14 +182,53 @@ export async function sendLeadNotificationEmail({
           </h1>
           
           ${
-            kitchenImageUrl
+            originalImageUrl || kitchenImageUrl
               ? `
             <div style="margin: 24px 0;">
-              <img 
-                src="${kitchenImageUrl}" 
-                alt="Kitchen visualization" 
-                style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
-              />
+              ${
+                originalImageUrl && kitchenImageUrl
+                  ? `
+                <div style="margin-bottom: 24px;">
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px; text-align: center;">Before</h3>
+                  <img 
+                    src="${originalImageUrl}" 
+                    alt="Original kitchen" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+                <div>
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px; text-align: center;">Wants Quote For</h3>
+                  <img 
+                    src="${kitchenImageUrl}" 
+                    alt="Kitchen visualization" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+              `
+                  : originalImageUrl
+                  ? `
+                <div>
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Original Kitchen</h3>
+                  <img 
+                    src="${originalImageUrl}" 
+                    alt="Original kitchen" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+              `
+                  : kitchenImageUrl
+                  ? `
+                <div>
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Wants Quote For</h3>
+                  <img 
+                    src="${kitchenImageUrl}" 
+                    alt="Kitchen visualization" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+              `
+                  : ""
+              }
             </div>
           `
               : ""
@@ -269,6 +310,154 @@ export async function sendLeadNotificationEmail({
   return sendEmail({
     to,
     subject: `New Lead: ${leadInfo.name} - ${
+      materialLineName || "Countertop Visualizer"
+    }`,
+    html,
+  });
+}
+
+// Send quote confirmation email to user
+export async function sendUserQuoteConfirmationEmail({
+  to,
+  name,
+  selectedSlab,
+  address,
+  kitchenImageUrl,
+  originalImageUrl,
+  materialLineName,
+}: {
+  to: string;
+  name: string;
+  selectedSlab?: string;
+  address: string;
+  kitchenImageUrl?: string;
+  originalImageUrl?: string;
+  materialLineName?: string;
+}): Promise<{ success: boolean; error?: string; id?: string }> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Quote Request - Countertop Visualizer</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #334155; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: white; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+          <h1 style="color: #0f172a; font-size: 24px; font-weight: 600; margin-top: 0;">
+            Thank You, ${name}!
+          </h1>
+          
+          <p style="color: #64748b; font-size: 16px; margin: 16px 0;">
+            We've received your quote request and our team will be in touch with you shortly to discuss your countertop project.
+          </p>
+          
+          ${
+            originalImageUrl || kitchenImageUrl
+              ? `
+            <div style="margin: 24px 0;">
+              ${
+                originalImageUrl && kitchenImageUrl
+                  ? `
+                <div style="margin-bottom: 24px;">
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px; text-align: center;">Your Current Kitchen</h3>
+                  <img 
+                    src="${originalImageUrl}" 
+                    alt="Original kitchen" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+                <div>
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px; text-align: center;">Your Vision</h3>
+                  <img 
+                    src="${kitchenImageUrl}" 
+                    alt="Kitchen visualization" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+              `
+                  : originalImageUrl
+                  ? `
+                <div>
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Your Current Kitchen</h3>
+                  <img 
+                    src="${originalImageUrl}" 
+                    alt="Original kitchen" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+              `
+                  : kitchenImageUrl
+                  ? `
+                <div>
+                  <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Your Vision</h3>
+                  <img 
+                    src="${kitchenImageUrl}" 
+                    alt="Kitchen visualization" 
+                    style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0;"
+                  />
+                </div>
+              `
+                  : ""
+              }
+            </div>
+          `
+              : ""
+          }
+          
+          <div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin: 24px 0;">
+            <h2 style="color: #0f172a; font-size: 18px; font-weight: 600; margin-top: 0; margin-bottom: 16px;">
+              Your Quote Request Details
+            </h2>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #64748b; font-weight: 500; width: 120px;">Name:</td>
+                <td style="padding: 8px 0; color: #0f172a;">${name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Address:</td>
+                <td style="padding: 8px 0; color: #0f172a;">${address}</td>
+              </tr>
+              ${
+                selectedSlab
+                  ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Selected Slab:</td>
+                  <td style="padding: 8px 0; color: #0f172a;">${selectedSlab}</td>
+                </tr>
+              `
+                  : ""
+              }
+              ${
+                materialLineName
+                  ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-weight: 500;">Material Line:</td>
+                  <td style="padding: 8px 0; color: #0f172a;">${materialLineName}</td>
+                </tr>
+              `
+                  : ""
+              }
+            </table>
+          </div>
+          
+          <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #64748b; font-size: 14px; margin: 0 0 16px;">
+              Our team will review your request and contact you within 24 hours to discuss your project and provide a detailed quote.
+            </p>
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+              If you have any questions in the meantime, please don't hesitate to reach out to us.
+            </p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Your Quote Request - ${
       materialLineName || "Countertop Visualizer"
     }`,
     html,

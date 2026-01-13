@@ -25,6 +25,7 @@ export default async function ProfilePage() {
     full_name: null,
     phone: null,
     avatar_url: null,
+    email: user.email || null,
   };
 
   return (
@@ -43,7 +44,7 @@ export default async function ProfilePage() {
         </p>
       </div>
 
-      <ProfileForm initialProfile={profileData} initialEmail={user.email || ""} />
+      <ProfileForm initialProfile={profileData} initialEmail={profileData.email || user.email || ""} />
     </div>
   );
 }
