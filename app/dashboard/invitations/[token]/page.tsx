@@ -49,11 +49,25 @@ export default async function InvitationPage({ params }: Props) {
     notFound();
   }
 
+  // Extract organization from array (Supabase returns relations as arrays)
+  const organization = Array.isArray(invitationData.organizations)
+    ? invitationData.organizations[0]
+    : invitationData.organizations;
+
+  if (!organization) {
+    notFound();
+  }
+
   const isExpired = new Date(invitationData.expires_at) < new Date();
   const invitation = {
-    ...invitationData,
+    id: invitationData.id,
+    email: invitationData.email,
+    role: invitationData.role,
+    expires_at: invitationData.expires_at,
+    accepted_at: invitationData.accepted_at,
     is_expired: isExpired,
     is_accepted: !!invitationData.accepted_at,
+    organizations: organization,
   };
 
   if (!invitation) {
