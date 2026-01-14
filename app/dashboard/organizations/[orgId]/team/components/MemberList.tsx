@@ -10,7 +10,8 @@ interface Member {
   profiles: {
     id: string;
     full_name: string | null;
-    email?: string;
+    email?: string | null;
+    phone?: string | null;
   };
   created_at: string;
 }
@@ -292,9 +293,19 @@ export default function MemberList({
                           </span>
                         )}
                       </p>
-                      <p className="text-sm text-slate-500">
-                        {member.profiles.email || "No email"}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
+                        {member.profiles.email ? (
+                          <span>{member.profiles.email}</span>
+                        ) : (
+                          <span className="text-slate-400">No email</span>
+                        )}
+                        {member.profiles.phone && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span>{member.profiles.phone}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

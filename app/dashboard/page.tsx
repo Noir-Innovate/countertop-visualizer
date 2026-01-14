@@ -85,6 +85,14 @@ export default async function DashboardPage() {
     totalQuoteRequests = quoteRequests;
   }
 
+  // Format role for display (e.g., "sales_person" -> "Sales Person")
+  const formatRole = (role: string) => {
+    return role
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8 flex items-start justify-between">
@@ -258,8 +266,8 @@ export default async function DashboardPage() {
                   <h2 className="text-lg font-semibold text-slate-900">
                     {org.name}
                   </h2>
-                  <p className="text-sm text-slate-500 capitalize">
-                    Your role: {org.role}
+                  <p className="text-sm text-slate-500">
+                    Your role: {formatRole(org.role)}
                   </p>
                 </div>
                 <Link

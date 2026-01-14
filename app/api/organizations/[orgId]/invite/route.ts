@@ -167,9 +167,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .eq("id", user.id)
       .single();
 
-    const invitationUrl = `${
-      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    }/dashboard/invitations/${token}`;
+    // Get base URL - prioritize NEXT_PUBLIC_APP_URL, then VERCEL_URL, then localhost
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
+
+    const invitationUrl = `${baseUrl}/dashboard/invitations/${token}`;
 
     // Send invitation email
     const emailResult = await sendInvitationEmail({

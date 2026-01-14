@@ -79,6 +79,14 @@ export default async function OrganizationPage({ params }: Props) {
   const conversionRate =
     pageViews > 0 ? ((quoteRequests / pageViews) * 100).toFixed(1) : "0.0";
 
+  // Format role for display (e.g., "sales_person" -> "Sales Person")
+  const formatRole = (role: string) => {
+    return role
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
@@ -91,8 +99,8 @@ export default async function OrganizationPage({ params }: Props) {
             <span>{org.name}</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{org.name}</h1>
-          <p className="text-slate-600 mt-1 capitalize">
-            Your role: {membership.role}
+          <p className="text-slate-600 mt-1">
+            Your role: {formatRole(membership.role)}
           </p>
         </div>
         {(membership.role === "owner" || membership.role === "admin") && (

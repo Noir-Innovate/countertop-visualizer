@@ -70,7 +70,7 @@ export default async function TeamPage({ params }: Props) {
         profile_id,
         role,
         created_at,
-        profiles(id, full_name)
+        profiles(id, full_name, email, phone)
       `
       )
       .eq("organization_id", orgId)
