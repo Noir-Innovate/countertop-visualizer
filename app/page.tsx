@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
 import imageCompression from "browser-image-compression";
 import ImageUpload from "@/components/ImageUpload";
 import SlabSelector from "@/components/SlabSelector";
@@ -316,27 +315,20 @@ export default function Home() {
         {/* Header */}
         <header className="text-center mb-12 animate-slide-up">
           <div className="flex justify-center mb-6">
-            {isExample ? (
+            {!materialLine ||
+            materialLine.id === "default" ||
+            !materialLine.logoUrl ? (
               <div className="h-16 md:h-20 flex items-center justify-center px-8 py-4 border-2 border-dashed border-[var(--color-border)] rounded-lg">
                 <span className="text-xl md:text-2xl font-semibold text-[var(--color-text-secondary)]">
                   Your Logo Here
                 </span>
               </div>
-            ) : materialLine?.logoUrl ? (
+            ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={materialLine.logoUrl}
                 alt={materialLine.name}
                 className="h-16 md:h-20 w-auto object-contain"
-              />
-            ) : (
-              <Image
-                src="/AccentCountertopsLogo.png"
-                alt="Countertop Visualizer"
-                width={200}
-                height={80}
-                className="h-16 md:h-20 w-auto"
-                priority
               />
             )}
           </div>
@@ -422,64 +414,6 @@ export default function Home() {
             verifiedPhone={verifiedPhone}
             abVariant={abVariant}
             onVerificationUpdate={handleVerificationUpdate}
-            onRetryGeneration={async (slabId: string) => {
-              // Skip if it's the original image
-              if (slabId === "original" || !kitchenImage) return;
-
-              // Find the slab from the allSlabs array (not selectedSlabs, as it might have been deselected)
-              const slab = allSlabs.find((s) => s.id === slabId);
-              if (!slab) {
-                console.error("Slab not found:", slabId);
-                return;
-              }
-
-              setIsGenerating(true);
-              setError(null);
-
-              // Find and update the specific result
-              const resultIndex = generationResults.findIndex(
-                (r) => r.slabId === slabId
-              );
-              if (resultIndex === -1) {
-                console.error("Generation result not found for slab:", slabId);
-                setIsGenerating(false);
-                return;
-              }
-
-              // Set loading state for this specific result
-              const updatedResults = [...generationResults];
-              updatedResults[resultIndex] = {
-                ...updatedResults[resultIndex],
-                isLoading: true,
-                error: null,
-                imageData: null,
-              };
-              setGenerationResults(updatedResults);
-
-              try {
-                const compressedKitchenImage = await compressImage(
-                  kitchenImage
-                );
-                const result = await generateSingleImage(
-                  slab,
-                  compressedKitchenImage
-                );
-
-                updatedResults[resultIndex] = result;
-                setGenerationResults(updatedResults);
-                trackABEvent(abVariant, "retry_generation", { slabId });
-              } catch (err) {
-                updatedResults[resultIndex] = {
-                  ...updatedResults[resultIndex],
-                  isLoading: false,
-                  error:
-                    err instanceof Error ? err.message : "Failed to regenerate",
-                };
-                setGenerationResults(updatedResults);
-              } finally {
-                setIsGenerating(false);
-              }
-            }}
           />
         )}
 

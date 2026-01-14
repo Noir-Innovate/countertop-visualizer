@@ -13,7 +13,6 @@ interface ResultDisplayProps {
   onReset: () => void;
   verifiedPhone: string | null;
   abVariant: string;
-  onRetryGeneration: (slabId: string) => Promise<void>;
   onVerificationUpdate?: (phone: string) => void;
 }
 
@@ -25,11 +24,11 @@ export default function ResultDisplay({
   onReset,
   verifiedPhone,
   abVariant,
-  onRetryGeneration,
   onVerificationUpdate,
 }: ResultDisplayProps) {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedImageAlt, setSelectedImageAlt] = useState("");
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
+    null
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("carousel");
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [compareLeftIndex, setCompareLeftIndex] = useState(0);
@@ -94,14 +93,12 @@ export default function ResultDisplay({
     document.body.removeChild(link);
   };
 
-  const openModal = (imageUrl: string, alt: string) => {
-    setSelectedImage(imageUrl);
-    setSelectedImageAlt(alt);
+  const openModal = (imageUrl: string, alt: string, imageIndex: number) => {
+    setSelectedImageIndex(imageIndex);
   };
 
   const closeModal = () => {
-    setSelectedImage(null);
-    setSelectedImageAlt("");
+    setSelectedImageIndex(null);
   };
 
   const handleGetQuote = (
@@ -117,10 +114,6 @@ export default function ResultDisplay({
       imageUrl: imageUrl,
     });
     setShowLeadForm(true);
-  };
-
-  const handleRetry = async (imageId: string) => {
-    await onRetryGeneration(imageId);
   };
 
   const allComplete = generationResults.every((r) => !r.isLoading);
@@ -197,11 +190,6 @@ export default function ResultDisplay({
               currentIndex={carouselIndex}
               onIndexChange={setCarouselIndex}
               onImageClick={openModal}
-              onRetry={(imageId) => {
-                if (imageId !== "original") {
-                  handleRetry(imageId);
-                }
-              }}
               onGetQuote={(imageId, imageName, imageUrl) => {
                 if (imageId !== "original") {
                   handleGetQuote(imageId, imageName, imageUrl);
@@ -309,11 +297,29 @@ export default function ResultDisplay({
       )}
 
       {/* Image Modal */}
-      {selectedImage && (
+      {selectedImageIndex !== null && (
         <ImageModal
-          imageUrl={selectedImage}
-          alt={selectedImageAlt}
+          images={allImages}
+          currentIndex={selectedImageIndex}
+          onIndexChange={setSelectedImageIndex}
           onClose={closeModal}
+          onGetQuote={(imageId, imageName, imageUrl) => {
+            if (imageId !== "original") {
+              closeModal();
+              handleGetQuote(imageId, imageName, imageUrl);
+            }
+          }}
+          onDownload={(imageId, imageName, imageUrl) => {
+            if (imageId !== "original") {
+              // Find the result to get base64 data
+              const result = generationResults.find(
+                (r) => r.slabId === imageId
+              );
+              if (result?.imageData) {
+                handleDownload(result.imageData, imageName);
+              }
+            }
+          }}
         />
       )}
     </>

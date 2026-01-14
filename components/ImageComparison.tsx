@@ -15,7 +15,7 @@ interface ImageComparisonProps {
   rightIndex: number
   onLeftIndexChange: (index: number) => void
   onRightIndexChange: (index: number) => void
-  onImageClick: (imageUrl: string, alt: string) => void
+  onImageClick: (imageUrl: string, alt: string, imageIndex: number) => void
   onGetQuote?: (imageId: string, imageName: string, imageUrl: string) => void
 }
 
@@ -41,7 +41,7 @@ export default function ImageComparison({
         <div className="space-y-2">
           <div 
             className="relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] cursor-pointer group"
-            onClick={() => onImageClick(leftImage.imageUrl, leftImage.name)}
+            onClick={() => onImageClick(leftImage.imageUrl, leftImage.name, leftIndex)}
           >
             <Image
               src={leftImage.imageUrl}
@@ -90,7 +90,7 @@ export default function ImageComparison({
         <div className="space-y-2">
           <div 
             className="relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] cursor-pointer group"
-            onClick={() => onImageClick(rightImage.imageUrl, rightImage.name)}
+            onClick={() => onImageClick(rightImage.imageUrl, rightImage.name, rightIndex)}
           >
             <Image
               src={rightImage.imageUrl}

@@ -14,8 +14,7 @@ interface ImageCarouselProps {
   images: CarouselImage[]
   currentIndex: number
   onIndexChange: (index: number) => void
-  onImageClick: (imageUrl: string, alt: string) => void
-  onRetry?: (imageId: string) => void
+  onImageClick: (imageUrl: string, alt: string, imageIndex: number) => void
   onGetQuote?: (imageId: string, imageName: string, imageUrl: string) => void
   onDownload?: (imageId: string, imageName: string, imageUrl: string) => void
 }
@@ -25,7 +24,6 @@ export default function ImageCarousel({
   currentIndex,
   onIndexChange,
   onImageClick,
-  onRetry,
   onGetQuote,
   onDownload,
 }: ImageCarouselProps) {
@@ -78,7 +76,7 @@ export default function ImageCarousel({
       {/* Main Image */}
       <div 
         className="relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] cursor-pointer group"
-        onClick={() => onImageClick(currentImage.imageUrl, currentImage.name)}
+        onClick={() => onImageClick(currentImage.imageUrl, currentImage.name, currentIndex)}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -105,23 +103,9 @@ export default function ImageCarousel({
           </div>
         )}
 
-        {/* Action Buttons - Bottom Left (only for generated images) */}
-        {!currentImage.isOriginal && (onRetry || onGetQuote || onDownload) && (
-          <div className="absolute bottom-4 left-4 flex gap-2 z-10">
-            {onRetry && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRetry(currentImage.id)
-                }}
-                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Retry
-              </button>
-            )}
+        {/* Action Buttons - Below image on mobile, overlay on desktop (only for generated images) */}
+        {!currentImage.isOriginal && (onGetQuote || onDownload) && (
+          <div className="absolute bottom-4 left-4 md:flex hidden gap-2 z-10">
             {onDownload && (
               <button
                 onClick={(e) => {
@@ -212,6 +196,34 @@ export default function ImageCarousel({
               )}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Action Buttons - Below image on mobile (only for generated images) */}
+      {!currentImage.isOriginal && (onGetQuote || onDownload) && (
+        <div className="flex md:hidden gap-2 mt-4 justify-center">
+          {onDownload && (
+            <button
+              onClick={() => onDownload(currentImage.id, currentImage.name, currentImage.imageUrl)}
+              className="px-4 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download
+            </button>
+          )}
+          {onGetQuote && (
+            <button
+              onClick={() => onGetQuote(currentImage.id, currentImage.name, currentImage.imageUrl)}
+              className="px-4 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5"
+            >
+              Get Quote
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
 
