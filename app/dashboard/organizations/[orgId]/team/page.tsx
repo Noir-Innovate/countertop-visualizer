@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import MemberList from "./components/MemberList";
 import InviteMemberButton from "./components/InviteMemberButton";
 
@@ -47,46 +47,64 @@ export default async function TeamPage({ params }: Props) {
     notFound();
   }
 
-  // Fetch members and invitations via API endpoint
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((cookie) => `${cookie.name}=${cookie.value}`)
-    .join("; ");
+  // Fetch members and invitations directly using service role client
+  // This avoids server-to-server cookie forwarding issues in production
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000");
+  let membersWithEmails: any[] = [];
+  let invitations: any[] = [];
+  let fetchError: string | null = null;
 
-  const membersResponse = await fetch(
-    `${baseUrl}/api/organizations/${orgId}/members`,
-    {
-      headers: {
-        Cookie: cookieHeader,
-      },
-      cache: "no-store",
+  if (!supabaseUrl || !serviceRoleKey) {
+    fetchError = "Server configuration error";
+  } else {
+    const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
+
+    // Fetch all members with their profiles using service role (bypasses RLS)
+    const { data: members, error: membersError } = await serviceClient
+      .from("organization_members")
+      .select(
+        `
+        id,
+        profile_id,
+        role,
+        created_at,
+        profiles(id, full_name)
+      `
+      )
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false });
+
+    if (membersError) {
+      console.error("Error fetching members:", membersError);
+      fetchError = membersError.message || "Failed to fetch members";
+    } else {
+      // Map members to match expected format (profiles is returned as an array from Supabase)
+      membersWithEmails = (members || []).map((member: any) => ({
+        ...member,
+        profiles: Array.isArray(member.profiles)
+          ? member.profiles[0]
+          : member.profiles,
+      }));
     }
-  );
 
-  if (!membersResponse.ok) {
-    console.error("Failed to fetch members:", membersResponse.statusText);
-    redirect(`/dashboard/organizations/${orgId}`);
+    // Fetch pending invitations
+    const { data: invitationsData, error: invitationsError } =
+      await serviceClient
+        .from("organization_invitations")
+        .select("id, email, role, expires_at, accepted_at")
+        .eq("organization_id", orgId)
+        .is("accepted_at", null)
+        .order("created_at", { ascending: false });
+
+    if (invitationsError) {
+      console.error("Error fetching invitations:", invitationsError);
+      // Don't fail the request if invitations fail
+    } else {
+      invitations = invitationsData || [];
+    }
   }
-
-  const { members: membersData, invitations: invitationsData } =
-    await membersResponse.json();
-
-  // Map members to match expected format (profiles is returned as an array from Supabase)
-  const membersWithEmails = (membersData || []).map((member: any) => ({
-    ...member,
-    profiles: Array.isArray(member.profiles)
-      ? member.profiles[0]
-      : member.profiles,
-  }));
-
-  const invitations = invitationsData || [];
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -114,15 +132,27 @@ export default async function TeamPage({ params }: Props) {
         </p>
       </div>
 
-      <div className="space-y-6">
-        <MemberList
-          orgId={orgId}
-          members={membersWithEmails}
-          invitations={invitations || []}
-          currentUserId={user.id}
-          currentUserRole={membership.role}
-        />
-      </div>
+      {fetchError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-red-800">
+            Failed to load team members: {fetchError}
+          </p>
+          <p className="text-red-600 text-sm mt-1">
+            Please try refreshing the page. If the problem persists, contact
+            support.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <MemberList
+            orgId={orgId}
+            members={membersWithEmails}
+            invitations={invitations || []}
+            currentUserId={user.id}
+            currentUserRole={membership.role}
+          />
+        </div>
+      )}
     </div>
   );
 }
