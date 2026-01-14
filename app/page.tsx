@@ -29,8 +29,12 @@ export default function Home() {
   const [generationResults, setGenerationResults] = useState<
     GenerationResult[]
   >([]);
+  const [persistedResults, setPersistedResults] = useState<GenerationResult[]>(
+    []
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showResults, setShowResults] = useState(false);
 
   // Dynamic slabs state
   const [dynamicSlabs, setDynamicSlabs] = useState<Slab[]>([]);
@@ -133,8 +137,13 @@ export default function Home() {
     : SLABS;
 
   const handleImageUpload = (base64Image: string) => {
+    // If changing the kitchen image, clear all persisted results
+    if (kitchenImage && kitchenImage !== base64Image) {
+      setPersistedResults([]);
+    }
     setKitchenImage(base64Image);
     setGenerationResults([]);
+    setShowResults(false);
     setError(null);
     trackABEvent(abVariant, "image_uploaded");
   };
@@ -249,11 +258,23 @@ export default function Home() {
   );
 
   const handleGenerate = async () => {
-    if (!kitchenImage || selectedSlabs.length === 0) {
-      setError("Please upload a kitchen image and select at least one slab");
+    if (!kitchenImage) {
+      setError("Please upload a kitchen image");
+      return;
+    }
+    if (selectedSlabs.length === 0 && persistedResults.length === 0) {
+      setError("Please select at least one slab to visualize");
       return;
     }
 
+    // If no new selections but there are persisted results, show them
+    if (selectedSlabs.length === 0 && persistedResults.length > 0) {
+      setShowResults(true);
+      return;
+    }
+
+    // Show results display immediately with loading states
+    setShowResults(true);
     setIsGenerating(true);
     setError(null);
     trackABEvent(abVariant, "generation_started", {
@@ -290,6 +311,26 @@ export default function Home() {
       );
 
       setGenerationResults(results);
+
+      // Merge results into persistedResults
+      setPersistedResults((prev) => {
+        const merged = [...prev];
+        results.forEach((newResult) => {
+          const existingIndex = merged.findIndex(
+            (r) => r.slabId === newResult.slabId
+          );
+          if (existingIndex >= 0) {
+            merged[existingIndex] = newResult; // Update existing
+          } else {
+            merged.push(newResult); // Add new
+          }
+        });
+        return merged;
+      });
+
+      // Show results view
+      setShowResults(true);
+
       trackABEvent(abVariant, "generation_completed", {
         successCount: results.filter((r) => r.imageData).length,
       });
@@ -302,9 +343,10 @@ export default function Home() {
   };
 
   const handleReset = () => {
-    setKitchenImage(null);
+    // Go back to selection UI but keep everything
+    // Keep kitchenImage and persistedResults so user can view existing results later
     setSelectedSlabs([]);
-    setGenerationResults([]);
+    setShowResults(false);
     setError(null);
     trackABEvent(abVariant, "reset");
   };
@@ -348,7 +390,7 @@ export default function Home() {
           <div className="flex justify-center items-center py-20">
             <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
           </div>
-        ) : generationResults.length === 0 ? (
+        ) : !showResults ? (
           <div className="space-y-8 mb-8">
             {/* Upload Kitchen */}
             <div
@@ -374,7 +416,13 @@ export default function Home() {
                     />
                   </div>
                   <button
-                    onClick={() => setKitchenImage(null)}
+                    onClick={() => {
+                      setKitchenImage(null);
+                      setPersistedResults([]);
+                      setGenerationResults([]);
+                      setSelectedSlabs([]);
+                      setShowResults(false);
+                    }}
                     className="mt-3 w-full px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] font-medium border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors"
                   >
                     Change Image
@@ -403,12 +451,17 @@ export default function Home() {
                 slabs={allSlabs}
                 selectedSlabs={selectedSlabs}
                 onSlabSelect={handleSlabSelect}
+                generatedSlabIds={persistedResults
+                  .filter((r) => r.imageData && !r.isLoading && !r.error)
+                  .map((r) => r.slabId)}
               />
             </div>
           </div>
         ) : (
           <ResultDisplay
             generationResults={generationResults}
+            allPersistedResults={persistedResults}
+            selectedSlabs={selectedSlabs}
             originalImage={kitchenImage}
             onReset={handleReset}
             verifiedPhone={verifiedPhone}
@@ -452,25 +505,33 @@ export default function Home() {
         )}
 
         {/* Generate Button */}
-        {generationResults.length === 0 && (
+        {!showResults && (
           <div className="fixed bottom-0 left-0 right-0 pt-4 pb-6 bg-gradient-to-t from-[var(--color-bg)] via-[var(--color-bg)] to-transparent z-50">
             <div className="container mx-auto px-4 max-w-7xl">
               <div className="text-center">
                 <button
                   onClick={handleGenerate}
                   disabled={
-                    !kitchenImage || selectedSlabs.length === 0 || isGenerating
+                    !kitchenImage ||
+                    (selectedSlabs.length === 0 &&
+                      persistedResults.length === 0) ||
+                    isGenerating
                   }
                   className={`
                     px-10 py-4 text-xl font-semibold rounded-full shadow-lg
                     transition-all duration-300 transform
                     ${
-                      kitchenImage && selectedSlabs.length > 0 && !isGenerating
+                      kitchenImage &&
+                      (selectedSlabs.length > 0 ||
+                        persistedResults.length > 0) &&
+                      !isGenerating
                         ? "bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white hover:scale-105 hover:shadow-xl"
                         : "bg-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed"
                     }
                     ${
-                      selectedSlabs.length === 3 && kitchenImage
+                      selectedSlabs.length === 3 &&
+                      kitchenImage &&
+                      !isGenerating
                         ? "animate-hop ring-4 ring-[var(--color-accent)]/30"
                         : ""
                     }
@@ -505,11 +566,20 @@ export default function Home() {
                     Upload a kitchen photo to get started
                   </p>
                 )}
-                {kitchenImage && selectedSlabs.length === 0 && (
-                  <p className="mt-3 text-sm text-[var(--color-text-muted)]">
-                    Select at least one slab to visualize
-                  </p>
-                )}
+                {kitchenImage &&
+                  selectedSlabs.length === 0 &&
+                  persistedResults.length === 0 && (
+                    <p className="mt-3 text-sm text-[var(--color-text-muted)]">
+                      Select at least one slab to visualize
+                    </p>
+                  )}
+                {kitchenImage &&
+                  selectedSlabs.length === 0 &&
+                  persistedResults.length > 0 && (
+                    <p className="mt-3 text-sm text-[var(--color-text-muted)]">
+                      View existing results or select more slabs
+                    </p>
+                  )}
               </div>
             </div>
           </div>

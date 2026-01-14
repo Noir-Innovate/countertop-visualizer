@@ -7,10 +7,16 @@ interface ComparisonImage {
   name: string
   imageUrl: string
   isOriginal?: boolean
+  isLoading?: boolean
 }
 
 interface ImageComparisonProps {
   images: ComparisonImage[]
+  allResults?: Array<{
+    slabId: string
+    isLoading: boolean
+    imageData: string | null
+  }>
   leftIndex: number
   rightIndex: number
   onLeftIndexChange: (index: number) => void
@@ -21,6 +27,7 @@ interface ImageComparisonProps {
 
 export default function ImageComparison({
   images,
+  allResults = [],
   leftIndex,
   rightIndex,
   onLeftIndexChange,
@@ -32,6 +39,10 @@ export default function ImageComparison({
 
   const leftImage = images[leftIndex]
   const rightImage = images[rightIndex]
+  const leftResult = allResults.find((r) => r.slabId === leftImage.id)
+  const rightResult = allResults.find((r) => r.slabId === rightImage.id)
+  const leftIsLoading = leftImage.isLoading || leftResult?.isLoading
+  const rightIsLoading = rightImage.isLoading || rightResult?.isLoading
 
   return (
     <div className="space-y-4">
@@ -40,16 +51,51 @@ export default function ImageComparison({
         {/* Left Image */}
         <div className="space-y-2">
           <div 
-            className="relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] cursor-pointer group"
-            onClick={() => onImageClick(leftImage.imageUrl, leftImage.name, leftIndex)}
+            className={`relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] ${
+              leftIsLoading ? "cursor-default" : "cursor-pointer group"
+            }`}
+            onClick={() => {
+              if (!leftIsLoading) {
+                onImageClick(leftImage.imageUrl, leftImage.name, leftIndex)
+              }
+            }}
           >
-            <Image
-              src={leftImage.imageUrl}
-              alt={leftImage.name}
-              fill
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              sizes="(max-width: 768px) 100vw, 50vw"
-            />
+            {leftIsLoading ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                  <svg
+                    className="animate-spin h-12 w-12 text-[var(--color-accent)] mx-auto mb-4"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    Generating...
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Image
+                src={leftImage.imageUrl}
+                alt={leftImage.name}
+                fill
+                className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                sizes="(max-width: 768px) 100vw, 50vw"
+              />
+            )}
             
             {/* Badge */}
             <div className={`absolute top-3 left-3 px-3 py-1 text-white text-sm font-medium rounded-full ${
@@ -72,8 +118,8 @@ export default function ImageComparison({
             ))}
           </select>
 
-          {/* Get Quote Button - only for non-original */}
-          {!leftImage.isOriginal && onGetQuote && (
+          {/* Get Quote Button - only for non-original, not loading */}
+          {!leftImage.isOriginal && !leftIsLoading && onGetQuote && (
             <button
               onClick={() => onGetQuote(leftImage.id, leftImage.name, leftImage.imageUrl)}
               className="w-full px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-1.5"
@@ -89,16 +135,51 @@ export default function ImageComparison({
         {/* Right Image */}
         <div className="space-y-2">
           <div 
-            className="relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] cursor-pointer group"
-            onClick={() => onImageClick(rightImage.imageUrl, rightImage.name, rightIndex)}
+            className={`relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] ${
+              rightIsLoading ? "cursor-default" : "cursor-pointer group"
+            }`}
+            onClick={() => {
+              if (!rightIsLoading) {
+                onImageClick(rightImage.imageUrl, rightImage.name, rightIndex)
+              }
+            }}
           >
-            <Image
-              src={rightImage.imageUrl}
-              alt={rightImage.name}
-              fill
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              sizes="(max-width: 768px) 100vw, 50vw"
-            />
+            {rightIsLoading ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                  <svg
+                    className="animate-spin h-12 w-12 text-[var(--color-accent)] mx-auto mb-4"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    Generating...
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Image
+                src={rightImage.imageUrl}
+                alt={rightImage.name}
+                fill
+                className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                sizes="(max-width: 768px) 100vw, 50vw"
+              />
+            )}
             
             {/* Badge */}
             <div className={`absolute top-3 left-3 px-3 py-1 text-white text-sm font-medium rounded-full ${
@@ -121,8 +202,8 @@ export default function ImageComparison({
             ))}
           </select>
 
-          {/* Get Quote Button - only for non-original */}
-          {!rightImage.isOriginal && onGetQuote && (
+          {/* Get Quote Button - only for non-original, not loading */}
+          {!rightImage.isOriginal && !rightIsLoading && onGetQuote && (
             <button
               onClick={() => onGetQuote(rightImage.id, rightImage.name, rightImage.imageUrl)}
               className="w-full px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-1.5"

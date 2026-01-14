@@ -6,9 +6,12 @@ import ImageCarousel from "./ImageCarousel";
 import ImageComparison from "./ImageComparison";
 import QuoteModal from "./QuoteModal";
 import type { GenerationResult } from "@/lib/types";
+import type { Slab } from "@/lib/types";
 
 interface ResultDisplayProps {
   generationResults: GenerationResult[];
+  allPersistedResults: GenerationResult[];
+  selectedSlabs: Slab[];
   originalImage: string | null;
   onReset: () => void;
   verifiedPhone: string | null;
@@ -20,6 +23,8 @@ type ViewMode = "carousel" | "compare";
 
 export default function ResultDisplay({
   generationResults,
+  allPersistedResults,
+  selectedSlabs,
   originalImage,
   onReset,
   verifiedPhone,
@@ -40,13 +45,50 @@ export default function ResultDisplay({
     imageUrl: string | null;
   }>({ slabId: null, slabName: null, imageUrl: null });
 
-  // Build images array: original first, then generated results
+  // Merge all results including loading states
+  const allResults = useMemo(() => {
+    const merged: GenerationResult[] = [];
+
+    // Add all persisted results (completed)
+    allPersistedResults.forEach((result) => {
+      merged.push(result);
+    });
+
+    // Add loading states for selected slabs that aren't in persisted results yet
+    selectedSlabs.forEach((slab) => {
+      const existing = merged.find((r) => r.slabId === slab.id);
+      if (!existing) {
+        merged.push({
+          slabId: slab.id,
+          slabName: slab.name,
+          imageData: null,
+          isLoading: true,
+          error: null,
+        });
+      }
+    });
+
+    // Update with current generation results (may include loading or completed)
+    generationResults.forEach((result) => {
+      const index = merged.findIndex((r) => r.slabId === result.slabId);
+      if (index >= 0) {
+        merged[index] = result; // Update existing
+      } else {
+        merged.push(result); // Add new
+      }
+    });
+
+    return merged;
+  }, [allPersistedResults, selectedSlabs, generationResults]);
+
+  // Build images array: original first, then all results (including loading)
   const allImages = useMemo(() => {
     const images: Array<{
       id: string;
       name: string;
       imageUrl: string;
       isOriginal?: boolean;
+      isLoading?: boolean;
     }> = [];
 
     // Add original as first image
@@ -59,9 +101,18 @@ export default function ResultDisplay({
       });
     }
 
-    // Add generated results
-    generationResults.forEach((result) => {
-      if (result.imageData && !result.isLoading && !result.error) {
+    // Add all results (completed and loading)
+    allResults.forEach((result) => {
+      if (result.isLoading) {
+        // Add loading placeholder
+        images.push({
+          id: result.slabId,
+          name: result.slabName,
+          imageUrl: "", // Empty for loading state
+          isLoading: true,
+        });
+      } else if (result.imageData && !result.error) {
+        // Add completed result
         images.push({
           id: result.slabId,
           name: result.slabName,
@@ -71,7 +122,7 @@ export default function ResultDisplay({
     });
 
     return images;
-  }, [originalImage, generationResults]);
+  }, [originalImage, allResults]);
 
   // Initialize compare indices when switching to compare mode
   const handleSwitchToCompare = () => {
@@ -107,7 +158,7 @@ export default function ResultDisplay({
     imageUrl: string
   ) => {
     // Find the result to get the slab ID
-    const result = generationResults.find((r) => r.slabId === imageId);
+    const result = allResults.find((r) => r.slabId === imageId);
     setSelectedForQuote({
       slabId: result?.slabId || imageId,
       slabName: imageName,
@@ -116,8 +167,11 @@ export default function ResultDisplay({
     setShowLeadForm(true);
   };
 
-  const allComplete = generationResults.every((r) => !r.isLoading);
-  const hasCompletedImages = allImages.length > 0;
+  const allComplete = allResults.every((r) => !r.isLoading);
+  const hasCompletedImages = allResults.some(
+    (r) => r.imageData && !r.isLoading && !r.error
+  );
+  const hasAnyResults = allResults.length > 0;
 
   return (
     <>
@@ -128,36 +182,41 @@ export default function ResultDisplay({
               Your New Kitchens
             </h2>
             <p className="text-[var(--color-text-secondary)] mt-1">
-              {generationResults.length}{" "}
-              {generationResults.length === 1 ? "variation" : "variations"}{" "}
+              {
+                allResults.filter(
+                  (r) => r.imageData && !r.isLoading && !r.error
+                ).length
+              }{" "}
+              {allResults.filter((r) => r.imageData && !r.isLoading && !r.error)
+                .length === 1
+                ? "variation"
+                : "variations"}{" "}
               generated
             </p>
           </div>
-          {allComplete && (
-            <button
-              onClick={onReset}
-              className="px-4 py-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] font-medium transition-colors flex items-center gap-2"
+          <button
+            onClick={onReset}
+            className="px-4 py-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] font-medium transition-colors flex items-center gap-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-              Try Another
-            </button>
-          )}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Try Another
+          </button>
         </div>
 
         {/* View Mode Toggle */}
-        {allComplete && hasCompletedImages && (
+        {hasAnyResults && (
           <div className="flex gap-2 justify-center mb-6">
             <button
               onClick={() => setViewMode("carousel")}
@@ -183,10 +242,11 @@ export default function ResultDisplay({
         )}
 
         {/* Carousel View */}
-        {viewMode === "carousel" && hasCompletedImages && (
+        {viewMode === "carousel" && hasAnyResults && (
           <div className="mb-6">
             <ImageCarousel
               images={allImages}
+              allResults={allResults}
               currentIndex={carouselIndex}
               onIndexChange={setCarouselIndex}
               onImageClick={openModal}
@@ -198,9 +258,7 @@ export default function ResultDisplay({
               onDownload={(imageId, imageName, imageUrl) => {
                 if (imageId !== "original") {
                   // Find the result to get base64 data
-                  const result = generationResults.find(
-                    (r) => r.slabId === imageId
-                  );
+                  const result = allResults.find((r) => r.slabId === imageId);
                   if (result?.imageData) {
                     handleDownload(result.imageData, imageName);
                   }
@@ -211,71 +269,22 @@ export default function ResultDisplay({
         )}
 
         {/* Comparison View */}
-        {viewMode === "compare" &&
-          hasCompletedImages &&
-          allImages.length >= 2 && (
-            <div className="mb-6">
-              <ImageComparison
-                images={allImages}
-                leftIndex={compareLeftIndex}
-                rightIndex={compareRightIndex}
-                onLeftIndexChange={setCompareLeftIndex}
-                onRightIndexChange={setCompareRightIndex}
-                onImageClick={openModal}
-                onGetQuote={(imageId, imageName, imageUrl) => {
-                  if (imageId !== "original") {
-                    handleGetQuote(imageId, imageName, imageUrl);
-                  }
-                }}
-              />
-            </div>
-          )}
-
-        {/* Loading States */}
-        {!allComplete && (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            {generationResults.map((result) => (
-              <div key={result.slabId} className="space-y-3">
-                <h3 className="text-lg font-semibold text-[var(--color-text-secondary)] text-center">
-                  {result.slabName}
-                </h3>
-                {result.isLoading && (
-                  <div className="aspect-video bg-[var(--color-bg-secondary)] rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <svg
-                        className="animate-spin h-8 w-8 text-[var(--color-accent)] mx-auto mb-2"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                          fill="none"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      <p className="text-sm text-[var(--color-text-muted)]">
-                        Generating...
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {result.error && (
-                  <div className="aspect-video bg-red-50 rounded-lg flex items-center justify-center p-4">
-                    <p className="text-sm text-red-600 text-center">
-                      {result.error}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))}
+        {viewMode === "compare" && hasAnyResults && allImages.length >= 2 && (
+          <div className="mb-6">
+            <ImageComparison
+              images={allImages}
+              allResults={allResults}
+              leftIndex={compareLeftIndex}
+              rightIndex={compareRightIndex}
+              onLeftIndexChange={setCompareLeftIndex}
+              onRightIndexChange={setCompareRightIndex}
+              onImageClick={openModal}
+              onGetQuote={(imageId, imageName, imageUrl) => {
+                if (imageId !== "original") {
+                  handleGetQuote(imageId, imageName, imageUrl);
+                }
+              }}
+            />
           </div>
         )}
       </div>
@@ -312,9 +321,7 @@ export default function ResultDisplay({
           onDownload={(imageId, imageName, imageUrl) => {
             if (imageId !== "original") {
               // Find the result to get base64 data
-              const result = generationResults.find(
-                (r) => r.slabId === imageId
-              );
+              const result = allResults.find((r) => r.slabId === imageId);
               if (result?.imageData) {
                 handleDownload(result.imageData, imageName);
               }

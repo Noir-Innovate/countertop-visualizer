@@ -8,10 +8,16 @@ interface CarouselImage {
   name: string
   imageUrl: string
   isOriginal?: boolean
+  isLoading?: boolean
 }
 
 interface ImageCarouselProps {
   images: CarouselImage[]
+  allResults?: Array<{
+    slabId: string
+    isLoading: boolean
+    imageData: string | null
+  }>
   currentIndex: number
   onIndexChange: (index: number) => void
   onImageClick: (imageUrl: string, alt: string, imageIndex: number) => void
@@ -21,6 +27,7 @@ interface ImageCarouselProps {
 
 export default function ImageCarousel({
   images,
+  allResults = [],
   currentIndex,
   onIndexChange,
   onImageClick,
@@ -70,24 +77,61 @@ export default function ImageCarousel({
   if (images.length === 0) return null
 
   const currentImage = images[currentIndex]
+  const currentResult = allResults.find((r) => r.slabId === currentImage.id)
+  const isLoading = currentImage.isLoading || currentResult?.isLoading
 
   return (
     <div className="relative">
       {/* Main Image */}
       <div 
-        className="relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] cursor-pointer group"
-        onClick={() => onImageClick(currentImage.imageUrl, currentImage.name, currentIndex)}
+        className={`relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] ${
+          isLoading ? "cursor-default" : "cursor-pointer group"
+        }`}
+        onClick={() => {
+          if (!isLoading) {
+            onImageClick(currentImage.imageUrl, currentImage.name, currentIndex)
+          }
+        }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <Image
-          src={currentImage.imageUrl}
-          alt={currentImage.name}
-          fill
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-          sizes="(max-width: 768px) 100vw, 80vw"
-          priority
-        />
+        {isLoading ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center">
+              <svg
+                className="animate-spin h-12 w-12 text-[var(--color-accent)] mx-auto mb-4"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Generating...
+              </p>
+            </div>
+          </div>
+        ) : (
+          <Image
+            src={currentImage.imageUrl}
+            alt={currentImage.name}
+            fill
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            sizes="(max-width: 768px) 100vw, 80vw"
+            priority
+          />
+        )}
 
         {/* Original Badge */}
         {currentImage.isOriginal && (
@@ -103,8 +147,8 @@ export default function ImageCarousel({
           </div>
         )}
 
-        {/* Action Buttons - Below image on mobile, overlay on desktop (only for generated images) */}
-        {!currentImage.isOriginal && (onGetQuote || onDownload) && (
+        {/* Action Buttons - Below image on mobile, overlay on desktop (only for generated images, not loading) */}
+        {!currentImage.isOriginal && !isLoading && (onGetQuote || onDownload) && (
           <div className="absolute bottom-4 left-4 md:flex hidden gap-2 z-10">
             {onDownload && (
               <button
@@ -137,12 +181,14 @@ export default function ImageCarousel({
           </div>
         )}
 
-        {/* Expand Icon */}
-        <div className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/30 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-          </svg>
-        </div>
+        {/* Expand Icon - Only show for non-loading images */}
+        {!isLoading && (
+          <div className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/30 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+          </div>
+        )}
 
         {/* Navigation Arrows */}
         {images.length > 1 && (
@@ -182,25 +228,51 @@ export default function ImageCarousel({
                 }
               `}
             >
-              <Image
-                src={image.imageUrl}
-                alt={image.name}
-                fill
-                className="object-cover"
-                sizes="80px"
-              />
-              {image.isOriginal && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <span className="text-white text-xs font-medium">Original</span>
+              {image.isLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-[var(--color-bg-secondary)]">
+                  <svg
+                    className="animate-spin h-6 w-6 text-[var(--color-accent)]"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
                 </div>
+              ) : (
+                <>
+                  <Image
+                    src={image.imageUrl}
+                    alt={image.name}
+                    fill
+                    className="object-cover"
+                    sizes="80px"
+                  />
+                  {image.isOriginal && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <span className="text-white text-xs font-medium">Original</span>
+                    </div>
+                  )}
+                </>
               )}
             </button>
           ))}
         </div>
       )}
 
-      {/* Action Buttons - Below image on mobile (only for generated images) */}
-      {!currentImage.isOriginal && (onGetQuote || onDownload) && (
+      {/* Action Buttons - Below image on mobile (only for generated images, not loading) */}
+      {!currentImage.isOriginal && !isLoading && (onGetQuote || onDownload) && (
         <div className="flex md:hidden gap-2 mt-4 justify-center">
           {onDownload && (
             <button
