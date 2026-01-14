@@ -6,6 +6,7 @@ import { trackEvent } from "@/lib/posthog";
 import PhoneVerificationModal from "@/components/PhoneVerificationModal";
 import { setVerifiedPhone, getVerifiedPhone } from "@/lib/ab-testing";
 import { useMaterialLine } from "@/lib/material-line";
+import { upload } from "@vercel/blob/client";
 import type { LeadFormData } from "@/lib/types";
 
 interface QuoteModalProps {
@@ -123,79 +124,46 @@ export default function QuoteModal({
     });
 
     try {
-      // Upload images to storage first (before submitting form)
-      // This prevents 413 errors from large base64 data in JSON body
-      let selectedImageStoragePath: string | null = null;
-      let selectedImageSignedUrl: string | null = null;
-      let originalImageStoragePath: string | null = null;
-      let originalImageSignedUrl: string | null = null;
+      // Helper function to upload image directly to Vercel Blob from client
+      const uploadImageToBlob = async (dataUrl: string): Promise<string> => {
+        // Convert data URL to blob
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+
+        // Create a File object from blob
+        const file = new File([blob], "image.jpg", {
+          type: blob.type || "image/jpeg",
+        });
+
+        // Upload directly to Vercel Blob using client upload
+        const result = await upload(file.name, file, {
+          access: "public",
+          handleUploadUrl: "/api/blob-upload",
+        });
+
+        return result.url;
+      };
+
+      // Upload images to Vercel Blob first (before submitting form)
+      let selectedImageBlobUrl: string | null = null;
+      let originalImageBlobUrl: string | null = null;
 
       // Upload images in parallel if they are base64 data URLs
       const uploadPromises: Promise<void>[] = [];
 
       if (selectedImageUrl?.startsWith("data:image")) {
         uploadPromises.push(
-          fetch("/api/upload-lead-image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              imageBase64: selectedImageUrl,
-              organizationId: materialLine?.organizationId || null,
-              materialLineId: materialLine?.id || null,
-            }),
+          uploadImageToBlob(selectedImageUrl).then((url) => {
+            selectedImageBlobUrl = url;
           })
-            .then(async (res) => {
-              if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(
-                  `Upload failed: ${res.status} ${errorText || res.statusText}`
-                );
-              }
-              return res.json();
-            })
-            .then((data) => {
-              if (data.success) {
-                selectedImageStoragePath = data.storagePath;
-                selectedImageSignedUrl = data.signedUrl;
-              } else {
-                throw new Error(
-                  data.error || "Failed to upload selected image"
-                );
-              }
-            })
         );
       }
 
       if (originalImageUrl?.startsWith("data:image")) {
         uploadPromises.push(
-          fetch("/api/upload-lead-image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              imageBase64: originalImageUrl,
-              organizationId: materialLine?.organizationId || null,
-              materialLineId: materialLine?.id || null,
-            }),
+          uploadImageToBlob(originalImageUrl).then((url) => {
+            originalImageBlobUrl = url;
           })
-            .then(async (res) => {
-              if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(
-                  `Upload failed: ${res.status} ${errorText || res.statusText}`
-                );
-              }
-              return res.json();
-            })
-            .then((data) => {
-              if (data.success) {
-                originalImageStoragePath = data.storagePath;
-                originalImageSignedUrl = data.signedUrl;
-              } else {
-                throw new Error(
-                  data.error || "Failed to upload original image"
-                );
-              }
-            })
         );
       }
 
@@ -204,7 +172,8 @@ export default function QuoteModal({
         await Promise.all(uploadPromises);
       }
 
-      // Now submit the form with storage paths/URLs instead of base64
+      // Now submit the form with Vercel Blob URLs
+      // The submit-lead route will download from Blob and upload to Supabase
       const response = await fetch("/api/submit-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -212,10 +181,8 @@ export default function QuoteModal({
           ...formData,
           selectedSlabId,
           selectedSlabName,
-          selectedImageStoragePath,
-          selectedImageSignedUrl,
-          originalImageStoragePath,
-          originalImageSignedUrl,
+          selectedImageBlobUrl,
+          originalImageBlobUrl,
           abVariant,
           materialLineId: materialLine?.id || null,
           organizationId: materialLine?.organizationId || null,

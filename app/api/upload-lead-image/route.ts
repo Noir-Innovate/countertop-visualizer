@@ -4,7 +4,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageBase64, organizationId, materialLineId } = await request.json();
+    const { imageBase64, organizationId, materialLineId } =
+      await request.json();
 
     if (!imageBase64) {
       return NextResponse.json(
@@ -76,4 +77,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

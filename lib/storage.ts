@@ -122,7 +122,8 @@ export async function getLeadImageUrl(
     console.error("Unexpected error creating signed URL:", error);
     return {
       url: "",
-      error: error instanceof Error ? error.message : "Failed to create signed URL",
+      error:
+        error instanceof Error ? error.message : "Failed to create signed URL",
     };
   }
 }
@@ -156,4 +157,3 @@ export async function deleteLeadImage(
     };
   }
 }
-

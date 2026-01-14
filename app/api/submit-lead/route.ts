@@ -17,7 +17,10 @@ interface LeadData {
   smsNotifications?: boolean;
   selectedSlabId?: string;
   selectedSlabName?: string;
-  // New: Storage paths and URLs (preferred)
+  // Vercel Blob URLs (preferred - uploaded directly from client)
+  selectedImageBlobUrl?: string | null;
+  originalImageBlobUrl?: string | null;
+  // Legacy: Storage paths and URLs (for backwards compatibility)
   selectedImageStoragePath?: string | null;
   selectedImageSignedUrl?: string | null;
   originalImageStoragePath?: string | null;
@@ -131,13 +134,13 @@ export async function POST(request: NextRequest) {
     const materialLineId = sanitizeUUID(data.materialLineId);
     const organizationId = sanitizeUUID(data.organizationId);
 
-    // Handle images: prefer storage paths/URLs, fallback to base64 upload
+    // Handle images: prefer blob URLs, then storage paths/URLs, fallback to base64 upload
     let imageStoragePath: string | null = null;
     let imageSignedUrl: string | null = null;
     let originalImageStoragePath: string | null = null;
     let originalImageSignedUrl: string | null = null;
 
-    // Get organization and material line slugs if needed for fallback upload
+    // Get organization and material line slugs if needed for upload
     let orgSlug = "default";
     let materialLineSlug = "default";
 
@@ -163,8 +166,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If storage paths/URLs are provided (new approach), use them directly
-    if (data.selectedImageStoragePath && data.selectedImageSignedUrl) {
+    // Handle selected image: prefer blob URL, then storage path, then base64
+    if (data.selectedImageBlobUrl) {
+      // Download from Vercel Blob and upload to Supabase
+      try {
+        const blobResponse = await fetch(data.selectedImageBlobUrl);
+        if (blobResponse.ok) {
+          const arrayBuffer = await blobResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const contentType =
+            blobResponse.headers.get("content-type") || "image/jpeg";
+
+          const result = await uploadLeadImage(
+            orgSlug,
+            materialLineSlug,
+            buffer,
+            contentType
+          );
+          if (result.path && result.url) {
+            imageStoragePath = result.path;
+            imageSignedUrl = result.url;
+          }
+        }
+      } catch (error) {
+        console.error("Error downloading from blob:", error);
+      }
+    } else if (data.selectedImageStoragePath && data.selectedImageSignedUrl) {
+      // Use existing storage paths/URLs (legacy)
       imageStoragePath = data.selectedImageStoragePath;
       imageSignedUrl = data.selectedImageSignedUrl;
     } else if (data.selectedImageBase64) {
@@ -178,7 +206,33 @@ export async function POST(request: NextRequest) {
       imageSignedUrl = result.signedUrl;
     }
 
-    if (data.originalImageStoragePath && data.originalImageSignedUrl) {
+    // Handle original image: prefer blob URL, then storage path, then base64
+    if (data.originalImageBlobUrl) {
+      // Download from Vercel Blob and upload to Supabase
+      try {
+        const blobResponse = await fetch(data.originalImageBlobUrl);
+        if (blobResponse.ok) {
+          const arrayBuffer = await blobResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const contentType =
+            blobResponse.headers.get("content-type") || "image/jpeg";
+
+          const result = await uploadLeadImage(
+            orgSlug,
+            materialLineSlug,
+            buffer,
+            contentType
+          );
+          if (result.path && result.url) {
+            originalImageStoragePath = result.path;
+            originalImageSignedUrl = result.url;
+          }
+        }
+      } catch (error) {
+        console.error("Error downloading from blob:", error);
+      }
+    } else if (data.originalImageStoragePath && data.originalImageSignedUrl) {
+      // Use existing storage paths/URLs (legacy)
       originalImageStoragePath = data.originalImageStoragePath;
       originalImageSignedUrl = data.originalImageSignedUrl;
     } else if (data.originalImageBase64) {
