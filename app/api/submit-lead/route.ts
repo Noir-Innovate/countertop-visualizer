@@ -17,8 +17,14 @@ interface LeadData {
   smsNotifications?: boolean;
   selectedSlabId?: string;
   selectedSlabName?: string;
-  selectedImageBase64?: string; // Base64 image data (data:image/...)
-  originalImageBase64?: string; // Base64 image data (data:image/...)
+  // New: Storage paths and URLs (preferred)
+  selectedImageStoragePath?: string | null;
+  selectedImageSignedUrl?: string | null;
+  originalImageStoragePath?: string | null;
+  originalImageSignedUrl?: string | null;
+  // Legacy: Base64 image data (fallback for backwards compatibility)
+  selectedImageBase64?: string;
+  originalImageBase64?: string;
   abVariant?: string;
   materialLineId?: string;
   organizationId?: string;
@@ -125,7 +131,13 @@ export async function POST(request: NextRequest) {
     const materialLineId = sanitizeUUID(data.materialLineId);
     const organizationId = sanitizeUUID(data.organizationId);
 
-    // Get organization and material line slugs if available
+    // Handle images: prefer storage paths/URLs, fallback to base64 upload
+    let imageStoragePath: string | null = null;
+    let imageSignedUrl: string | null = null;
+    let originalImageStoragePath: string | null = null;
+    let originalImageSignedUrl: string | null = null;
+
+    // Get organization and material line slugs if needed for fallback upload
     let orgSlug = "default";
     let materialLineSlug = "default";
 
@@ -151,18 +163,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upload both images in parallel
-    console.log("Swag 2 - Uploading images in parallel");
-    const [selectedImageResult, originalImageResult] = await Promise.all([
-      uploadImage(data.selectedImageBase64, orgSlug, materialLineSlug),
-      uploadImage(data.originalImageBase64, orgSlug, materialLineSlug),
-    ]);
+    // If storage paths/URLs are provided (new approach), use them directly
+    if (data.selectedImageStoragePath && data.selectedImageSignedUrl) {
+      imageStoragePath = data.selectedImageStoragePath;
+      imageSignedUrl = data.selectedImageSignedUrl;
+    } else if (data.selectedImageBase64) {
+      // Fallback: upload base64 image (legacy support)
+      const result = await uploadImage(
+        data.selectedImageBase64,
+        orgSlug,
+        materialLineSlug
+      );
+      imageStoragePath = result.storagePath;
+      imageSignedUrl = result.signedUrl;
+    }
 
-    // Extract results
-    const imageStoragePath = selectedImageResult.storagePath;
-    const imageSignedUrl = selectedImageResult.signedUrl;
-    const originalImageStoragePath = originalImageResult.storagePath;
-    const originalImageSignedUrl = originalImageResult.signedUrl;
+    if (data.originalImageStoragePath && data.originalImageSignedUrl) {
+      originalImageStoragePath = data.originalImageStoragePath;
+      originalImageSignedUrl = data.originalImageSignedUrl;
+    } else if (data.originalImageBase64) {
+      // Fallback: upload base64 image (legacy support)
+      const result = await uploadImage(
+        data.originalImageBase64,
+        orgSlug,
+        materialLineSlug
+      );
+      originalImageStoragePath = result.storagePath;
+      originalImageSignedUrl = result.signedUrl;
+    }
 
     // Store lead in Supabase
     const { data: lead, error: insertError } = await supabase

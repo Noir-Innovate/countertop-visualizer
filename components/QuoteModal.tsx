@@ -123,14 +123,88 @@ export default function QuoteModal({
     });
 
     try {
-      // Extract base64 data from image URLs if they are data URLs
-      const selectedImageBase64 = selectedImageUrl?.startsWith("data:image")
-        ? selectedImageUrl
-        : undefined;
-      const originalImageBase64 = originalImageUrl?.startsWith("data:image")
-        ? originalImageUrl
-        : undefined;
+      // Upload images to storage first (before submitting form)
+      // This prevents 413 errors from large base64 data in JSON body
+      let selectedImageStoragePath: string | null = null;
+      let selectedImageSignedUrl: string | null = null;
+      let originalImageStoragePath: string | null = null;
+      let originalImageSignedUrl: string | null = null;
 
+      // Upload images in parallel if they are base64 data URLs
+      const uploadPromises: Promise<void>[] = [];
+
+      if (selectedImageUrl?.startsWith("data:image")) {
+        uploadPromises.push(
+          fetch("/api/upload-lead-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              imageBase64: selectedImageUrl,
+              organizationId: materialLine?.organizationId || null,
+              materialLineId: materialLine?.id || null,
+            }),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(
+                  `Upload failed: ${res.status} ${errorText || res.statusText}`
+                );
+              }
+              return res.json();
+            })
+            .then((data) => {
+              if (data.success) {
+                selectedImageStoragePath = data.storagePath;
+                selectedImageSignedUrl = data.signedUrl;
+              } else {
+                throw new Error(
+                  data.error || "Failed to upload selected image"
+                );
+              }
+            })
+        );
+      }
+
+      if (originalImageUrl?.startsWith("data:image")) {
+        uploadPromises.push(
+          fetch("/api/upload-lead-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              imageBase64: originalImageUrl,
+              organizationId: materialLine?.organizationId || null,
+              materialLineId: materialLine?.id || null,
+            }),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(
+                  `Upload failed: ${res.status} ${errorText || res.statusText}`
+                );
+              }
+              return res.json();
+            })
+            .then((data) => {
+              if (data.success) {
+                originalImageStoragePath = data.storagePath;
+                originalImageSignedUrl = data.signedUrl;
+              } else {
+                throw new Error(
+                  data.error || "Failed to upload original image"
+                );
+              }
+            })
+        );
+      }
+
+      // Wait for all uploads to complete
+      if (uploadPromises.length > 0) {
+        await Promise.all(uploadPromises);
+      }
+
+      // Now submit the form with storage paths/URLs instead of base64
       const response = await fetch("/api/submit-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,8 +212,10 @@ export default function QuoteModal({
           ...formData,
           selectedSlabId,
           selectedSlabName,
-          selectedImageBase64,
-          originalImageBase64,
+          selectedImageStoragePath,
+          selectedImageSignedUrl,
+          originalImageStoragePath,
+          originalImageSignedUrl,
           abVariant,
           materialLineId: materialLine?.id || null,
           organizationId: materialLine?.organizationId || null,
@@ -268,7 +344,7 @@ export default function QuoteModal({
             )}
 
             {/* Form Section */}
-            <div className="bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] p-6 md:p-8 text-white flex flex-col flex-1 min-h-0 overflow-y-auto">
+            <div className="bg-slate-800 p-6 md:p-8 text-white flex flex-col flex-1 min-h-0 overflow-y-auto">
               <div className="mb-6">
                 <h3 className="text-2xl font-bold mb-2">Get Your Quote</h3>
                 <p className="text-white/80">
