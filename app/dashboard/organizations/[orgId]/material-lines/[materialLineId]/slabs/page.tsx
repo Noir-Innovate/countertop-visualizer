@@ -5,16 +5,33 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
 }
 
 interface MaterialFile {
-  id: string;
-  name: string;
+  id: string; // Database material ID (UUID)
+  name: string; // Filename
   title?: string | null;
   description?: string | null;
+  order?: number;
 }
 
 interface FileWithMetadata {
@@ -46,6 +63,15 @@ export default function MaterialsPage({ params }: Props) {
   );
   const [showEditAllModal, setShowEditAllModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     fetchMaterials();
@@ -119,38 +145,49 @@ export default function MaterialsPage({ params }: Props) {
             file.name.match(/\.(jpg|jpeg|png|webp|gif|tif|tiff)$/i)
           ) || [];
 
-        // Fetch material metadata from database
+        // Fetch material metadata from database, ordered by order field
         const { data: materialsData } = await supabase
           .from("materials")
-          .select("filename, title, description")
-          .eq("material_line_id", materialLineId);
+          .select("id, filename, title, description, order")
+          .eq("material_line_id", materialLineId)
+          .order("order", { ascending: true });
 
         // Create a map of filename to metadata
         const materialsMap = new Map<
           string,
-          { title: string | null; description: string | null }
+          { id: string; title: string | null; description: string | null; order: number }
         >();
         if (materialsData) {
           materialsData.forEach((m) => {
             materialsMap.set(m.filename, {
+              id: m.id,
               title: m.title,
               description: m.description,
+              order: m.order,
             });
           });
         }
 
         // Combine storage files with database metadata
-        const materialsWithMetadata: MaterialFile[] = materialFiles.map(
-          (file) => {
+        const materialsWithMetadata: MaterialFile[] = materialFiles
+          .map((file) => {
             const meta = materialsMap.get(file.name);
             return {
-              id: file.id || file.name,
+              id: meta?.id || file.id || file.name, // Use database ID if available
               name: file.name,
               title: meta?.title || null,
               description: meta?.description || null,
+              order: meta?.order ?? 999999, // Put materials without order at the end
             };
-          }
-        );
+          })
+          // Sort by order from database
+          .sort((a, b) => {
+            if (a.order !== undefined && b.order !== undefined) {
+              return a.order - b.order;
+            }
+            // Fallback to filename alphabetical if order is missing
+            return a.name.localeCompare(b.name);
+          });
 
         setMaterials(materialsWithMetadata);
         console.log(
@@ -279,6 +316,18 @@ export default function MaterialsPage({ params }: Props) {
         // Continue anyway - bucket might exist
       }
 
+      // Get the maximum order value for this material line to assign order to new materials
+      const { data: maxOrderData } = await supabase
+        .from("materials")
+        .select("order")
+        .eq("material_line_id", materialLineId)
+        .order("order", { ascending: false })
+        .limit(1)
+        .single();
+
+      const maxOrder = maxOrderData?.order ?? 0;
+      let currentOrder = maxOrder;
+
       // Upload files and create material records
       const uploadResults = await Promise.allSettled(
         pendingFiles.map(async ({ file, title, description }) => {
@@ -308,6 +357,9 @@ export default function MaterialsPage({ params }: Props) {
             );
           }
 
+          // Increment order for this material
+          currentOrder += 1;
+
           // Insert material record into database
           // Title is automatically generated from filename, description is optional
           const finalTitle =
@@ -321,6 +373,7 @@ export default function MaterialsPage({ params }: Props) {
               filename: file.name,
               title: finalTitle,
               description: finalDescription,
+              order: currentOrder,
             });
 
           if (materialError) {
@@ -459,6 +512,25 @@ export default function MaterialsPage({ params }: Props) {
         // Don't fail if DB delete fails - file is already deleted
       }
 
+      // Reorder remaining materials to fill gaps (make order sequential: 1, 2, 3...)
+      const { data: remainingMaterials } = await supabase
+        .from("materials")
+        .select("id")
+        .eq("material_line_id", materialLineId)
+        .order("order", { ascending: true });
+
+      if (remainingMaterials && remainingMaterials.length > 0) {
+        // Update order values to be sequential
+        const updatePromises = remainingMaterials.map((material, index) => {
+          return supabase
+            .from("materials")
+            .update({ order: index + 1 })
+            .eq("id", material.id);
+        });
+
+        await Promise.all(updatePromises);
+      }
+
       await fetchMaterials();
       setDeletingMaterial(null);
     } catch (err) {
@@ -537,6 +609,73 @@ export default function MaterialsPage({ params }: Props) {
       ]);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleReorderMaterials = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = materials.findIndex((m) => m.id === active.id);
+    const newIndex = materials.findIndex((m) => m.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    // Optimistically update the UI
+    const newMaterials = arrayMove(materials, oldIndex, newIndex);
+    setMaterials(newMaterials);
+    setIsReordering(true);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setErrors(["You must be logged in"]);
+        setIsReordering(false);
+        await fetchMaterials(); // Revert on error
+        return;
+      }
+
+      // Get material IDs in the new order (using database IDs)
+      const materialIds = newMaterials.map((m) => m.id);
+
+      // Call the reorder API
+      const response = await fetch(
+        `/api/material-lines/${materialLineId}/materials/reorder`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            materialIds: materialIds,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to reorder materials");
+      }
+
+      // Refresh materials to ensure consistency
+      await fetchMaterials();
+    } catch (err) {
+      setErrors([
+        err instanceof Error ? err.message : "Failed to reorder materials",
+      ]);
+      // Revert to original order
+      await fetchMaterials();
+    } finally {
+      setIsReordering(false);
     }
   };
 
@@ -818,105 +957,29 @@ export default function MaterialsPage({ params }: Props) {
           <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
       ) : materials.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {materials.map((material) => {
-            const imageUrl = getImageUrl(material.name);
-            const displayTitle =
-              material.title || generateTitleFromFilename(material.name);
-            const displayDescription =
-              material.description ||
-              generateDescriptionFromFilename(material.name);
-
-            return (
-              <div
-                key={material.id}
-                className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group"
-              >
-                <div className="aspect-[3/4] relative bg-slate-100 overflow-hidden">
-                  {isLocalDev ||
-                  imageUrl.includes("127.0.0.1") ||
-                  imageUrl.includes("localhost") ? (
-                    // Use regular img tag for local development to avoid Next.js image optimization issues
-                    <img
-                      src={imageUrl}
-                      alt={displayTitle}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.error("Image load error:", imageUrl);
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <Image
-                      src={imageUrl}
-                      alt={displayTitle}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                    />
-                  )}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                    <button
-                      onClick={() => setEditingMaterial(material)}
-                      className="p-2 bg-white rounded-lg shadow-md hover:bg-slate-50 transition-colors"
-                      title="Edit material"
-                    >
-                      <svg
-                        className="w-4 h-4 text-slate-700"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => setDeletingMaterial(material)}
-                      className="p-2 bg-white rounded-lg shadow-md hover:bg-red-50 transition-colors"
-                      title="Delete material"
-                    >
-                      <svg
-                        className="w-4 h-4 text-red-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <p
-                    className="font-medium text-slate-900 truncate"
-                    title={displayTitle}
-                  >
-                    {displayTitle}
-                  </p>
-                  {material.description && (
-                    <p
-                      className="text-xs text-slate-600 mt-1 line-clamp-2"
-                      title={material.description}
-                    >
-                      {material.description}
-                    </p>
-                  )}
-                  <p className="text-xs text-slate-400 mt-1">{material.name}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleReorderMaterials}
+        >
+          <SortableContext items={materials.map((m) => m.id)}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {materials.map((material) => (
+                <SortableMaterialCard
+                  key={material.id}
+                  material={material}
+                  isReordering={isReordering}
+                  onEdit={() => setEditingMaterial(material)}
+                  onDelete={() => setDeletingMaterial(material)}
+                  getImageUrl={getImageUrl}
+                  generateTitleFromFilename={generateTitleFromFilename}
+                  generateDescriptionFromFilename={generateDescriptionFromFilename}
+                  isLocalDev={isLocalDev}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
           <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1171,6 +1234,162 @@ export default function MaterialsPage({ params }: Props) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Sortable Material Card Component
+function SortableMaterialCard({
+  material,
+  isReordering,
+  onEdit,
+  onDelete,
+  getImageUrl,
+  generateTitleFromFilename,
+  generateDescriptionFromFilename,
+  isLocalDev,
+}: {
+  material: MaterialFile;
+  isReordering: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  getImageUrl: (fileName: string) => string;
+  generateTitleFromFilename: (filename: string) => string;
+  generateDescriptionFromFilename: (filename: string) => string;
+  isLocalDev: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: material.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const imageUrl = getImageUrl(material.name);
+  const displayTitle =
+    material.title || generateTitleFromFilename(material.name);
+  const displayDescription =
+    material.description ||
+    generateDescriptionFromFilename(material.name);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group ${
+        isDragging ? "z-50" : ""
+      } ${isReordering ? "pointer-events-none" : ""}`}
+    >
+      <div className="aspect-[3/4] relative bg-slate-100 overflow-hidden">
+        {isLocalDev ||
+        imageUrl.includes("127.0.0.1") ||
+        imageUrl.includes("localhost") ? (
+          <img
+            src={imageUrl}
+            alt={displayTitle}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              console.error("Image load error:", imageUrl);
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <Image
+            src={imageUrl}
+            alt={displayTitle}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+          />
+        )}
+        {/* Drag Handle - Always visible on mobile, hover on desktop */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute top-2 left-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-2 bg-white rounded-lg shadow-md hover:bg-slate-50 z-10"
+          title="Drag to reorder"
+        >
+          <svg
+            className="w-4 h-4 text-slate-700"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 8h16M4 16h16"
+            />
+          </svg>
+        </div>
+        {/* Edit/Delete Buttons - Always visible on mobile, hover on desktop */}
+        <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex gap-2">
+          <button
+            onClick={onEdit}
+            className="p-2 bg-white rounded-lg shadow-md hover:bg-slate-50 transition-colors"
+            title="Edit material"
+          >
+            <svg
+              className="w-4 h-4 text-slate-700"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-2 bg-white rounded-lg shadow-md hover:bg-red-50 transition-colors"
+            title="Delete material"
+          >
+            <svg
+              className="w-4 h-4 text-red-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div className="p-4">
+        <p
+          className="font-medium text-slate-900 truncate"
+          title={displayTitle}
+        >
+          {displayTitle}
+        </p>
+        {material.description && (
+          <p
+            className="text-xs text-slate-600 mt-1 line-clamp-2"
+            title={material.description}
+          >
+            {material.description}
+          </p>
+        )}
+        <p className="text-xs text-slate-400 mt-1">{material.name}</p>
+      </div>
     </div>
   );
 }
