@@ -62,12 +62,16 @@ export default function SlabSelector({
 
               {/* Slab Info */}
               <div className="p-3 bg-white flex-shrink-0">
-                <h3 className="font-semibold text-[var(--color-text)] text-sm">
-                  {slab.name}
-                </h3>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-1 line-clamp-2">
-                  {slab.description}
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-semibold text-[var(--color-text)] text-sm flex-1 truncate">
+                    {slab.name}
+                  </h3>
+                  {slab.material_type && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full whitespace-nowrap flex-shrink-0">
+                      {slab.material_type}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Selected Indicator */}

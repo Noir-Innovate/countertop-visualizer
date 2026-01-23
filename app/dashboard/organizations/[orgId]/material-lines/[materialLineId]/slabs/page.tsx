@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import toast from "react-hot-toast";
 import {
   DndContext,
   closestCenter,
@@ -21,6 +22,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Toaster } from "react-hot-toast";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -30,14 +32,14 @@ interface MaterialFile {
   id: string; // Database material ID (UUID)
   name: string; // Filename
   title?: string | null;
-  description?: string | null;
+  material_type?: string | null;
   order?: number;
 }
 
 interface FileWithMetadata {
   file: File;
   title: string;
-  description: string;
+  material_type: string;
 }
 
 export default function MaterialsPage({ params }: Props) {
@@ -85,11 +87,18 @@ export default function MaterialsPage({ params }: Props) {
       .replace(/\b\w/g, (c) => c.toUpperCase()); // Capitalize words
   };
 
-  // Helper function to generate description from filename
-  const generateDescriptionFromFilename = (filename: string): string => {
-    const title = generateTitleFromFilename(filename);
-    return `${title} quartz countertop material`;
-  };
+  // Material type options
+  const MATERIAL_TYPES = [
+    { value: "none", label: "None" },
+    { value: "Granite", label: "Granite" },
+    { value: "Quartz", label: "Quartz" },
+    { value: "Quartzite", label: "Quartzite" },
+    { value: "Marble", label: "Marble" },
+    { value: "Soapstone", label: "Soapstone" },
+    { value: "Porcelain", label: "Porcelain" },
+    { value: "Solid Surface", label: "Solid Surface" },
+    { value: "Other", label: "Other" },
+  ];
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -148,21 +157,21 @@ export default function MaterialsPage({ params }: Props) {
         // Fetch material metadata from database, ordered by order field
         const { data: materialsData } = await supabase
           .from("materials")
-          .select("id, filename, title, description, order")
+          .select("id, filename, title, material_type, order")
           .eq("material_line_id", materialLineId)
           .order("order", { ascending: true });
 
         // Create a map of filename to metadata
         const materialsMap = new Map<
           string,
-          { id: string; title: string | null; description: string | null; order: number }
+          { id: string; title: string | null; material_type: string | null; order: number }
         >();
         if (materialsData) {
           materialsData.forEach((m) => {
             materialsMap.set(m.filename, {
               id: m.id,
               title: m.title,
-              description: m.description,
+              material_type: m.material_type,
               order: m.order,
             });
           });
@@ -176,7 +185,7 @@ export default function MaterialsPage({ params }: Props) {
               id: meta?.id || file.id || file.name, // Use database ID if available
               name: file.name,
               title: meta?.title || null,
-              description: meta?.description || null,
+              material_type: meta?.material_type || null,
               order: meta?.order ?? 999999, // Put materials without order at the end
             };
           })
@@ -248,11 +257,11 @@ export default function MaterialsPage({ params }: Props) {
       return;
     }
 
-    // Prepare files with auto-generated title and optional description
+    // Prepare files with auto-generated title and default material type
     const filesWithMetadata: FileWithMetadata[] = validFiles.map((file) => ({
       file,
       title: generateTitleFromFilename(file.name),
-      description: "", // Start with empty description - user can optionally add one
+      material_type: "none", // Default to none
     }));
 
     setPendingFiles(filesWithMetadata);
@@ -330,7 +339,7 @@ export default function MaterialsPage({ params }: Props) {
 
       // Upload files and create material records
       const uploadResults = await Promise.allSettled(
-        pendingFiles.map(async ({ file, title, description }) => {
+        pendingFiles.map(async ({ file, title, material_type }) => {
           // Upload directly to Supabase storage
           // Folder structure: {org-slug}/{material-line-slug}/{filename}
           const filePath = `${materialLine.supabase_folder}/${file.name}`;
@@ -361,10 +370,10 @@ export default function MaterialsPage({ params }: Props) {
           currentOrder += 1;
 
           // Insert material record into database
-          // Title is automatically generated from filename, description is optional
+          // Title is automatically generated from filename, material_type is optional
           const finalTitle =
             title.trim() || generateTitleFromFilename(file.name);
-          const finalDescription = description.trim() || null;
+          const finalMaterialType = material_type === "none" || material_type === "" ? null : material_type;
 
           const { error: materialError } = await supabase
             .from("materials")
@@ -372,7 +381,7 @@ export default function MaterialsPage({ params }: Props) {
               material_line_id: materialLineId,
               filename: file.name,
               title: finalTitle,
-              description: finalDescription,
+              material_type: finalMaterialType,
               order: currentOrder,
             });
 
@@ -425,33 +434,70 @@ export default function MaterialsPage({ params }: Props) {
   const handleUpdateMaterial = async (
     material: MaterialFile,
     title: string,
-    description: string
+    materialType: string
   ) => {
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("materials").upsert(
-        {
-          material_line_id: materialLineId,
-          filename: material.name,
-          title: title.trim() || null,
-          description: description.trim() || null,
-        },
-        {
-          onConflict: "material_line_id,filename",
+      
+      // Fetch current material to get order value (handle errors gracefully)
+      // Use the order from the material object if available, otherwise fetch it
+      let currentOrder = material.order ?? 999999;
+      
+      // Only fetch if we don't have the order in the material object
+      if (!material.order) {
+        const { data: currentMaterial, error: fetchError } = await supabase
+          .from("materials")
+          .select("order")
+          .eq("id", material.id)
+          .eq("material_line_id", materialLineId)
+          .single();
+
+        if (!fetchError && currentMaterial?.order) {
+          currentOrder = currentMaterial.order;
+        } else if (fetchError) {
+          // If fetch fails, use default order
+          console.warn("Failed to fetch current order, using default:", fetchError);
+          // Continue with default order
         }
-      );
+      }
+
+      // Prepare the update data (don't include id, material_line_id, or filename in update)
+      const updateData: {
+        title: string | null;
+        material_type: string | null;
+        order: number;
+      } = {
+        title: title.trim() || null,
+        material_type: materialType === "none" || materialType === "" ? null : materialType,
+        order: currentOrder,
+      };
+
+      // Use update instead of upsert since we're updating an existing record by ID
+      const { error } = await supabase
+        .from("materials")
+        .update(updateData)
+        .eq("id", material.id)
+        .eq("material_line_id", materialLineId);
 
       if (error) {
-        setErrors([`Failed to update material: ${error.message}`]);
+        let errorMessage = "Failed to update material";
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (error.code) {
+          errorMessage = `Update failed: ${error.code}`;
+        }
+        toast.error(errorMessage);
+        setErrors([errorMessage]);
         return;
       }
 
+      toast.success("Material updated successfully");
       await fetchMaterials();
       setEditingMaterial(null);
     } catch (err) {
-      setErrors([
-        err instanceof Error ? err.message : "Failed to update material",
-      ]);
+      const errorMessage = err instanceof Error ? err.message : "Failed to update material";
+      toast.error(errorMessage);
+      setErrors([errorMessage]);
     }
   };
 
@@ -638,7 +684,9 @@ export default function MaterialsPage({ params }: Props) {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setErrors(["You must be logged in"]);
+        const errorMessage = "You must be logged in";
+        toast.error(errorMessage);
+        setErrors([errorMessage]);
         setIsReordering(false);
         await fetchMaterials(); // Revert on error
         return;
@@ -666,12 +714,13 @@ export default function MaterialsPage({ params }: Props) {
         throw new Error(errorData.error || "Failed to reorder materials");
       }
 
+      toast.success("Materials reordered successfully");
       // Refresh materials to ensure consistency
       await fetchMaterials();
     } catch (err) {
-      setErrors([
-        err instanceof Error ? err.message : "Failed to reorder materials",
-      ]);
+      const errorMessage = err instanceof Error ? err.message : "Failed to reorder materials";
+      toast.error(errorMessage);
+      setErrors([errorMessage]);
       // Revert to original order
       await fetchMaterials();
     } finally {
@@ -679,7 +728,7 @@ export default function MaterialsPage({ params }: Props) {
     }
   };
 
-  const handleEditAll = async (title: string, description: string) => {
+  const handleEditAll = async (title: string, materialType: string) => {
     if (!materialLine || materials.length === 0) return;
 
     try {
@@ -711,12 +760,23 @@ export default function MaterialsPage({ params }: Props) {
         return;
       }
 
-      // Update all materials with the same title and description
+      // Fetch current orders for all materials
+      const { data: currentMaterials } = await supabase
+        .from("materials")
+        .select("id, filename, order")
+        .eq("material_line_id", materialLineId)
+        .in("filename", materials.map(m => m.name));
+
+      const orderMap = new Map(currentMaterials?.map(m => [m.filename, m.order]) || []);
+
+      // Update all materials with the same title and material type
       const updates = materials.map((material) => ({
+        id: material.id,
         material_line_id: materialLineId,
         filename: material.name,
         title: title.trim() || null,
-        description: description.trim() || null,
+        material_type: materialType === "none" || materialType === "" ? null : materialType,
+        order: orderMap.get(material.name) ?? material.order ?? 999999,
       }));
 
       // Use upsert to update or create records
@@ -784,7 +844,9 @@ export default function MaterialsPage({ params }: Props) {
       window.location.hostname === "127.0.0.1");
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <>
+      <Toaster position="top-right" />
+      <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-2">
           <Link href="/dashboard" className="hover:text-slate-700">
@@ -973,7 +1035,6 @@ export default function MaterialsPage({ params }: Props) {
                   onDelete={() => setDeletingMaterial(material)}
                   getImageUrl={getImageUrl}
                   generateTitleFromFilename={generateTitleFromFilename}
-                  generateDescriptionFromFilename={generateDescriptionFromFilename}
                   isLocalDev={isLocalDev}
                 />
               ))}
@@ -1012,14 +1073,14 @@ export default function MaterialsPage({ params }: Props) {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-200">
               <h2 className="text-2xl font-bold text-slate-900">
                 Upload Materials
               </h2>
               <p className="text-slate-600 mt-1">
-                Add titles and descriptions for your materials (optional)
+                Add titles and material types for your materials (optional)
               </p>
             </div>
             <div className="p-6 space-y-6">
@@ -1057,22 +1118,26 @@ export default function MaterialsPage({ params }: Props) {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Description{" "}
+                        Material Type{" "}
                         <span className="text-slate-400 text-xs">
                           (optional)
                         </span>
                       </label>
-                      <textarea
-                        value={fileWithMeta.description}
+                      <select
+                        value={fileWithMeta.material_type}
                         onChange={(e) => {
                           const updated = [...pendingFiles];
-                          updated[index].description = e.target.value;
+                          updated[index].material_type = e.target.value;
                           setPendingFiles(updated);
                         }}
-                        rows={3}
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter material description (optional)"
-                      />
+                      >
+                        {MATERIAL_TYPES.map((type) => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -1102,7 +1167,7 @@ export default function MaterialsPage({ params }: Props) {
 
       {/* Edit Material Modal */}
       {editingMaterial && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
             <div className="p-6 border-b border-slate-200">
               <h2 className="text-2xl font-bold text-slate-900">
@@ -1114,8 +1179,9 @@ export default function MaterialsPage({ params }: Props) {
             </div>
             <EditMaterialForm
               material={editingMaterial}
-              onSave={(title, description) => {
-                handleUpdateMaterial(editingMaterial, title, description);
+              materialTypes={MATERIAL_TYPES}
+              onSave={(title, materialType) => {
+                handleUpdateMaterial(editingMaterial, title, materialType);
               }}
               onCancel={() => setEditingMaterial(null)}
             />
@@ -1125,7 +1191,7 @@ export default function MaterialsPage({ params }: Props) {
 
       {/* Delete Confirmation Modal */}
       {deletingMaterial && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6 border-b border-slate-200">
               <h2 className="text-2xl font-bold text-slate-900">
@@ -1169,20 +1235,21 @@ export default function MaterialsPage({ params }: Props) {
 
       {/* Edit All Modal */}
       {showEditAllModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
             <div className="p-6 border-b border-slate-200">
               <h2 className="text-2xl font-bold text-slate-900">
                 Edit All Materials
               </h2>
               <p className="text-slate-600 mt-1 text-sm">
-                Apply the same title and description to all {materials.length}{" "}
+                Apply the same title and material type to all {materials.length}{" "}
                 materials
               </p>
             </div>
             <EditAllForm
-              onSave={(title, description) => {
-                handleEditAll(title, description);
+              materialTypes={MATERIAL_TYPES}
+              onSave={(title, materialType) => {
+                handleEditAll(title, materialType);
               }}
               onCancel={() => setShowEditAllModal(false)}
               saving={uploading}
@@ -1193,7 +1260,7 @@ export default function MaterialsPage({ params }: Props) {
 
       {/* Delete All Confirmation Modal */}
       {showDeleteAllModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6 border-b border-slate-200">
               <h2 className="text-2xl font-bold text-slate-900">
@@ -1234,7 +1301,8 @@ export default function MaterialsPage({ params }: Props) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -1246,7 +1314,6 @@ function SortableMaterialCard({
   onDelete,
   getImageUrl,
   generateTitleFromFilename,
-  generateDescriptionFromFilename,
   isLocalDev,
 }: {
   material: MaterialFile;
@@ -1255,7 +1322,6 @@ function SortableMaterialCard({
   onDelete: () => void;
   getImageUrl: (fileName: string) => string;
   generateTitleFromFilename: (filename: string) => string;
-  generateDescriptionFromFilename: (filename: string) => string;
   isLocalDev: boolean;
 }) {
   const {
@@ -1276,9 +1342,6 @@ function SortableMaterialCard({
   const imageUrl = getImageUrl(material.name);
   const displayTitle =
     material.title || generateTitleFromFilename(material.name);
-  const displayDescription =
-    material.description ||
-    generateDescriptionFromFilename(material.name);
 
   return (
     <div
@@ -1374,20 +1437,19 @@ function SortableMaterialCard({
         </div>
       </div>
       <div className="p-4">
-        <p
-          className="font-medium text-slate-900 truncate"
-          title={displayTitle}
-        >
-          {displayTitle}
-        </p>
-        {material.description && (
+        <div className="flex items-center justify-between gap-2">
           <p
-            className="text-xs text-slate-600 mt-1 line-clamp-2"
-            title={material.description}
+            className="font-medium text-slate-900 truncate flex-1"
+            title={displayTitle}
           >
-            {material.description}
+            {displayTitle}
           </p>
-        )}
+          {material.material_type && (
+            <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full whitespace-nowrap flex-shrink-0">
+              {material.material_type}
+            </span>
+          )}
+        </div>
         <p className="text-xs text-slate-400 mt-1">{material.name}</p>
       </div>
     </div>
@@ -1397,22 +1459,24 @@ function SortableMaterialCard({
 // Edit Material Form Component
 function EditMaterialForm({
   material,
+  materialTypes,
   onSave,
   onCancel,
 }: {
   material: MaterialFile;
-  onSave: (title: string, description: string) => void;
+  materialTypes: Array<{ value: string; label: string }>;
+  onSave: (title: string, materialType: string) => void;
   onCancel: () => void;
 }) {
   const [title, setTitle] = useState(material.title || "");
-  const [description, setDescription] = useState(material.description || "");
+  const [materialType, setMaterialType] = useState(material.material_type || "none");
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave(title, description);
+      await onSave(title, materialType);
     } finally {
       setSaving(false);
     }
@@ -1435,15 +1499,19 @@ function EditMaterialForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Description
+            Material Type
           </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
+          <select
+            value={materialType}
+            onChange={(e) => setMaterialType(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter material description"
-          />
+          >
+            {materialTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
@@ -1468,20 +1536,22 @@ function EditMaterialForm({
 
 // Edit All Form Component
 function EditAllForm({
+  materialTypes,
   onSave,
   onCancel,
   saving,
 }: {
-  onSave: (title: string, description: string) => void;
+  materialTypes: Array<{ value: string; label: string }>;
+  onSave: (title: string, materialType: string) => void;
   onCancel: () => void;
   saving: boolean;
 }) {
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [materialType, setMaterialType] = useState("none");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSave(title, description);
+    await onSave(title, materialType);
   };
 
   return (
@@ -1504,17 +1574,21 @@ function EditAllForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Description
+            Material Type
           </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
+          <select
+            value={materialType}
+            onChange={(e) => setMaterialType(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter description for all materials"
-          />
+          >
+            {materialTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
           <p className="text-xs text-slate-500 mt-1">
-            Leave empty to remove descriptions from all materials
+            Select "None" to remove material type from all materials
           </p>
         </div>
       </div>

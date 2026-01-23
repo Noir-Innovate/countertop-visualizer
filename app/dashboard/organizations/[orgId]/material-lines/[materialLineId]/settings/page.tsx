@@ -4,6 +4,8 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import toast from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -12,12 +14,15 @@ interface Props {
 interface MaterialLine {
   id: string;
   name: string;
+  display_title: string | null;
   slug: string;
   logo_url: string | null;
   primary_color: string;
   accent_color: string;
   background_color: string;
   supabase_folder: string;
+  email_sender_name: string | null;
+  email_reply_to: string | null;
 }
 
 export default function MaterialLineSettingsPage({ params }: Props) {
@@ -27,13 +32,15 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
+  const [displayTitle, setDisplayTitle] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#2563eb");
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
+  const [emailSenderName, setEmailSenderName] = useState("");
+  const [emailReplyTo, setEmailReplyTo] = useState("");
 
   useEffect(() => {
     const fetchMaterialLine = async () => {
@@ -47,9 +54,12 @@ export default function MaterialLineSettingsPage({ params }: Props) {
       if (data) {
         setMaterialLine(data);
         setName(data.name);
+        setDisplayTitle(data.display_title || data.name || "");
         setLogoUrl(data.logo_url || "");
         setPrimaryColor(data.primary_color);
         setBackgroundColor(data.background_color);
+        setEmailSenderName(data.email_sender_name || "");
+        setEmailReplyTo(data.email_reply_to || "");
       }
       setLoading(false);
     };
@@ -60,7 +70,6 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(false);
     setSaving(true);
 
     try {
@@ -69,22 +78,28 @@ export default function MaterialLineSettingsPage({ params }: Props) {
         .from("material_lines")
         .update({
           name,
+          display_title: displayTitle || null,
           logo_url: logoUrl || null,
           primary_color: primaryColor,
           accent_color: primaryColor, // Accent uses primary color
           background_color: backgroundColor,
+          email_sender_name: emailSenderName || null,
+          email_reply_to: emailReplyTo || null,
         })
         .eq("id", materialLineId);
 
       if (updateError) {
         setError(updateError.message);
+        toast.error(updateError.message);
         return;
       }
 
-      setSuccess(true);
+      toast.success("Settings saved successfully!");
       router.refresh();
     } catch {
-      setError("An unexpected error occurred");
+      const errorMessage = "An unexpected error occurred";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -115,8 +130,10 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="mb-8">
+    <>
+      <Toaster position="top-right" />
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="mb-8">
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-2">
           <Link href="/dashboard" className="hover:text-slate-700">
             Dashboard
@@ -153,21 +170,13 @@ export default function MaterialLineSettingsPage({ params }: Props) {
           </div>
         )}
 
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-700 text-sm">
-              Settings saved successfully!
-            </p>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label
               htmlFor="name"
               className="block text-sm font-medium text-slate-700 mb-1"
             >
-              Material Line Name
+              Internal Name
             </label>
             <input
               id="name"
@@ -177,6 +186,29 @@ export default function MaterialLineSettingsPage({ params }: Props) {
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
               required
             />
+            <p className="mt-1 text-sm text-slate-500">
+              Used internally in the dashboard and admin areas
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="displayTitle"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
+              Display Title
+            </label>
+            <input
+              id="displayTitle"
+              type="text"
+              value={displayTitle}
+              onChange={(e) => setDisplayTitle(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              placeholder={name}
+            />
+            <p className="mt-1 text-sm text-slate-500">
+              Public-facing title shown on your visualizer page. If empty, internal name will be used.
+            </p>
           </div>
 
           <div>
@@ -284,6 +316,57 @@ export default function MaterialLineSettingsPage({ params }: Props) {
             </div>
           </div>
 
+          <div className="border-t border-slate-200 pt-6">
+            <h3 className="text-lg font-medium text-slate-900 mb-4">
+              Email Settings
+            </h3>
+            <p className="text-sm text-slate-600 mb-4">
+              These settings override organization defaults. Leave empty to use organization settings.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="emailSenderName"
+                  className="block text-sm font-medium text-slate-700 mb-1"
+                >
+                  Email Sender Name
+                </label>
+                <input
+                  id="emailSenderName"
+                  type="text"
+                  value={emailSenderName}
+                  onChange={(e) => setEmailSenderName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  placeholder="e.g., Your Company Name"
+                />
+                <p className="mt-1 text-sm text-slate-500">
+                  Name shown as the sender in quote confirmation emails
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="emailReplyTo"
+                  className="block text-sm font-medium text-slate-700 mb-1"
+                >
+                  Reply-To Email
+                </label>
+                <input
+                  id="emailReplyTo"
+                  type="email"
+                  value={emailReplyTo}
+                  onChange={(e) => setEmailReplyTo(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  placeholder="support@yourcompany.com"
+                />
+                <p className="mt-1 text-sm text-slate-500">
+                  Email address where replies to quote confirmation emails will be sent
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
@@ -303,5 +386,6 @@ export default function MaterialLineSettingsPage({ params }: Props) {
         </form>
       </div>
     </div>
+    </>
   );
 }

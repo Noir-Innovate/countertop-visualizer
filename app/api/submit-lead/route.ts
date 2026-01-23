@@ -89,7 +89,6 @@ export async function uploadImage(
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("Swag 1");
     const data: LeadData = await request.json();
 
     // Validate required fields
@@ -297,20 +296,48 @@ export async function POST(request: NextRequest) {
       await posthog.shutdown();
     }
 
-    // Get material line name for notifications and user confirmation
+    // Get material line name and email settings for notifications and user confirmation
     let materialLineName: string | undefined = undefined;
+    let materialLineSenderName: string | undefined = undefined;
+    let materialLineReplyTo: string | undefined = undefined;
+    
+    // Get organization email settings (defaults)
+    let orgSenderName: string | undefined = undefined;
+    let orgReplyTo: string | undefined = undefined;
+    
+    if (organizationId) {
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("email_sender_name, email_reply_to")
+        .eq("id", organizationId)
+        .single();
+      if (org) {
+        orgSenderName = org.email_sender_name || undefined;
+        orgReplyTo = org.email_reply_to || undefined;
+      }
+    }
+    
     if (materialLineId) {
       const { data: materialLine } = await supabase
         .from("material_lines")
-        .select("name")
+        .select("name, display_title, email_sender_name, email_reply_to")
         .eq("id", materialLineId)
         .single();
-      materialLineName = materialLine?.name || undefined;
+      if (materialLine) {
+        // Use display_title for public-facing emails, fallback to name
+        materialLineName = materialLine.display_title || materialLine.name || undefined;
+        // Material line settings override organization settings
+        materialLineSenderName = materialLine.email_sender_name || orgSenderName;
+        materialLineReplyTo = materialLine.email_reply_to || orgReplyTo;
+      }
     }
+    
+    // Use organization settings if no material line settings
+    const emailSenderName = materialLineSenderName || orgSenderName;
+    const emailReplyTo = materialLineReplyTo || orgReplyTo;
 
     // Send notifications to assigned users
     if (materialLineId) {
-      console.log("Material Line ID", materialLineId);
       // Fetch notification assignments for this material line
       const { data: notifications, error: notificationsError } = await supabase
         .from("material_line_notifications")
@@ -328,10 +355,7 @@ export async function POST(request: NextRequest) {
         console.error("Failed to fetch notifications:", notificationsError);
       }
 
-      console.log("notifications", notifications);
-
       if (notifications && notifications.length > 0) {
-        console.log("Swag 3");
         const notificationMaterialLineName =
           materialLineName || "Countertop Visualizer";
 
@@ -354,28 +378,42 @@ export async function POST(request: NextRequest) {
 
           // Send SMS if enabled using NoirMessenger
           if (notification.sms_enabled && userPhone) {
-            let message = `🏠 New Countertop Lead!\n\nName: ${
-              leadInfo.name
-            }\nEmail: ${leadInfo.email}\n${
-              leadInfo.phone ? `Phone: ${leadInfo.phone}\n` : ""
-            }Address: ${leadInfo.address}\nSelected: ${
-              leadInfo.selectedSlab
-            }\n\nCall them immediately!`;
-
-            // Add image URLs to message if available
-            if (originalImageSignedUrl || imageSignedUrl) {
-              message += "\n\nImages:";
-              if (originalImageSignedUrl) {
-                message += `\nBefore: ${originalImageSignedUrl}`;
-              }
-              if (imageSignedUrl) {
-                message += `\nWants Quote For: ${imageSignedUrl}`;
-              }
-            }
-
             try {
               const messenger = new NoirMessenger();
-              await messenger.sendMessage(userPhone, message, leadInfo.name);
+              
+              // Base message with lead details
+              const baseMessage = `New Countertop Visualizer Lead!\n\nName: ${
+                leadInfo.name
+              }\nEmail: ${leadInfo.email}\n${
+                leadInfo.phone ? `Phone: ${leadInfo.phone}\n` : ""
+              }Address: ${leadInfo.address}\nSelected: ${
+                leadInfo.selectedSlab
+              }\n\nCall them immediately!`;
+              
+              // Send base message
+              await messenger.sendMessage(userPhone, baseMessage, leadInfo.name);
+              
+              // Send original kitchen image link if available
+              if (originalImageSignedUrl) {
+                // Small delay between messages to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await messenger.sendMessage(
+                  userPhone,
+                  `Before: ${originalImageSignedUrl}`,
+                  leadInfo.name
+                );
+              }
+              
+              // Send new kitchen image link if available
+              if (imageSignedUrl) {
+                // Small delay between messages to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await messenger.sendMessage(
+                  userPhone,
+                  `Wants Quote For: ${imageSignedUrl}`,
+                  leadInfo.name
+                );
+              }
             } catch (error) {
               console.error("Failed to send SMS notification:", error);
               // Continue - don't fail the request if SMS fails
@@ -384,13 +422,21 @@ export async function POST(request: NextRequest) {
 
           // Send email if enabled
           if (notification.email_enabled && userEmail) {
-            await sendLeadNotificationEmail({
+            const emailResult = await sendLeadNotificationEmail({
               to: userEmail,
               leadInfo,
               kitchenImageUrl: imageSignedUrl || undefined,
               originalImageUrl: originalImageSignedUrl || undefined,
               materialLineName: notificationMaterialLineName,
+              senderName: emailSenderName,
+              replyTo: emailReplyTo,
             });
+            if (!emailResult.success) {
+              console.error(
+                "Failed to send lead notification email:",
+                emailResult.error
+              );
+            }
           }
         }
       }
@@ -398,7 +444,7 @@ export async function POST(request: NextRequest) {
 
     // Send quote confirmation email to user
     try {
-      await sendUserQuoteConfirmationEmail({
+      const emailResult = await sendUserQuoteConfirmationEmail({
         to: data.email,
         name: data.name,
         selectedSlab: data.selectedSlabName || undefined,
@@ -406,7 +452,16 @@ export async function POST(request: NextRequest) {
         kitchenImageUrl: imageSignedUrl || undefined,
         originalImageUrl: originalImageSignedUrl || undefined,
         materialLineName: materialLineName,
+        senderName: emailSenderName,
+        replyTo: emailReplyTo,
       });
+      
+      if (!emailResult.success) {
+        console.error(
+          "Failed to send user confirmation email:",
+          emailResult.error
+        );
+      }
     } catch (error) {
       console.error("Failed to send user confirmation email:", error);
       // Continue - don't fail the request if email fails

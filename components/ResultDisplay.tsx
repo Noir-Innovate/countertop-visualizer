@@ -243,7 +243,7 @@ export default function ResultDisplay({
 
         {/* Carousel View */}
         {viewMode === "carousel" && hasAnyResults && (
-          <div className="mb-6">
+          <div className="mb-6 -mx-6 md:mx-0 overflow-hidden">
             <ImageCarousel
               images={allImages}
               allResults={allResults}
@@ -270,7 +270,7 @@ export default function ResultDisplay({
 
         {/* Comparison View */}
         {viewMode === "compare" && hasAnyResults && allImages.length >= 2 && (
-          <div className="mb-6">
+          <div className="mb-6 -mx-6 md:mx-0 overflow-hidden">
             <ImageComparison
               images={allImages}
               allResults={allResults}
@@ -282,6 +282,15 @@ export default function ResultDisplay({
               onGetQuote={(imageId, imageName, imageUrl) => {
                 if (imageId !== "original") {
                   handleGetQuote(imageId, imageName, imageUrl);
+                }
+              }}
+              onDownload={(imageId, imageName, imageUrl) => {
+                if (imageId !== "original") {
+                  // Find the result to get base64 data
+                  const result = allResults.find((r) => r.slabId === imageId);
+                  if (result?.imageData) {
+                    handleDownload(result.imageData, imageName);
+                  }
                 }
               }}
             />

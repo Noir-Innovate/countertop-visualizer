@@ -2,7 +2,8 @@ export interface Slab {
   id: string;
   name: string;
   imageUrl: string;
-  description: string;
+  description: string; // Keep for backwards compatibility
+  material_type?: string | null;
 }
 
 export interface GenerationResult {

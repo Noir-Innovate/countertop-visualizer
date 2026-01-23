@@ -18,6 +18,8 @@ interface SendEmailParams {
   subject: string;
   html: string;
   from?: string;
+  replyTo?: string;
+  senderName?: string;
 }
 
 // Send email via Resend
@@ -26,6 +28,8 @@ export async function sendEmail({
   subject,
   html,
   from,
+  replyTo,
+  senderName,
 }: SendEmailParams): Promise<{
   success: boolean;
   error?: string;
@@ -39,22 +43,31 @@ export async function sendEmail({
       "countertopvisualizer@mail.noirinnovates.com";
 
     // Format from address with sender name
+    // Use custom sender name if provided, otherwise default to "Countertop Visualizer"
+    const senderDisplayName = senderName || "Countertop Visualizer";
     const fromWithName = fromEmail.includes("<")
       ? fromEmail
-      : `Countertop Visualizer <${fromEmail}>`;
+      : `${senderDisplayName} <${fromEmail}>`;
 
-    const { data, error } = await resend.emails.send({
+    const emailPayload: any = {
       from: fromWithName,
       to: Array.isArray(to) ? to : [to],
       subject,
       html,
-    });
+    };
+
+    // Add reply-to if provided (Resend API uses camelCase: replyTo)
+    if (replyTo) {
+      emailPayload.replyTo = replyTo;
+    }
+
+    const { data, error } = await resend.emails.send(emailPayload);
 
     if (error) {
-      console.error("Resend error:", error);
+      console.error("Resend error:", JSON.stringify(error, null, 2));
       return {
         success: false,
-        error: error.message || "Failed to send email",
+        error: error.message || JSON.stringify(error) || "Failed to send email",
       };
     }
 
@@ -154,6 +167,8 @@ export async function sendLeadNotificationEmail({
   kitchenImageUrl,
   originalImageUrl,
   materialLineName,
+  senderName,
+  replyTo,
 }: {
   to: string;
   leadInfo: {
@@ -166,6 +181,8 @@ export async function sendLeadNotificationEmail({
   kitchenImageUrl?: string;
   originalImageUrl?: string;
   materialLineName?: string;
+  senderName?: string;
+  replyTo?: string;
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   const html = `
     <!DOCTYPE html>
@@ -313,6 +330,8 @@ export async function sendLeadNotificationEmail({
       materialLineName || "Countertop Visualizer"
     }`,
     html,
+    senderName,
+    replyTo,
   });
 }
 
@@ -325,6 +344,8 @@ export async function sendUserQuoteConfirmationEmail({
   kitchenImageUrl,
   originalImageUrl,
   materialLineName,
+  senderName,
+  replyTo,
 }: {
   to: string;
   name: string;
@@ -333,6 +354,8 @@ export async function sendUserQuoteConfirmationEmail({
   kitchenImageUrl?: string;
   originalImageUrl?: string;
   materialLineName?: string;
+  senderName?: string;
+  replyTo?: string;
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   const html = `
     <!DOCTYPE html>
@@ -461,5 +484,7 @@ export async function sendUserQuoteConfirmationEmail({
       materialLineName || "Countertop Visualizer"
     }`,
     html,
+    senderName,
+    replyTo,
   });
 }

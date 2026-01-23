@@ -14,6 +14,7 @@ interface MaterialLineConfig {
   organization_id: string;
   slug: string;
   name: string;
+  display_title: string | null;
   custom_domain: string | null;
   custom_domain_verified: boolean;
   logo_url: string | null;
@@ -157,9 +158,11 @@ export async function proxy(request: NextRequest) {
         materialLine.organization_id
       );
       supabaseResponse.headers.set("x-material-line-slug", materialLine.slug);
+      // Use display_title for public-facing pages, fallback to name
+      const displayName = materialLine.display_title || materialLine.name;
       supabaseResponse.headers.set(
         "x-material-line-name",
-        encodeURIComponent(materialLine.name)
+        encodeURIComponent(displayName)
       );
       supabaseResponse.headers.set(
         "x-material-line-logo",
