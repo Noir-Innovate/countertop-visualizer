@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import imageCompression from "browser-image-compression";
-import ImageUpload from "@/components/ImageUpload";
 import SlabSelector from "@/components/SlabSelector";
 import ResultDisplay from "@/components/ResultDisplay";
+import StepHeader from "@/components/StepHeader";
+import KitchenSelector from "@/components/KitchenSelector";
 import ThemeDebug from "@/components/ThemeDebug";
 import { trackEvent, trackABEvent } from "@/lib/posthog";
 import {
@@ -24,6 +25,10 @@ import posthog from "posthog-js";
 
 export default function Home() {
   const materialLine = useMaterialLine();
+  
+  // Step state: 1 = Kitchen selection, 2 = Material selection, 3 = Results
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  
   const [kitchenImage, setKitchenImage] = useState<string | null>(null);
   const [selectedSlabs, setSelectedSlabs] = useState<Slab[]>([]);
   const [generationResults, setGenerationResults] = useState<
@@ -34,7 +39,6 @@ export default function Home() {
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showResults, setShowResults] = useState(false);
 
   // Dynamic slabs state
   const [dynamicSlabs, setDynamicSlabs] = useState<Slab[]>([]);
@@ -136,19 +140,31 @@ export default function Home() {
     ? dynamicSlabs
     : SLABS;
 
-  const handleImageUpload = (base64Image: string) => {
+  const handleKitchenSelect = (base64Image: string, isExample?: boolean) => {
     // If changing the kitchen image, clear all persisted results
     if (kitchenImage && kitchenImage !== base64Image) {
       setPersistedResults([]);
     }
     setKitchenImage(base64Image);
     setGenerationResults([]);
-    setShowResults(false);
     setError(null);
-    trackABEvent(abVariant, "image_uploaded");
+    trackABEvent(abVariant, isExample ? "example_kitchen_selected" : "image_uploaded");
+    
+    // Move to step 2 after selecting kitchen
+    setCurrentStep(2);
   };
 
+  // Get IDs of already generated slabs
+  const generatedSlabIds = persistedResults
+    .filter((r) => r.imageData && !r.isLoading && !r.error)
+    .map((r) => r.slabId);
+
   const handleSlabSelect = (slab: Slab) => {
+    // Don't allow selecting already generated slabs
+    if (generatedSlabIds.includes(slab.id)) {
+      return;
+    }
+
     setSelectedSlabs((prev) => {
       if (prev.find((s) => s.id === slab.id)) {
         return prev.filter((s) => s.id !== slab.id);
@@ -263,18 +279,18 @@ export default function Home() {
       return;
     }
     if (selectedSlabs.length === 0 && persistedResults.length === 0) {
-      setError("Please select at least one slab to visualize");
+      setError("Please select at least one material to visualize");
       return;
     }
 
     // If no new selections but there are persisted results, show them
     if (selectedSlabs.length === 0 && persistedResults.length > 0) {
-      setShowResults(true);
+      setCurrentStep(3);
       return;
     }
 
-    // Show results display immediately with loading states
-    setShowResults(true);
+    // Move to results step immediately with loading states
+    setCurrentStep(3);
     setIsGenerating(true);
     setError(null);
     trackABEvent(abVariant, "generation_started", {
@@ -328,9 +344,6 @@ export default function Home() {
         return merged;
       });
 
-      // Show results view
-      setShowResults(true);
-
       trackABEvent(abVariant, "generation_completed", {
         successCount: results.filter((r) => r.imageData).length,
       });
@@ -343,135 +356,112 @@ export default function Home() {
   };
 
   const handleReset = () => {
-    // Go back to selection UI but keep everything
+    // Go back to material selection but keep everything
     // Keep kitchenImage and persistedResults so user can view existing results later
     setSelectedSlabs([]);
-    setShowResults(false);
+    setCurrentStep(2);
     setError(null);
     trackABEvent(abVariant, "reset");
+  };
+
+  const handleBackToStep1 = () => {
+    setCurrentStep(1);
+    setError(null);
+  };
+
+  // Step instructions
+  const stepInstructions = {
+    1: "Upload a photo of your kitchen",
+    2: "Select your materials",
+    3: "See your new kitchen!",
   };
 
   return (
     <div className="min-h-screen gradient-hero pb-32">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
-        <header className="text-center mb-12 animate-slide-up">
-          <div className="flex justify-center mb-6">
-            {!materialLine ||
-            materialLine.id === "default" ||
-            !materialLine.logoUrl ? (
-              <div className="h-16 md:h-20 flex items-center justify-center px-8 py-4 border-2 border-dashed border-[var(--color-border)] rounded-lg">
-                <span className="text-xl md:text-2xl font-semibold text-[var(--color-text-secondary)]">
-                  Your Logo Here
-                </span>
-              </div>
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={materialLine.logoUrl}
-                alt={materialLine.name}
-                className="h-16 md:h-20 w-auto object-contain"
-              />
-            )}
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-[var(--color-text)] mb-3">
-            {materialLine?.name && !isExample
-              ? `${materialLine.name}`
-              : "Countertop Visualizer"}
-          </h1>
-          <p className="text-lg text-[var(--color-text-secondary)] max-w-2xl mx-auto">
-            See your dream countertops come to life with AI. Upload a photo of
-            your kitchen and visualize different materials instantly.
-          </p>
-        </header>
-
-        {/* Main Content */}
+        {/* Loading State */}
         {slabsLoading ? (
           <div className="flex justify-center items-center py-20">
             <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
           </div>
-        ) : !showResults ? (
-          <div className="space-y-8 mb-8">
-            {/* Upload Kitchen */}
-            <div
-              className="card p-6 animate-slide-up"
-              style={{ animationDelay: "0.1s" }}
-            >
-              <h2 className="text-2xl font-semibold text-[var(--color-text)] mb-4 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-sm font-bold">
-                  1
-                </span>
-                Upload Your Kitchen
-              </h2>
-              {!kitchenImage ? (
-                <ImageUpload onImageUpload={handleImageUpload} />
-              ) : (
-                <div>
-                  <div className="relative rounded-xl overflow-hidden bg-[var(--color-bg-secondary)]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={kitchenImage}
-                      alt="Uploaded kitchen"
-                      className="w-full max-h-[500px] object-contain"
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
-                      setKitchenImage(null);
-                      setPersistedResults([]);
-                      setGenerationResults([]);
-                      setSelectedSlabs([]);
-                      setShowResults(false);
-                    }}
-                    className="mt-3 w-full px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] font-medium border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors"
-                  >
-                    Change Image
-                  </button>
-                </div>
-              )}
-            </div>
+        ) : (
+          <>
+            {/* Step 1: Kitchen Selection */}
+            {currentStep === 1 && (
+              <div className="animate-fade-in">
+                <StepHeader
+                  instruction={stepInstructions[1]}
+                  stepNumber={1}
+                  totalSteps={3}
+                />
+                <KitchenSelector onKitchenSelect={handleKitchenSelect} />
+              </div>
+            )}
 
-            {/* Choose Slabs */}
-            <div
-              className="card p-6 animate-slide-up"
-              style={{ animationDelay: "0.2s" }}
-            >
-              <div className="sticky top-0 bg-white z-10 py-2 mb-4 border-b border-[var(--color-border)]">
-                <h2 className="text-2xl font-semibold text-[var(--color-text)] flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-sm font-bold">
-                    2
-                  </span>
-                  Choose Your Slabs
-                  <span className="ml-auto text-base font-normal text-[var(--color-text-secondary)]">
+            {/* Step 2: Material Selection */}
+            {currentStep === 2 && (
+              <div className="animate-fade-in">
+                <StepHeader
+                  instruction={stepInstructions[2]}
+                  stepNumber={2}
+                  totalSteps={3}
+                />
+
+                {/* Selected Kitchen Preview */}
+                {kitchenImage && (
+                  <div className="mb-8 max-w-2xl mx-auto">
+                    <div className="relative rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] shadow-lg">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={kitchenImage}
+                        alt="Selected kitchen"
+                        className="w-full max-h-[300px] object-contain"
+                      />
+                      <button
+                        onClick={handleBackToStep1}
+                        className="absolute top-3 right-3 px-3 py-1.5 text-sm font-medium bg-white/90 hover:bg-white text-[var(--color-text)] rounded-lg shadow-md transition-colors"
+                      >
+                        Change Photo
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Selection Counter */}
+                <div className="text-center mb-6">
+                  <span className="inline-block px-4 py-2 bg-[var(--color-bg-secondary)] rounded-full text-[var(--color-text-secondary)] font-medium">
                     {selectedSlabs.length} of 3 selected
                   </span>
-                </h2>
+                </div>
+
+                {/* Slab Selector */}
+                <SlabSelector
+                  slabs={allSlabs}
+                  selectedSlabs={selectedSlabs}
+                  onSlabSelect={handleSlabSelect}
+                  generatedSlabIds={generatedSlabIds}
+                />
               </div>
-              <SlabSelector
-                slabs={allSlabs}
+            )}
+
+            {/* Step 3: Results */}
+            {currentStep === 3 && (
+              <ResultDisplay
+                generationResults={generationResults}
+                allPersistedResults={persistedResults}
                 selectedSlabs={selectedSlabs}
-                onSlabSelect={handleSlabSelect}
-                generatedSlabIds={persistedResults
-                  .filter((r) => r.imageData && !r.isLoading && !r.error)
-                  .map((r) => r.slabId)}
+                originalImage={kitchenImage}
+                onReset={handleReset}
+                verifiedPhone={verifiedPhone}
+                abVariant={abVariant}
+                onVerificationUpdate={handleVerificationUpdate}
               />
-            </div>
-          </div>
-        ) : (
-          <ResultDisplay
-            generationResults={generationResults}
-            allPersistedResults={persistedResults}
-            selectedSlabs={selectedSlabs}
-            originalImage={kitchenImage}
-            onReset={handleReset}
-            verifiedPhone={verifiedPhone}
-            abVariant={abVariant}
-            onVerificationUpdate={handleVerificationUpdate}
-          />
+            )}
+          </>
         )}
 
-        {/* Loading Animation */}
-        {isGenerating && (
+        {/* Loading Animation (during generation) */}
+        {isGenerating && currentStep === 3 && (
           <div className="card p-8 mb-8 text-center animate-fade-in">
             <div className="w-20 h-20 mx-auto mb-4 relative">
               <div className="absolute inset-0 rounded-full border-4 border-[var(--color-accent)]/20"></div>
@@ -504,8 +494,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* Generate Button */}
-        {!showResults && (
+        {/* Generate Button - Only on Step 2 */}
+        {currentStep === 2 && (
           <div className="fixed bottom-0 left-0 right-0 pt-4 pb-6 bg-gradient-to-t from-[var(--color-bg)] via-[var(--color-bg)] to-transparent z-50">
             <div className="container mx-auto px-4 max-w-7xl">
               <div className="text-center">
@@ -561,23 +551,16 @@ export default function Home() {
                     "See It!"
                   )}
                 </button>
-                {!kitchenImage && (
-                  <p className="mt-3 text-sm text-[var(--color-text-muted)]">
-                    Upload a kitchen photo to get started
-                  </p>
-                )}
-                {kitchenImage &&
-                  selectedSlabs.length === 0 &&
+                {selectedSlabs.length === 0 &&
                   persistedResults.length === 0 && (
                     <p className="mt-3 text-sm text-[var(--color-text-muted)]">
-                      Select at least one slab to visualize
+                      Select at least one material to visualize
                     </p>
                   )}
-                {kitchenImage &&
-                  selectedSlabs.length === 0 &&
+                {selectedSlabs.length === 0 &&
                   persistedResults.length > 0 && (
                     <p className="mt-3 text-sm text-[var(--color-text-muted)]">
-                      View existing results or select more slabs
+                      View existing results or select more materials
                     </p>
                   )}
               </div>

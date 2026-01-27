@@ -6,6 +6,34 @@ export interface Slab {
   material_type?: string | null;
 }
 
+// Example kitchen images for users who don't have their own photo
+export interface ExampleKitchen {
+  id: string;
+  name: string;
+  imageUrl: string;
+  thumbnailUrl?: string; // Optional smaller version for selection grid
+}
+
+// Example kitchens - add your kitchen images here
+// Images should be placed in public/kitchens/ folder
+export const EXAMPLE_KITCHENS: ExampleKitchen[] = [
+  {
+    id: "modern-white",
+    name: "Modern White Kitchen",
+    imageUrl: "/kitchens/modern-white.png",
+  },
+  {
+    id: "traditional-wood",
+    name: "Traditional Wood Kitchen",
+    imageUrl: "/kitchens/traditional-wood.png",
+  },
+  {
+    id: "contemporary-gray",
+    name: "Contemporary Gray Kitchen",
+    imageUrl: "/kitchens/contemporary-gray.png",
+  },
+];
+
 export interface GenerationResult {
   slabId: string;
   slabName: string;

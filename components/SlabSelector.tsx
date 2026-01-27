@@ -20,9 +20,9 @@ export default function SlabSelector({
 }: SlabSelectorProps) {
   const isSelected = (slab: Slab) =>
     selectedSlabs.some((s) => s.id === slab.id);
-  const isDisabled = (slab: Slab) =>
-    !isSelected(slab) && selectedSlabs.length >= maxSelections;
   const isGenerated = (slab: Slab) => generatedSlabIds.includes(slab.id);
+  const isDisabled = (slab: Slab) =>
+    isGenerated(slab) || (!isSelected(slab) && selectedSlabs.length >= maxSelections);
 
   return (
     <div className="space-y-4">
@@ -43,6 +43,8 @@ export default function SlabSelector({
                 ${
                   selected
                     ? "border-[var(--color-accent)] ring-2 ring-[var(--color-accent)] ring-offset-2"
+                    : generated
+                    ? "border-green-500 opacity-60 cursor-not-allowed"
                     : disabled
                     ? "border-[var(--color-border)] opacity-50 cursor-not-allowed"
                     : "border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:shadow-md"
@@ -93,9 +95,9 @@ export default function SlabSelector({
 
               {/* Generated Indicator */}
               {generated && (
-                <div className="absolute top-2 left-2 bg-green-500 text-white rounded-full p-1.5 shadow-lg z-10">
+                <div className="absolute top-2 left-2 bg-green-500 text-white text-xs font-medium px-2 py-1 rounded-full shadow-lg z-10 flex items-center gap-1">
                   <svg
-                    className="w-4 h-4"
+                    className="w-3 h-3"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -105,6 +107,7 @@ export default function SlabSelector({
                       clipRule="evenodd"
                     />
                   </svg>
+                  Generated
                 </div>
               )}
             </button>
