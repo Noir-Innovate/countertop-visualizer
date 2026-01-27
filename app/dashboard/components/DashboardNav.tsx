@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { User } from '@supabase/supabase-js'
@@ -37,15 +36,37 @@ export default function DashboardNav({ user, profile, organizations }: Dashboard
     router.refresh()
   }
 
+  const handleDashboardClick = () => {
+    router.push('/dashboard')
+  }
+
+  const handleOrganizationClick = (orgId: string) => {
+    router.push(`/dashboard/organizations/${orgId}`)
+    setShowOrgMenu(false)
+  }
+
+  const handleCreateOrganizationClick = () => {
+    router.push('/dashboard/organizations/new')
+    setShowOrgMenu(false)
+  }
+
+  const handleProfileClick = () => {
+    router.push('/dashboard/profile')
+    setShowUserMenu(false)
+  }
+
   const displayName = profile?.full_name || user.email?.split('@')[0] || 'User'
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50">
       <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-xl font-bold text-slate-900">
+          <button
+            onClick={handleDashboardClick}
+            className="text-xl font-bold text-slate-900 hover:text-slate-700 cursor-pointer"
+          >
             Dashboard
-          </Link>
+          </button>
 
           {organizations.length > 0 && (
             <div className="relative">
@@ -65,24 +86,22 @@ export default function DashboardNav({ user, profile, organizations }: Dashboard
               {showOrgMenu && (
                 <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-slate-200 py-2">
                   {organizations.map((org) => (
-                    <Link
+                    <button
                       key={org.id}
-                      href={`/dashboard/organizations/${org.id}`}
-                      className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                      onClick={() => setShowOrgMenu(false)}
+                      onClick={() => handleOrganizationClick(org.id)}
+                      className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
                     >
                       <span className="font-medium">{org.name}</span>
                       <span className="ml-2 text-xs text-slate-500 capitalize">({org.role})</span>
-                    </Link>
+                    </button>
                   ))}
                   <hr className="my-2 border-slate-200" />
-                  <Link
-                    href="/dashboard/organizations/new"
-                    className="block px-4 py-2 text-sm text-blue-600 hover:bg-slate-100"
-                    onClick={() => setShowOrgMenu(false)}
+                  <button
+                    onClick={handleCreateOrganizationClick}
+                    className="w-full text-left block px-4 py-2 text-sm text-blue-600 hover:bg-slate-100 cursor-pointer"
                   >
                     + Create Organization
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>
@@ -109,16 +128,15 @@ export default function DashboardNav({ user, profile, organizations }: Dashboard
                 <p className="text-sm font-medium text-slate-900">{displayName}</p>
                 <p className="text-xs text-slate-500">{user.email}</p>
               </div>
-              <Link
-                href="/dashboard/profile"
-                className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                onClick={() => setShowUserMenu(false)}
+              <button
+                onClick={handleProfileClick}
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 Profile Settings
-              </Link>
+              </button>
               <button
                 onClick={handleSignOut}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-100"
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-100 cursor-pointer"
               >
                 Sign Out
               </button>
