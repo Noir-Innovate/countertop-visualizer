@@ -595,7 +595,7 @@ export default function QuoteModal({
                         htmlFor="quote-sms-notifications"
                         className="text-sm text-white/90 cursor-pointer"
                       >
-                        I agree to receive SMS notifications regarding my quote
+                        I agree to receive SMS notifications about my quote request from the Countertop Visualizer
                       </label>
                     </div>
 
