@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import imageCompression from "browser-image-compression";
 import SlabSelector from "@/components/SlabSelector";
 import ResultDisplay from "@/components/ResultDisplay";
@@ -415,7 +416,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen gradient-hero pb-32">
+    <div className="min-h-screen gradient-hero pb-4">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Loading State */}
         {slabsLoading ? (
@@ -600,11 +601,54 @@ export default function Home() {
                     View existing results or select more materials
                   </p>
                 )}
+                <div className="mt-2 flex flex-col md:flex-row justify-center items-center gap-1.5 md:gap-2 text-xs text-[var(--color-text-secondary)]">
+                  <Link
+                    href="/privacy"
+                    className="hover:text-[var(--color-text)] transition-colors underline"
+                  >
+                    Privacy Policy
+                  </Link>
+                  <span className="hidden md:inline text-[var(--color-text-muted)]">
+                    •
+                  </span>
+                  <Link
+                    href="/terms"
+                    className="hover:text-[var(--color-text)] transition-colors underline"
+                  >
+                    Terms of Service
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Footer - Only show on steps 1 and 3 */}
+      {currentStep !== 2 && (
+        <footer className="mt-4 pt-2 pb-1 border-t border-[var(--color-border)]">
+          <div className="container mx-auto px-4 max-w-7xl">
+            <div className="flex flex-col md:flex-row justify-center items-center gap-2 md:gap-3 text-xs text-[var(--color-text-secondary)]">
+              <Link
+                href="/privacy"
+                className="hover:text-[var(--color-text)] transition-colors underline"
+              >
+                Privacy Policy
+              </Link>
+              <span className="hidden md:inline text-[var(--color-text-muted)]">
+                •
+              </span>
+              <Link
+                href="/terms"
+                className="hover:text-[var(--color-text)] transition-colors underline"
+              >
+                Terms of Service
+              </Link>
+            </div>
+          </div>
+        </footer>
+      )}
+
       <ThemeDebug />
     </div>
   );

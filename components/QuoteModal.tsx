@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { trackEvent } from "@/lib/posthog";
 import PhoneVerificationModal from "@/components/PhoneVerificationModal";
 import { setVerifiedPhone, getVerifiedPhone } from "@/lib/ab-testing";
@@ -71,7 +72,7 @@ export default function QuoteModal({
   }, [isOpen, verifiedPhone]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -166,7 +167,7 @@ export default function QuoteModal({
                 }
               },
               "image/jpeg",
-              0.8
+              0.8,
             );
           };
           img.onerror = () => reject(new Error("Failed to load image"));
@@ -206,7 +207,7 @@ export default function QuoteModal({
         uploadPromises.push(
           uploadImageToBlob(selectedImageUrl).then((url) => {
             selectedImageBlobUrl = url;
-          })
+          }),
         );
       }
 
@@ -214,7 +215,7 @@ export default function QuoteModal({
         uploadPromises.push(
           uploadImageToBlob(originalImageUrl).then((url) => {
             originalImageBlobUrl = url;
-          })
+          }),
         );
       }
 
@@ -258,7 +259,7 @@ export default function QuoteModal({
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to submit. Please try again."
+          : "Failed to submit. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -404,8 +405,8 @@ export default function QuoteModal({
                           uploadStep === "Saving your dream countertops..."
                             ? "bg-[var(--color-accent)] animate-pulse"
                             : uploadStep === "Handling your request..."
-                            ? "bg-[var(--color-success)]"
-                            : "bg-white/20"
+                              ? "bg-[var(--color-success)]"
+                              : "bg-white/20"
                         }`}
                       >
                         {uploadStep === "Handling your request..." ? (
@@ -433,8 +434,8 @@ export default function QuoteModal({
                           uploadStep === "Saving your dream countertops..."
                             ? "text-white font-medium"
                             : uploadStep === "Handling your request..."
-                            ? "text-[var(--color-success)]"
-                            : "text-white/50"
+                              ? "text-[var(--color-success)]"
+                              : "text-white/50"
                         }`}
                       >
                         Saving your dream countertops
@@ -595,7 +596,29 @@ export default function QuoteModal({
                         htmlFor="quote-sms-notifications"
                         className="text-sm text-white/90 cursor-pointer"
                       >
-                        I agree to receive SMS notifications about my quote request from the Countertop Visualizer
+                        I agree to receive automated informational SMS/MMS
+                        messages from the Countertop Visualizer at the phone
+                        number provided above. Consent is not a condition of
+                        purchase. Msg & data rates may apply. Reply STOP to
+                        unsubscribe. View our{" "}
+                        <Link
+                          href="/privacy"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline hover:text-white transition-colors"
+                        >
+                          Privacy Policy
+                        </Link>{" "}
+                        and{" "}
+                        <Link
+                          href="/terms"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline hover:text-white transition-colors"
+                        >
+                          Terms of Service
+                        </Link>
+                        .
                       </label>
                     </div>
 
