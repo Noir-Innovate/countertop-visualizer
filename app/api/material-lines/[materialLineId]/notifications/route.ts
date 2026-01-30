@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!materialLine) {
       return NextResponse.json(
         { error: "Material line not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!membership) {
       return NextResponse.json(
         { error: "You don't have access to this material line" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           email_enabled,
           created_at,
           profiles(id, full_name, phone)
-        `
+        `,
         )
         .eq("material_line_id", materialLineId)
         .order("created_at", { ascending: false });
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         {
           error: notificationsError.message || "Failed to fetch notifications",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       (notifications || []).map(async (notification: any) => {
         // Get email from auth.users via service role
         const { data: authUser } = await serviceClient.auth.admin.getUserById(
-          notification.profile_id
+          notification.profile_id,
         );
 
         return {
@@ -105,18 +105,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             email: authUser?.user?.email || null,
           },
         };
-      })
+      }),
     );
 
     return NextResponse.json(
       { notifications: notificationsWithEmails },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!profileId) {
       return NextResponse.json(
         { error: "profileId is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!materialLine) {
       return NextResponse.json(
         { error: "Material line not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -174,22 +174,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to manage notifications" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    // Verify the target user is a member of the organization and has appropriate role
-    const { data: targetMembership } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("profile_id", profileId)
-      .eq("organization_id", materialLine.organization_id)
-      .single();
+    // Create service client to bypass RLS for membership check
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!targetMembership) {
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 },
+      );
+    }
+
+    const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
+
+    // Verify the target user is a member of the organization and has appropriate role
+    // Use service client to bypass RLS (we've already verified requester is owner/admin)
+    const { data: targetMembership, error: targetMembershipError } =
+      await serviceClient
+        .from("organization_members")
+        .select("role")
+        .eq("profile_id", profileId)
+        .eq("organization_id", materialLine.organization_id)
+        .single();
+
+    if (targetMembershipError || !targetMembership) {
+      console.error("Error checking target membership:", targetMembershipError);
       return NextResponse.json(
         { error: "User is not a member of this organization" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -203,21 +219,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           error:
             "Only owners, admins, and salespeople can receive notifications",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
-    const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
 
     // Create or update notification assignment
     const { data: notification, error: notificationError } = await serviceClient
@@ -231,7 +235,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
         {
           onConflict: "material_line_id,profile_id",
-        }
+        },
       )
       .select()
       .single();
@@ -240,7 +244,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.error("Error creating notification:", notificationError);
       return NextResponse.json(
         { error: notificationError.message || "Failed to create notification" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -249,7 +253,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -264,7 +268,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!notificationId) {
       return NextResponse.json(
         { error: "Notification ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -289,7 +293,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!materialLine) {
       return NextResponse.json(
         { error: "Material line not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -307,7 +311,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to manage notifications" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -317,7 +321,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -334,7 +338,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       console.error("Error deleting notification:", deleteError);
       return NextResponse.json(
         { error: deleteError.message || "Failed to delete notification" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -343,7 +347,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -360,7 +364,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!notificationId) {
       return NextResponse.json(
         { error: "Notification ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -369,7 +373,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         {
           error: "At least one of smsEnabled or emailEnabled must be provided",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -394,7 +398,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!materialLine) {
       return NextResponse.json(
         { error: "Material line not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -412,7 +416,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to manage notifications" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -422,7 +426,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -448,7 +452,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!currentNotification) {
       return NextResponse.json(
         { error: "Notification not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -462,7 +466,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!finalSmsEnabled && !finalEmailEnabled) {
       return NextResponse.json(
         { error: "At least one notification method must be enabled" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -480,19 +484,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       console.error("Error updating notification:", updateError);
       return NextResponse.json(
         { error: updateError.message || "Failed to update notification" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
       { notification: updatedNotification },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
