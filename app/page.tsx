@@ -88,6 +88,13 @@ export default function Home() {
     loadSlabs();
   }, [materialLine]);
 
+  // Scroll to top when navigating to step 2
+  useEffect(() => {
+    if (currentStep === 2 && typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [currentStep]);
+
   // Initialize AB variant on mount
   useEffect(() => {
     const variant = getABVariant();

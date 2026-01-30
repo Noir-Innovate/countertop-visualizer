@@ -39,7 +39,7 @@ async function getPostHogProjectId(): Promise<string | null> {
     } else {
       console.warn(
         "[PostHog] POSTHOG_PROJECT_ID appears to be an API key, not a project ID. " +
-          "Project IDs are numeric or UUIDs. Attempting to fetch project ID from API..."
+          "Project IDs are numeric or UUIDs. Attempting to fetch project ID from API...",
       );
     }
   }
@@ -88,7 +88,7 @@ async function getPostHogProjectId(): Promise<string | null> {
       if (process.env.NODE_ENV === "development") {
         console.log(
           "[PostHog] Projects API response:",
-          JSON.stringify(projectsData, null, 2)
+          JSON.stringify(projectsData, null, 2),
         );
       }
 
@@ -107,26 +107,26 @@ async function getPostHogProjectId(): Promise<string | null> {
 
         if (projectId) {
           console.log(
-            `[PostHog] Successfully fetched project ID from API: ${projectId}`
+            `[PostHog] Successfully fetched project ID from API: ${projectId}`,
           );
           cachedProjectId = projectId;
           return projectId;
         } else {
           console.warn(
             "[PostHog] Project found but no ID field detected. Project structure:",
-            Object.keys(project)
+            Object.keys(project),
           );
         }
       } else {
         console.warn(
-          "[PostHog] No projects found in API response. Make sure your API key has access to projects."
+          "[PostHog] No projects found in API response. Make sure your API key has access to projects.",
         );
       }
     } else {
       const errorText = await projectsResponse.text().catch(() => "");
       console.warn(
         `[PostHog] Could not fetch projects: ${projectsResponse.status} ${projectsResponse.statusText}`,
-        errorText
+        errorText,
       );
     }
   } catch (error) {
@@ -166,7 +166,7 @@ export async function getPostHogEventCount({
         .map((id) => `'${id.replace(/'/g, "''")}'`)
         .join(", ");
       conditions.push(
-        `JSONExtractString(properties, 'materialLineId') IN (${escapedIds})`
+        `JSONExtractString(properties, 'materialLineId') IN (${escapedIds})`,
       );
     } else if (materialLineIds && materialLineIds.length === 0) {
       // If empty array provided, return 0 (no material lines to query)
@@ -176,7 +176,7 @@ export async function getPostHogEventCount({
     if (organizationId) {
       const escapedOrgId = organizationId.replace(/'/g, "''");
       conditions.push(
-        `JSONExtractString(properties, 'organizationId') = '${escapedOrgId}'`
+        `JSONExtractString(properties, 'organizationId') = '${escapedOrgId}'`,
       );
     }
 
@@ -186,7 +186,7 @@ export async function getPostHogEventCount({
         `timestamp >= toDateTime('${startDate
           .toISOString()
           .replace("T", " ")
-          .replace("Z", "")}')`
+          .replace("Z", "")}')`,
       );
     }
 
@@ -195,7 +195,7 @@ export async function getPostHogEventCount({
         `timestamp <= toDateTime('${endDate
           .toISOString()
           .replace("T", " ")
-          .replace("Z", "")}')`
+          .replace("Z", "")}')`,
       );
     }
 
@@ -223,7 +223,7 @@ export async function getPostHogEventCount({
           "   - Project Settings page\n" +
           "\n" +
           "NOTE: Project ID is NOT the same as your API key (phc_...)\n" +
-          "The Project ID is a numeric identifier for your project."
+          "The Project ID is a numeric identifier for your project.",
       );
       return 0;
     }
@@ -233,7 +233,7 @@ export async function getPostHogEventCount({
       console.error(
         `[PostHog] Invalid project ID format: ${projectId}\n` +
           "This appears to be an API key, not a project ID.\n" +
-          "Project IDs are numeric (e.g., 12345) or UUIDs, not API keys (phc_...)."
+          "Project IDs are numeric (e.g., 12345) or UUIDs, not API keys (phc_...).",
       );
       return 0;
     }
@@ -269,7 +269,7 @@ export async function getPostHogEventCount({
         `[PostHog] Query failed: ${response.status} ${response.statusText}`,
         `\nProject ID used: ${projectId}`,
         `\nHost: ${host}`,
-        `\nError: ${errorDetails}`
+        `\nError: ${errorDetails}`,
       );
 
       // If project not found, clear cache to retry fetching
@@ -314,7 +314,136 @@ export async function getPostHogEventCount({
  * Get multiple event counts in parallel
  */
 export async function getPostHogEventCounts(
-  params: PostHogEventCountParams[]
+  params: PostHogEventCountParams[],
 ): Promise<number[]> {
   return Promise.all(params.map((param) => getPostHogEventCount(param)));
+}
+
+/**
+ * Get event data with properties from PostHog
+ * Returns sample events with their metadata
+ */
+export async function getPostHogEventData({
+  eventName,
+  materialLineIds,
+  organizationId,
+  startDate,
+  endDate,
+  limit = 100,
+}: PostHogEventCountParams & { limit?: number }): Promise<
+  Array<{
+    timestamp: string;
+    properties: Record<string, unknown>;
+  }>
+> {
+  const apiKey = process.env.POSTHOG_API_KEY;
+  const host =
+    process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://app.posthog.com";
+
+  if (!apiKey) {
+    console.warn("[PostHog] POSTHOG_API_KEY not set, returning empty array");
+    return [];
+  }
+
+  try {
+    // Build WHERE conditions
+    const conditions: string[] = [`event = '${eventName.replace(/'/g, "''")}'`];
+
+    if (materialLineIds && materialLineIds.length > 0) {
+      const escapedIds = materialLineIds
+        .map((id) => `'${id.replace(/'/g, "''")}'`)
+        .join(", ");
+      conditions.push(
+        `JSONExtractString(properties, 'materialLineId') IN (${escapedIds})`,
+      );
+    }
+
+    if (organizationId) {
+      const escapedOrgId = organizationId.replace(/'/g, "''");
+      conditions.push(
+        `JSONExtractString(properties, 'organizationId') = '${escapedOrgId}'`,
+      );
+    }
+
+    if (startDate) {
+      conditions.push(
+        `timestamp >= toDateTime('${startDate
+          .toISOString()
+          .replace("T", " ")
+          .replace("Z", "")}')`,
+      );
+    }
+
+    if (endDate) {
+      conditions.push(
+        `timestamp <= toDateTime('${endDate
+          .toISOString()
+          .replace("T", " ")
+          .replace("Z", "")}')`,
+      );
+    }
+
+    const whereClause = conditions.join(" AND ");
+
+    // Query to get event data with properties
+    const query = `SELECT timestamp, properties FROM events WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${limit}`;
+
+    const projectId = await getPostHogProjectId();
+
+    if (!projectId) {
+      return [];
+    }
+
+    const response = await fetch(`${host}/api/projects/${projectId}/query/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        query: {
+          kind: "HogQLQuery",
+          query: query,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(
+        `[PostHog] Query failed: ${response.status} ${response.statusText}`,
+      );
+      return [];
+    }
+
+    const data = await response.json();
+
+    if (data.results && Array.isArray(data.results)) {
+      return data.results.map((row: any) => {
+        // Handle different response formats
+        if (Array.isArray(row)) {
+          // Array format: [timestamp, properties]
+          return {
+            timestamp: row[0] || "",
+            properties:
+              typeof row[1] === "string" ? JSON.parse(row[1]) : row[1] || {},
+          };
+        } else if (typeof row === "object") {
+          // Object format: { timestamp, properties }
+          return {
+            timestamp: row.timestamp || "",
+            properties:
+              typeof row.properties === "string"
+                ? JSON.parse(row.properties)
+                : row.properties || {},
+          };
+        }
+        return { timestamp: "", properties: {} };
+      });
+    }
+
+    return [];
+  } catch (error) {
+    console.error("[PostHog] Error querying event data:", error);
+    return [];
+  }
 }
