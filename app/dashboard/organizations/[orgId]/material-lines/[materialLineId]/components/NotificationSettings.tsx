@@ -1,179 +1,197 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { formatRole } from "@/lib/format-role";
 
 interface Notification {
-  id: string
-  profile_id: string
-  sms_enabled: boolean
-  email_enabled: boolean
-  created_at: string
+  id: string;
+  profile_id: string;
+  sms_enabled: boolean;
+  email_enabled: boolean;
+  created_at: string;
   profiles: {
-    id: string
-    full_name: string | null
-    phone: string | null
-    email?: string | null
-  }
+    id: string;
+    full_name: string | null;
+    phone: string | null;
+    email?: string | null;
+  };
 }
 
 interface OrganizationMember {
-  id: string
-  profile_id: string
-  role: string
+  id: string;
+  profile_id: string;
+  role: string;
   profiles: {
-    id: string
-    full_name: string | null
-    email?: string
-  }
+    id: string;
+    full_name: string | null;
+    email?: string;
+  };
 }
 
 interface NotificationSettingsProps {
-  materialLineId: string
-  orgId: string
+  materialLineId: string;
+  orgId: string;
 }
 
 export default function NotificationSettings({
   materialLineId,
   orgId,
 }: NotificationSettingsProps) {
-  const router = useRouter()
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [availableMembers, setAvailableMembers] = useState<OrganizationMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState(false)
-  const [selectedProfileId, setSelectedProfileId] = useState('')
-  const [smsEnabled, setSmsEnabled] = useState(false)
-  const [emailEnabled, setEmailEnabled] = useState(true)
-  const [removingId, setRemovingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const router = useRouter();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [availableMembers, setAvailableMembers] = useState<
+    OrganizationMember[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchNotifications()
-    fetchAvailableMembers()
-  }, [materialLineId, orgId])
+    fetchNotifications();
+    fetchAvailableMembers();
+  }, [materialLineId, orgId]);
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch(`/api/material-lines/${materialLineId}/notifications`)
-      const data = await response.json()
+      const response = await fetch(
+        `/api/material-lines/${materialLineId}/notifications`,
+      );
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch notifications')
+        throw new Error(data.error || "Failed to fetch notifications");
       }
 
-      setNotifications(data.notifications || [])
+      setNotifications(data.notifications || []);
     } catch (err) {
-      console.error('Error fetching notifications:', err)
-      setError(err instanceof Error ? err.message : 'Failed to fetch notifications')
+      console.error("Error fetching notifications:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch notifications",
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchAvailableMembers = async () => {
     try {
-      const response = await fetch(`/api/organizations/${orgId}/members`)
-      const data = await response.json()
+      const response = await fetch(`/api/organizations/${orgId}/members`);
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch members')
+        throw new Error(data.error || "Failed to fetch members");
       }
 
       // Filter to only owners, admins, and salespeople
       const eligibleMembers = (data.members || []).filter(
         (member: OrganizationMember) =>
-          member.role === 'owner' || member.role === 'admin' || member.role === 'sales_person'
-      )
+          member.role === "owner" ||
+          member.role === "admin" ||
+          member.role === "sales_person",
+      );
 
-      setAvailableMembers(eligibleMembers)
+      setAvailableMembers(eligibleMembers);
     } catch (err) {
-      console.error('Error fetching members:', err)
+      console.error("Error fetching members:", err);
     }
-  }
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!selectedProfileId) {
-      setError('Please select a team member')
-      return
+      setError("Please select a team member");
+      return;
     }
 
-    setAdding(true)
-    setError(null)
-    setSuccess(null)
+    setAdding(true);
+    setError(null);
+    setSuccess(null);
 
     try {
-      const response = await fetch(`/api/material-lines/${materialLineId}/notifications`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `/api/material-lines/${materialLineId}/notifications`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            profileId: selectedProfileId,
+            smsEnabled,
+            emailEnabled,
+          }),
         },
-        body: JSON.stringify({
-          profileId: selectedProfileId,
-          smsEnabled,
-          emailEnabled,
-        }),
-      })
+      );
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to add notification')
+        throw new Error(data.error || "Failed to add notification");
       }
 
-      setSuccess('Notification assignment added successfully')
-      setSelectedProfileId('')
-      setSmsEnabled(false)
-      setEmailEnabled(true)
-      router.refresh()
-      fetchNotifications()
+      setSuccess("Notification assignment added successfully");
+      setSelectedProfileId("");
+      setSmsEnabled(false);
+      setEmailEnabled(true);
+      router.refresh();
+      fetchNotifications();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add notification')
+      setError(
+        err instanceof Error ? err.message : "Failed to add notification",
+      );
     } finally {
-      setAdding(false)
+      setAdding(false);
     }
-  }
+  };
 
   const handleRemove = async (notificationId: string) => {
-    if (!confirm('Are you sure you want to remove this notification assignment?')) {
-      return
+    if (
+      !confirm("Are you sure you want to remove this notification assignment?")
+    ) {
+      return;
     }
 
-    setRemovingId(notificationId)
-    setError(null)
-    setSuccess(null)
+    setRemovingId(notificationId);
+    setError(null);
+    setSuccess(null);
 
     try {
       const response = await fetch(
         `/api/material-lines/${materialLineId}/notifications?id=${notificationId}`,
         {
-          method: 'DELETE',
-        }
-      )
+          method: "DELETE",
+        },
+      );
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to remove notification')
+        throw new Error(data.error || "Failed to remove notification");
       }
 
-      setSuccess('Notification assignment removed successfully')
-      router.refresh()
-      fetchNotifications()
+      setSuccess("Notification assignment removed successfully");
+      router.refresh();
+      fetchNotifications();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove notification')
+      setError(
+        err instanceof Error ? err.message : "Failed to remove notification",
+      );
     } finally {
-      setRemovingId(null)
+      setRemovingId(null);
     }
-  }
+  };
 
   // Filter out members who are already assigned
   const unassignedMembers = availableMembers.filter(
-    (member) => !notifications.some((n) => n.profile_id === member.profile_id)
-  )
+    (member) => !notifications.some((n) => n.profile_id === member.profile_id),
+  );
 
   if (loading) {
     return (
@@ -181,7 +199,7 @@ export default function NotificationSettings({
         <div className="h-8 bg-slate-200 rounded w-1/3 mb-4"></div>
         <div className="h-32 bg-slate-200 rounded"></div>
       </div>
-    )
+    );
   }
 
   return (
@@ -222,7 +240,8 @@ export default function NotificationSettings({
               <option value="">Select a team member...</option>
               {unassignedMembers.map((member) => (
                 <option key={member.id} value={member.profile_id}>
-                  {member.profiles.full_name || 'Unnamed User'} ({member.role})
+                  {member.profiles.full_name || "Unnamed User"} (
+                  {formatRole(member.role)})
                 </option>
               ))}
             </select>
@@ -266,10 +285,12 @@ export default function NotificationSettings({
 
           <button
             type="submit"
-            disabled={adding || !selectedProfileId || (!smsEnabled && !emailEnabled)}
+            disabled={
+              adding || !selectedProfileId || (!smsEnabled && !emailEnabled)
+            }
             className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            {adding ? 'Adding...' : 'Add Notification'}
+            {adding ? "Adding..." : "Add Notification"}
           </button>
         </form>
       </div>
@@ -284,7 +305,9 @@ export default function NotificationSettings({
 
         {notifications.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            <p className="text-slate-500">No notification recipients assigned yet</p>
+            <p className="text-slate-500">
+              No notification recipients assigned yet
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -293,10 +316,10 @@ export default function NotificationSettings({
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <p className="font-medium text-slate-900">
-                      {notification.profiles.full_name || 'Unnamed User'}
+                      {notification.profiles.full_name || "Unnamed User"}
                     </p>
                     <p className="text-sm text-slate-500">
-                      {notification.profiles.email || 'No email'}
+                      {notification.profiles.email || "No email"}
                     </p>
                     {notification.profiles.phone && (
                       <p className="text-sm text-slate-500">
@@ -321,7 +344,7 @@ export default function NotificationSettings({
                     disabled={removingId === notification.id}
                     className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {removingId === notification.id ? 'Removing...' : 'Remove'}
+                    {removingId === notification.id ? "Removing..." : "Remove"}
                   </button>
                 </div>
               </div>
@@ -330,6 +353,5 @@ export default function NotificationSettings({
         )}
       </div>
     </div>
-  )
+  );
 }
-

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { formatRole } from "@/lib/format-role";
 
 interface OrganizationMember {
   id: string;
@@ -62,7 +63,7 @@ export default function NotificationForm({
         (member: OrganizationMember) =>
           member.role === "owner" ||
           member.role === "admin" ||
-          member.role === "sales_person"
+          member.role === "sales_person",
       );
 
       setAvailableMembers(eligibleMembers);
@@ -98,7 +99,7 @@ export default function NotificationForm({
             smsEnabled,
             emailEnabled,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -120,7 +121,7 @@ export default function NotificationForm({
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to add notification"
+        err instanceof Error ? err.message : "Failed to add notification",
       );
     } finally {
       setAdding(false);
@@ -130,7 +131,7 @@ export default function NotificationForm({
   // Filter out members who are already assigned
   const unassignedMembers = availableMembers.filter(
     (member) =>
-      !existingNotifications.some((n) => n.profile_id === member.profile_id)
+      !existingNotifications.some((n) => n.profile_id === member.profile_id),
   );
 
   if (loading) {
@@ -179,7 +180,8 @@ export default function NotificationForm({
               <option value="">Select a team member...</option>
               {unassignedMembers.map((member) => (
                 <option key={member.id} value={member.profile_id}>
-                  {member.profiles.full_name || "Unnamed User"} ({member.role})
+                  {member.profiles.full_name || "Unnamed User"} (
+                  {formatRole(member.role)})
                 </option>
               ))}
             </select>
