@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     if (!materialLineId || !domain) {
       return NextResponse.json(
         { error: "Material line ID and domain are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!domainRegex.test(domain)) {
       return NextResponse.json(
         { error: "Invalid domain format" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     if (materialLineError || !materialLine) {
       return NextResponse.json(
         { error: "Material line not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     if (memberError || !membership) {
       return NextResponse.json(
         { error: "You do not have permission to manage this material line" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     if (existingMaterialLine) {
       return NextResponse.json(
         { error: "This domain is already in use by another material line" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     if (!vercelToken || !vercelProjectId) {
       return NextResponse.json(
         { error: "Vercel configuration missing" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -119,13 +119,13 @@ export async function POST(request: NextRequest) {
       if (vercelError.error?.code === "domain_already_in_use") {
         return NextResponse.json(
           { error: "This domain is already registered with Vercel" },
-          { status: 409 }
+          { status: 409 },
         );
       }
 
       return NextResponse.json(
         { error: "Failed to register domain with Vercel" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     // Log the Vercel response for debugging
     console.log(
       "Vercel domain creation response:",
-      JSON.stringify(vercelData, null, 2)
+      JSON.stringify(vercelData, null, 2),
     );
 
     // Update material line with custom domain (not verified yet)
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       console.error("Failed to update material line:", updateError);
       return NextResponse.json(
         { error: "Failed to save domain configuration" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     console.log(
       "Extracting DNS records from verification array:",
-      vercelData.verification
+      vercelData.verification,
     );
 
     // Check if verification records are in the initial response
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
       vercelData.verification.forEach((record: any) => {
         console.log(
           "Processing verification record:",
-          JSON.stringify(record, null, 2)
+          JSON.stringify(record, null, 2),
         );
 
         if (record.type && record.value && record.domain) {
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
           }
 
           console.log(
-            `Extracted DNS record: type=${record.type}, name=${subdomain}, value=${record.value}`
+            `Extracted DNS record: type=${record.type}, name=${subdomain}, value=${record.value}`,
           );
           dnsRecords.push({
             type: record.type,
@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
             domainDetails.verification.forEach((record: any) => {
               console.log(
                 "Processing domain details verification record:",
-                JSON.stringify(record, null, 2)
+                JSON.stringify(record, null, 2),
               );
 
               if (record.type && record.value && record.domain) {
@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 console.log(
-                  `Extracted DNS record from details: type=${record.type}, name=${subdomain}, value=${record.value}`
+                  `Extracted DNS record from details: type=${record.type}, name=${subdomain}, value=${record.value}`,
                 );
                 dnsRecords.push({
                   type: record.type,
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
 
     console.log(
       "Final DNS records to return:",
-      JSON.stringify(dnsRecords, null, 2)
+      JSON.stringify(dnsRecords, null, 2),
     );
 
     // Return DNS configuration instructions
@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
     console.error("Error adding domain:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

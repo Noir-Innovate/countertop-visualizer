@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to invite members" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!emailRegex.test(email)) {
       return NextResponse.json(
         { error: "Invalid email format" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!validRoles.includes(invitationRole)) {
       return NextResponse.json(
         { error: `Role must be one of: ${validRoles.join(", ")}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (invitationRole === "owner" && membership.role !== "owner") {
       return NextResponse.json(
         { error: "Only owners can invite other owners" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       if (existingMember) {
         return NextResponse.json(
           { error: "User is already a member of this organization" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (existingInvitation) {
       return NextResponse.json(
         { error: "An invitation has already been sent to this email" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.error("Error creating invitation:", inviteError);
       return NextResponse.json(
         { error: inviteError.message || "Failed to create invitation" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -200,13 +200,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
         email_sent: emailResult.success,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     if (!name || !slug) {
       return NextResponse.json(
         { error: "Name and slug are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     if (existingOrg) {
       return NextResponse.json(
         { error: "This slug is already taken. Please choose a different one." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       console.error("Error creating organization:", orgError);
       return NextResponse.json(
         { error: orgError.message || "Failed to create organization" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         { error: memberError.message || "Failed to add organization member" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

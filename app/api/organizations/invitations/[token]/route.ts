@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (authError || !user) {
       return NextResponse.json(
         { error: "You must be logged in to accept an invitation" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (inviteError || !invitation) {
       return NextResponse.json(
         { error: "Invalid or expired invitation" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (invitation.accepted_at) {
       return NextResponse.json(
         { error: "This invitation has already been accepted" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (new Date(invitation.expires_at) < new Date()) {
       return NextResponse.json(
         { error: "This invitation has expired" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (invitation.email !== user.email) {
       return NextResponse.json(
         { error: "This invitation was sent to a different email address" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -90,11 +90,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .eq("id", invitation.id);
 
       return NextResponse.json(
-        { 
+        {
           message: "You are already a member of this organization",
-          organization_id: invitation.organization_id 
+          organization_id: invitation.organization_id,
         },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -107,12 +107,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (!profile) {
       // Create profile if it doesn't exist
-      await serviceClient
-        .from("profiles")
-        .insert({
-          id: user.id,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
-        });
+      await serviceClient.from("profiles").insert({
+        id: user.id,
+        full_name:
+          user.user_metadata?.full_name || user.user_metadata?.name || null,
+      });
     }
 
     // Add user to organization
@@ -128,7 +127,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.error("Error adding member:", memberError);
       return NextResponse.json(
         { error: memberError.message || "Failed to accept invitation" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -148,13 +147,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         message: "Invitation accepted successfully",
         organization_id: invitation.organization_id,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -170,7 +169,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -178,7 +177,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data: invitation, error: inviteError } = await serviceClient
       .from("organization_invitations")
-      .select(`
+      .select(
+        `
         id,
         email,
         role,
@@ -186,14 +186,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         accepted_at,
         created_at,
         organizations(id, name)
-      `)
+      `,
+      )
       .eq("token", token)
       .single();
 
     if (inviteError || !invitation) {
       return NextResponse.json(
         { error: "Invalid or expired invitation" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -211,8 +212,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

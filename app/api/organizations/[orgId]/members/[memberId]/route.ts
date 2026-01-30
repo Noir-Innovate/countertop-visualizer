@@ -36,7 +36,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to remove members" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -46,7 +46,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -71,7 +71,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You cannot remove yourself as the owner" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -86,7 +86,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       console.error("Error removing member:", deleteError);
       return NextResponse.json(
         { error: deleteError.message || "Failed to remove member" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -95,7 +95,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -116,7 +116,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: `Role must be one of: ${validRoles.join(", ")}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -145,7 +145,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to update member roles" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -153,7 +153,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (role === "owner" && membership.role !== "owner") {
       return NextResponse.json(
         { error: "Only owners can assign the owner role" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -163,7 +163,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -189,7 +189,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You cannot change your own role from owner" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -206,7 +206,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       console.error("Error updating member role:", updateError);
       return NextResponse.json(
         { error: updateError.message || "Failed to update member role" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -215,7 +215,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     if (!phone || !code) {
       return NextResponse.json(
         { error: "Phone and code are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || "Invalid verification code" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

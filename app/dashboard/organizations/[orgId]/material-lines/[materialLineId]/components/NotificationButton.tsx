@@ -31,7 +31,7 @@ export default function NotificationButton({
   const fetchNotifications = async () => {
     try {
       const response = await fetch(
-        `/api/material-lines/${materialLineId}/notifications`
+        `/api/material-lines/${materialLineId}/notifications`,
       );
       const data = await response.json();
 
@@ -40,7 +40,7 @@ export default function NotificationButton({
           data.notifications.map((n: any) => ({
             id: n.id,
             profile_id: n.profile_id,
-          }))
+          })),
         );
       }
     } catch (err) {

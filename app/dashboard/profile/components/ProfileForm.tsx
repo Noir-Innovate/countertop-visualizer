@@ -1,78 +1,86 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 interface Profile {
-  id: string
-  full_name: string | null
-  phone: string | null
-  avatar_url: string | null
-  email: string | null
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  email: string | null;
 }
 
 interface ProfileFormProps {
-  initialProfile: Profile
-  initialEmail: string
+  initialProfile: Profile;
+  initialEmail: string;
 }
 
-export default function ProfileForm({ initialProfile, initialEmail }: ProfileFormProps) {
-  const router = useRouter()
-  const [fullName, setFullName] = useState(initialProfile.full_name || '')
-  const [email, setEmail] = useState(initialEmail || '')
-  const [phone, setPhone] = useState(initialProfile.phone || '')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+export default function ProfileForm({
+  initialProfile,
+  initialEmail,
+}: ProfileFormProps) {
+  const router = useRouter();
+  const [fullName, setFullName] = useState(initialProfile.full_name || "");
+  const [email, setEmail] = useState(initialEmail || "");
+  const [phone, setPhone] = useState(initialProfile.phone || "");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSuccess(null)
-    setIsSubmitting(true)
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
+      const response = await fetch("/api/profile", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           full_name: fullName || null,
           email: email || null,
           phone: phone || null,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to update profile')
+        throw new Error(data.error || "Failed to update profile");
       }
 
-      setSuccess('Profile updated successfully')
-      router.refresh()
-      
+      setSuccess("Profile updated successfully");
+      router.refresh();
+
       // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile')
+      setError(err instanceof Error ? err.message : "Failed to update profile");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/dashboard/login')
-    router.refresh()
-  }
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/dashboard/login");
+    router.refresh();
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-      <h2 className="text-2xl font-bold text-slate-900 mb-6">Profile Settings</h2>
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white rounded-xl shadow-sm border border-slate-200 p-6"
+    >
+      <h2 className="text-2xl font-bold text-slate-900 mb-6">
+        Profile Settings
+      </h2>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -88,7 +96,10 @@ export default function ProfileForm({ initialProfile, initialEmail }: ProfileFor
 
       <div className="space-y-4">
         <div>
-          <label htmlFor="full_name" className="block text-sm font-medium text-slate-700 mb-1">
+          <label
+            htmlFor="full_name"
+            className="block text-sm font-medium text-slate-700 mb-1"
+          >
             Full Name
           </label>
           <input
@@ -102,7 +113,10 @@ export default function ProfileForm({ initialProfile, initialEmail }: ProfileFor
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+          <label
+            htmlFor="email"
+            className="block text-sm font-medium text-slate-700 mb-1"
+          >
             Email Address
           </label>
           <input
@@ -120,7 +134,10 @@ export default function ProfileForm({ initialProfile, initialEmail }: ProfileFor
         </div>
 
         <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-1">
+          <label
+            htmlFor="phone"
+            className="block text-sm font-medium text-slate-700 mb-1"
+          >
             Phone Number
           </label>
           <input
@@ -142,7 +159,7 @@ export default function ProfileForm({ initialProfile, initialEmail }: ProfileFor
             disabled={isSubmitting}
             className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
+            {isSubmitting ? "Saving..." : "Save Changes"}
           </button>
 
           <button
@@ -155,6 +172,5 @@ export default function ProfileForm({ initialProfile, initialEmail }: ProfileFor
         </div>
       </div>
     </form>
-  )
+  );
 }
-

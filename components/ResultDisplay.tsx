@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import ImageModal from "./ImageModal";
 import ImageCarousel from "./ImageCarousel";
 import ImageComparison from "./ImageComparison";
 import QuoteModal from "./QuoteModal";
+import { trackEvent } from "@/lib/posthog";
+import { useMaterialLine } from "@/lib/material-line";
+import posthog from "posthog-js";
 import type { GenerationResult } from "@/lib/types";
 import type { Slab } from "@/lib/types";
 
@@ -31,8 +34,9 @@ export default function ResultDisplay({
   abVariant,
   onVerificationUpdate,
 }: ResultDisplayProps) {
+  const materialLine = useMaterialLine();
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
-    null
+    null,
   );
   const [viewMode, setViewMode] = useState<ViewMode>("carousel");
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -44,6 +48,7 @@ export default function ResultDisplay({
     slabName: string | null;
     imageUrl: string | null;
   }>({ slabId: null, slabName: null, imageUrl: null });
+  const sawItTrackedRef = useRef(false);
 
   // Merge all results including loading states
   const allResults = useMemo(() => {
@@ -127,9 +132,33 @@ export default function ResultDisplay({
   // Initialize compare indices when switching to compare mode
   const handleSwitchToCompare = () => {
     setViewMode("compare");
+    trackEvent("view_mode_changed", {
+      viewMode: "compare",
+    });
+    if (materialLine && typeof window !== "undefined") {
+      posthog.capture("view_mode_changed", {
+        viewMode: "compare",
+        materialLineId: materialLine.id,
+        organizationId: materialLine.organizationId,
+      });
+    }
     if (allImages.length > 1) {
       setCompareLeftIndex(0);
       setCompareRightIndex(Math.min(1, allImages.length - 1));
+    }
+  };
+
+  const handleSwitchToCarousel = () => {
+    setViewMode("carousel");
+    trackEvent("view_mode_changed", {
+      viewMode: "carousel",
+    });
+    if (materialLine && typeof window !== "undefined") {
+      posthog.capture("view_mode_changed", {
+        viewMode: "carousel",
+        materialLineId: materialLine.id,
+        organizationId: materialLine.organizationId,
+      });
     }
   };
 
@@ -155,7 +184,7 @@ export default function ResultDisplay({
   const handleGetQuote = (
     imageId: string,
     imageName: string,
-    imageUrl: string
+    imageUrl: string,
   ) => {
     // Find the result to get the slab ID
     const result = allResults.find((r) => r.slabId === imageId);
@@ -169,9 +198,33 @@ export default function ResultDisplay({
 
   const allComplete = allResults.every((r) => !r.isLoading);
   const hasCompletedImages = allResults.some(
-    (r) => r.imageData && !r.isLoading && !r.error
+    (r) => r.imageData && !r.isLoading && !r.error,
   );
   const hasAnyResults = allResults.length > 0;
+
+  // Track "saw_it" event when all images finish loading and user is still on page
+  useEffect(() => {
+    if (allComplete && hasCompletedImages && !sawItTrackedRef.current) {
+      const completedCount = allResults.filter(
+        (r) => r.imageData && !r.isLoading && !r.error,
+      ).length;
+
+      sawItTrackedRef.current = true;
+      trackEvent("saw_it", {
+        slabCount: completedCount,
+        allImagesLoaded: true,
+      });
+
+      if (materialLine && typeof window !== "undefined") {
+        posthog.capture("saw_it", {
+          slabCount: completedCount,
+          allImagesLoaded: true,
+          materialLineId: materialLine.id,
+          organizationId: materialLine.organizationId,
+        });
+      }
+    }
+  }, [allComplete, hasCompletedImages, allResults, materialLine]);
 
   return (
     <>
@@ -184,7 +237,7 @@ export default function ResultDisplay({
             <p className="text-[var(--color-text-secondary)] mt-1">
               {
                 allResults.filter(
-                  (r) => r.imageData && !r.isLoading && !r.error
+                  (r) => r.imageData && !r.isLoading && !r.error,
                 ).length
               }{" "}
               {allResults.filter((r) => r.imageData && !r.isLoading && !r.error)
@@ -219,7 +272,7 @@ export default function ResultDisplay({
         {hasAnyResults && (
           <div className="flex gap-2 justify-center mb-6">
             <button
-              onClick={() => setViewMode("carousel")}
+              onClick={handleSwitchToCarousel}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 viewMode === "carousel"
                   ? "bg-[var(--color-accent)] text-white"
@@ -247,6 +300,7 @@ export default function ResultDisplay({
             <ImageCarousel
               images={allImages}
               allResults={allResults}
+              selectedSlabs={selectedSlabs}
               currentIndex={carouselIndex}
               onIndexChange={setCarouselIndex}
               onImageClick={openModal}
@@ -274,6 +328,7 @@ export default function ResultDisplay({
             <ImageComparison
               images={allImages}
               allResults={allResults}
+              selectedSlabs={selectedSlabs}
               leftIndex={compareLeftIndex}
               rightIndex={compareRightIndex}
               onLeftIndexChange={setCompareLeftIndex}

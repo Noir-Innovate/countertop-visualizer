@@ -44,8 +44,10 @@ export default async function ProfilePage() {
         </p>
       </div>
 
-      <ProfileForm initialProfile={profileData} initialEmail={profileData.email || user.email || ""} />
+      <ProfileForm
+        initialProfile={profileData}
+        initialEmail={profileData.email || user.email || ""}
+      />
     </div>
   );
 }
-

@@ -39,7 +39,7 @@ export default function NotificationList({
   const fetchNotifications = async () => {
     try {
       const response = await fetch(
-        `/api/material-lines/${materialLineId}/notifications`
+        `/api/material-lines/${materialLineId}/notifications`,
       );
       const data = await response.json();
 
@@ -51,7 +51,7 @@ export default function NotificationList({
     } catch (err) {
       console.error("Error fetching notifications:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to fetch notifications"
+        err instanceof Error ? err.message : "Failed to fetch notifications",
       );
     } finally {
       setLoading(false);
@@ -61,7 +61,7 @@ export default function NotificationList({
   const handleUpdatePreferences = async (
     notificationId: string,
     smsEnabled: boolean,
-    emailEnabled: boolean
+    emailEnabled: boolean,
   ) => {
     setUpdatingId(notificationId);
     setError(null);
@@ -79,7 +79,7 @@ export default function NotificationList({
             smsEnabled,
             emailEnabled,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -95,7 +95,7 @@ export default function NotificationList({
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to update notification"
+        err instanceof Error ? err.message : "Failed to update notification",
       );
     } finally {
       setUpdatingId(null);
@@ -118,7 +118,7 @@ export default function NotificationList({
         `/api/material-lines/${materialLineId}/notifications?id=${notificationId}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       const data = await response.json();
@@ -132,7 +132,7 @@ export default function NotificationList({
       fetchNotifications();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to remove notification"
+        err instanceof Error ? err.message : "Failed to remove notification",
       );
     } finally {
       setRemovingId(null);
@@ -199,7 +199,7 @@ export default function NotificationList({
                             handleUpdatePreferences(
                               notification.id,
                               e.target.checked,
-                              notification.email_enabled
+                              notification.email_enabled,
                             )
                           }
                           disabled={updatingId === notification.id}
@@ -215,7 +215,7 @@ export default function NotificationList({
                             handleUpdatePreferences(
                               notification.id,
                               notification.sms_enabled,
-                              e.target.checked
+                              e.target.checked,
                             )
                           }
                           disabled={updatingId === notification.id}

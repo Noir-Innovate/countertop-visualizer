@@ -39,7 +39,7 @@ export default async function OrganizationPage({ params }: Props) {
       name,
       created_at,
       material_lines(id, name, slug, custom_domain, custom_domain_verified, created_at)
-    `
+    `,
     )
     .eq("id", orgId)
     .single();

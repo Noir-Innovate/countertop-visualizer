@@ -79,7 +79,7 @@ export default function AcceptInvitationForm({
         setError(null);
         // Show success message about email confirmation
         alert(
-          "Please check your email to confirm your account, then return to this page to accept the invitation."
+          "Please check your email to confirm your account, then return to this page to accept the invitation.",
         );
         return;
       }
@@ -113,7 +113,7 @@ export default function AcceptInvitationForm({
       router.push(`/dashboard/organizations/${data.organization_id}`);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to accept invitation"
+        err instanceof Error ? err.message : "Failed to accept invitation",
       );
       setIsSubmitting(false);
       setIsSigningUp(false);
@@ -129,7 +129,7 @@ export default function AcceptInvitationForm({
     // Check if email matches
     if (invitation.email !== userEmail) {
       setError(
-        `This invitation was sent to ${invitation.email}, but you are logged in as ${userEmail}. Please log out and sign in with the correct email address.`
+        `This invitation was sent to ${invitation.email}, but you are logged in as ${userEmail}. Please log out and sign in with the correct email address.`,
       );
       return;
     }

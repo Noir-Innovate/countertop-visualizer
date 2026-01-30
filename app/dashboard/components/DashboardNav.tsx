@@ -1,61 +1,65 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { User } from '@supabase/supabase-js'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { User } from "@supabase/supabase-js";
 
 interface Profile {
-  id: string
-  full_name: string | null
-  avatar_url: string | null
-  email: string | null
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  email: string | null;
 }
 
 interface Organization {
-  id: string
-  name: string
-  role: string
+  id: string;
+  name: string;
+  role: string;
 }
 
 interface DashboardNavProps {
-  user: User
-  profile: Profile | null
-  organizations: Organization[]
+  user: User;
+  profile: Profile | null;
+  organizations: Organization[];
 }
 
-export default function DashboardNav({ user, profile, organizations }: DashboardNavProps) {
-  const router = useRouter()
-  const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showOrgMenu, setShowOrgMenu] = useState(false)
+export default function DashboardNav({
+  user,
+  profile,
+  organizations,
+}: DashboardNavProps) {
+  const router = useRouter();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showOrgMenu, setShowOrgMenu] = useState(false);
 
   const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/dashboard/login')
-    router.refresh()
-  }
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/dashboard/login");
+    router.refresh();
+  };
 
   const handleDashboardClick = () => {
-    router.push('/dashboard')
-  }
+    router.push("/dashboard");
+  };
 
   const handleOrganizationClick = (orgId: string) => {
-    router.push(`/dashboard/organizations/${orgId}`)
-    setShowOrgMenu(false)
-  }
+    router.push(`/dashboard/organizations/${orgId}`);
+    setShowOrgMenu(false);
+  };
 
   const handleCreateOrganizationClick = () => {
-    router.push('/dashboard/organizations/new')
-    setShowOrgMenu(false)
-  }
+    router.push("/dashboard/organizations/new");
+    setShowOrgMenu(false);
+  };
 
   const handleProfileClick = () => {
-    router.push('/dashboard/profile')
-    setShowUserMenu(false)
-  }
+    router.push("/dashboard/profile");
+    setShowUserMenu(false);
+  };
 
-  const displayName = profile?.full_name || user.email?.split('@')[0] || 'User'
+  const displayName = profile?.full_name || user.email?.split("@")[0] || "User";
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50">
@@ -74,12 +78,32 @@ export default function DashboardNav({ user, profile, organizations }: Dashboard
                 onClick={() => setShowOrgMenu(!showOrgMenu)}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                  />
                 </svg>
                 Organizations
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </button>
 
@@ -92,7 +116,9 @@ export default function DashboardNav({ user, profile, organizations }: Dashboard
                       className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
                     >
                       <span className="font-medium">{org.name}</span>
-                      <span className="ml-2 text-xs text-slate-500 capitalize">({org.role})</span>
+                      <span className="ml-2 text-xs text-slate-500 capitalize">
+                        ({org.role})
+                      </span>
                     </button>
                   ))}
                   <hr className="my-2 border-slate-200" />
@@ -116,16 +142,30 @@ export default function DashboardNav({ user, profile, organizations }: Dashboard
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium text-sm">
               {displayName.charAt(0).toUpperCase()}
             </div>
-            <span className="text-sm font-medium text-slate-700">{displayName}</span>
-            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <span className="text-sm font-medium text-slate-700">
+              {displayName}
+            </span>
+            <svg
+              className="w-4 h-4 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
 
           {showUserMenu && (
             <div className="absolute top-full right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-2">
               <div className="px-4 py-2 border-b border-slate-200">
-                <p className="text-sm font-medium text-slate-900">{displayName}</p>
+                <p className="text-sm font-medium text-slate-900">
+                  {displayName}
+                </p>
                 <p className="text-xs text-slate-500">{user.email}</p>
               </div>
               <button
@@ -145,6 +185,5 @@ export default function DashboardNav({ user, profile, organizations }: Dashboard
         </div>
       </div>
     </nav>
-  )
+  );
 }
-

@@ -58,7 +58,7 @@ export default async function MaterialLinePage({ params }: Props) {
 
   const materialCount =
     materialFiles?.filter((file) =>
-      file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i)
+      file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i),
     ).length || 0;
 
   // Fetch analytics from PostHog for last 30 days

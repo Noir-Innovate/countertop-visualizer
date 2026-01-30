@@ -60,7 +60,7 @@ export default function NewMaterialLinePage({ params }: Props) {
 
       if (!membership) {
         setError(
-          "You do not have permission to create material lines in this organization"
+          "You do not have permission to create material lines in this organization",
         );
         return;
       }
@@ -74,7 +74,7 @@ export default function NewMaterialLinePage({ params }: Props) {
 
       if (!org || !org.slug) {
         setError(
-          "Organization slug not found. Please update the organization first."
+          "Organization slug not found. Please update the organization first.",
         );
         setLoading(false);
         return;
@@ -113,7 +113,7 @@ export default function NewMaterialLinePage({ params }: Props) {
       }
 
       router.push(
-        `/dashboard/organizations/${orgId}/material-lines/${materialLine.id}`
+        `/dashboard/organizations/${orgId}/material-lines/${materialLine.id}`,
       );
       router.refresh();
     } catch {
@@ -194,7 +194,7 @@ export default function NewMaterialLinePage({ params }: Props) {
                 value={slug}
                 onChange={(e) =>
                   setSlug(
-                    e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")
+                    e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
                   )
                 }
                 className="w-full px-4 py-3 rounded-l-lg border border-r-0 border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"

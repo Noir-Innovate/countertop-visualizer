@@ -29,10 +29,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .eq("organization_id", orgId)
       .single();
 
-    if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+    if (
+      !membership ||
+      (membership.role !== "owner" && membership.role !== "admin")
+    ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to view team members" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -58,7 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         role,
         created_at,
         profiles(id, full_name)
-      `
+      `,
       )
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
@@ -67,7 +70,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       console.error("Error fetching members:", membersError);
       return NextResponse.json(
         { error: membersError.message || "Failed to fetch members" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -89,14 +92,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         members: members || [],
         invitations: invitations || [],
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

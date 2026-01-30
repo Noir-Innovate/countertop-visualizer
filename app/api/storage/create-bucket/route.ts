@@ -9,28 +9,31 @@ export async function POST(request: NextRequest) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     const supabase = createSupabaseClient(supabaseUrl, serviceRoleKey);
 
     // Check if bucket already exists
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    const { data: buckets, error: listError } =
+      await supabase.storage.listBuckets();
 
     if (listError) {
       return NextResponse.json(
         { error: `Failed to list buckets: ${listError.message}` },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
-    const bucketExists = buckets?.some((bucket) => bucket.name === "public-assets");
+    const bucketExists = buckets?.some(
+      (bucket) => bucket.name === "public-assets",
+    );
 
     if (bucketExists) {
       return NextResponse.json(
         { message: "Bucket 'public-assets' already exists", exists: true },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -61,7 +64,7 @@ export async function POST(request: NextRequest) {
         {
           error: `Failed to create bucket: ${errorData.message || response.statusText}`,
         },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
@@ -69,14 +72,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { message: "Bucket 'public-assets' created successfully", bucket: data },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

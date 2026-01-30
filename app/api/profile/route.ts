@@ -25,7 +25,7 @@ export async function PUT(request: NextRequest) {
       if (!emailRegex.test(email)) {
         return NextResponse.json(
           { error: "Invalid email format" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -67,7 +67,7 @@ export async function PUT(request: NextRequest) {
         console.error("Error updating profile:", profileError);
         return NextResponse.json(
           { error: profileError.message || "Failed to update profile" },
-          { status: 500 }
+          { status: 500 },
         );
       }
     }
@@ -75,29 +75,28 @@ export async function PUT(request: NextRequest) {
     // Update email if provided and different
     if (email && email !== user.email) {
       // Check if email is already taken
-      const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
+      const { data: existingUsers } =
+        await serviceClient.auth.admin.listUsers();
       const emailTaken = existingUsers.users.some(
-        (u) => u.email === email && u.id !== user.id
+        (u) => u.email === email && u.id !== user.id,
       );
 
       if (emailTaken) {
         return NextResponse.json(
           { error: "This email is already in use" },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
       // Update email using admin API
-      const { error: emailError } = await serviceClient.auth.admin.updateUserById(
-        user.id,
-        { email }
-      );
+      const { error: emailError } =
+        await serviceClient.auth.admin.updateUserById(user.id, { email });
 
       if (emailError) {
         console.error("Error updating email:", emailError);
         return NextResponse.json(
           { error: emailError.message || "Failed to update email" },
-          { status: 500 }
+          { status: 500 },
         );
       }
     }
@@ -114,20 +113,22 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get updated user info
-    const { data: updatedUser } = await serviceClient.auth.admin.getUserById(user.id);
+    const { data: updatedUser } = await serviceClient.auth.admin.getUserById(
+      user.id,
+    );
 
     return NextResponse.json(
       {
         profile: updatedProfile || {},
         email: updatedUser?.user?.email || user.email,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
       console.error("Error fetching profile:", profileError);
       return NextResponse.json(
         { error: "Failed to fetch profile" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -173,14 +174,13 @@ export async function GET(request: NextRequest) {
         },
         email: profile?.email || user.email,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

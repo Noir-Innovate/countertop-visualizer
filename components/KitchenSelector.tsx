@@ -48,7 +48,7 @@ export default function KitchenSelector({
       };
       reader.readAsDataURL(file);
     },
-    [onKitchenSelect]
+    [onKitchenSelect],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -71,7 +71,7 @@ export default function KitchenSelector({
         processFile(files[0]);
       }
     },
-    [processFile]
+    [processFile],
   );
 
   const handleFileSelect = useCallback(
@@ -81,7 +81,7 @@ export default function KitchenSelector({
         processFile(files[0]);
       }
     },
-    [processFile]
+    [processFile],
   );
 
   const handleExampleSelect = useCallback(
@@ -99,9 +99,14 @@ export default function KitchenSelector({
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64 = reader.result as string;
-          trackEvent("example_kitchen_selected", {
+          // trackEvent("example_kitchen_selected", {
+          //   kitchenId: kitchen.id,
+          //   kitchenName: kitchen.name,
+          // });
+          trackEvent("image_selected", {
             kitchenId: kitchen.id,
             kitchenName: kitchen.name,
+            isExample: true,
           });
           onKitchenSelect(base64, true);
           setLoadingExampleId(null);
@@ -112,11 +117,13 @@ export default function KitchenSelector({
         };
         reader.readAsDataURL(blob);
       } catch {
-        setError("Failed to load example image. Please try uploading your own.");
+        setError(
+          "Failed to load example image. Please try uploading your own.",
+        );
         setLoadingExampleId(null);
       }
     },
-    [onKitchenSelect]
+    [onKitchenSelect],
   );
 
   return (
@@ -178,7 +185,9 @@ export default function KitchenSelector({
             </div>
 
             <p className="mb-1 text-lg font-semibold text-[var(--color-text)]">
-              {isDragging ? "Drop your image here" : "Upload your kitchen photo"}
+              {isDragging
+                ? "Drop your image here"
+                : "Upload your kitchen photo"}
             </p>
             <p className="text-sm text-[var(--color-text-secondary)]">
               Drag & drop or{" "}
@@ -220,8 +229,8 @@ export default function KitchenSelector({
                   loadingExampleId === kitchen.id
                     ? "opacity-75"
                     : loadingExampleId !== null
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:border-[var(--color-accent)] hover:shadow-lg"
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:border-[var(--color-accent)] hover:shadow-lg"
                 }
               `}
             >
@@ -236,7 +245,7 @@ export default function KitchenSelector({
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
               />
-              
+
               {/* Overlay with name */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-3">
                 <span className="text-white font-medium text-sm">

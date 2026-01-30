@@ -40,7 +40,7 @@ export default async function DashboardPage() {
         name,
         material_lines(id, name, slug, custom_domain, custom_domain_verified)
       )
-    `
+    `,
     )
     .eq("profile_id", user.id);
 
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
 
   // Fetch analytics from PostHog
   const allMaterialLineIds = organizations.flatMap(
-    (org) => org.material_lines?.map((ml) => ml.id) || []
+    (org) => org.material_lines?.map((ml) => ml.id) || [],
   );
 
   let totalPageViews = 0;

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (!materialLineId) {
       return NextResponse.json(
         { error: "Material line ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (materialLineError || !materialLine) {
       return NextResponse.json(
         { error: "Material line not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     if (memberError || !membership) {
       return NextResponse.json(
         { error: "You do not have permission to view this material line" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     if (!vercelToken) {
       return NextResponse.json(
         { error: "Vercel configuration missing" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
         if (domainsResponse.ok) {
           const domainsData = await domainsResponse.json();
           const domainInfo = domainsData.domains?.find(
-            (d: any) => d.name === materialLine.custom_domain
+            (d: any) => d.name === materialLine.custom_domain,
           );
 
           if (
@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
         if (domainsResponse.ok) {
           const domainsData = await domainsResponse.json();
           const domainInfo = domainsData.domains?.find(
-            (d: any) => d.name === materialLine.custom_domain
+            (d: any) => d.name === materialLine.custom_domain,
           );
 
           if (
@@ -300,7 +300,7 @@ export async function GET(request: NextRequest) {
     console.error("Error checking domain status:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

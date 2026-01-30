@@ -56,7 +56,7 @@ export default function InviteMemberForm({
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to send invitation"
+        err instanceof Error ? err.message : "Failed to send invitation",
       );
     } finally {
       setIsSubmitting(false);
@@ -108,7 +108,7 @@ export default function InviteMemberForm({
             value={role}
             onChange={(e) =>
               setRole(
-                e.target.value as "owner" | "admin" | "member" | "sales_person"
+                e.target.value as "owner" | "admin" | "member" | "sales_person",
               )
             }
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

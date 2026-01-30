@@ -10,14 +10,14 @@ export async function POST(request: NextRequest) {
     if (!imageBase64) {
       return NextResponse.json(
         { error: "Image data is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Get organization and material line slugs
     const supabase = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
     let orgSlug = "default";
@@ -54,13 +54,13 @@ export async function POST(request: NextRequest) {
       orgSlug,
       materialLineSlug,
       imageBase64,
-      mimeType
+      mimeType,
     );
 
     if (uploadResult.error || !uploadResult.path || !uploadResult.url) {
       return NextResponse.json(
         { error: uploadResult.error || "Failed to upload image" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     console.error("Upload lead image error:", error);
     return NextResponse.json(
       { error: "Failed to upload image" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

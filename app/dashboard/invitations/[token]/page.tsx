@@ -28,9 +28,8 @@ export default async function InvitationPage({ params }: Props) {
     );
   }
 
-  const { createClient: createSupabaseClient } = await import(
-    "@supabase/supabase-js"
-  );
+  const { createClient: createSupabaseClient } =
+    await import("@supabase/supabase-js");
   const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
 
   const { data: invitationData, error: inviteError } = await serviceClient
@@ -44,7 +43,7 @@ export default async function InvitationPage({ params }: Props) {
       accepted_at,
       created_at,
       organizations(id, name)
-    `
+    `,
     )
     .eq("token", token)
     .single();

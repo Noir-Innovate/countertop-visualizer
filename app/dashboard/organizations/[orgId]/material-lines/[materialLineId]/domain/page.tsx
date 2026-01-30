@@ -63,7 +63,7 @@ export default function DomainSettingsPage({ params }: Props) {
     setChecking(true);
     try {
       const response = await fetch(
-        `/api/domains/status?materialLineId=${materialLineId}`
+        `/api/domains/status?materialLineId=${materialLineId}`,
       );
       const data = await response.json();
       setDomainStatus(data);
@@ -164,7 +164,7 @@ export default function DomainSettingsPage({ params }: Props) {
       setMaterialLine((prev) =>
         prev
           ? { ...prev, custom_domain: null, custom_domain_verified: false }
-          : null
+          : null,
       );
       router.refresh();
     } catch {

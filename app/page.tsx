@@ -25,17 +25,17 @@ import posthog from "posthog-js";
 
 export default function Home() {
   const materialLine = useMaterialLine();
-  
+
   // Step state: 1 = Kitchen selection, 2 = Material selection, 3 = Results
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  
+
   const [kitchenImage, setKitchenImage] = useState<string | null>(null);
   const [selectedSlabs, setSelectedSlabs] = useState<Slab[]>([]);
   const [generationResults, setGenerationResults] = useState<
     GenerationResult[]
   >([]);
   const [persistedResults, setPersistedResults] = useState<GenerationResult[]>(
-    []
+    [],
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function Home() {
         setSlabsLoading(true);
         try {
           const slabs = await getSlabsForMaterialLine(
-            materialLine.supabaseFolder
+            materialLine.supabaseFolder,
           );
           if (slabs.length > 0) {
             setDynamicSlabs(slabs);
@@ -137,8 +137,8 @@ export default function Home() {
   const allSlabs = isExample
     ? EXAMPLE_SLABS
     : dynamicSlabs.length > 0
-    ? dynamicSlabs
-    : SLABS;
+      ? dynamicSlabs
+      : SLABS;
 
   const handleKitchenSelect = (base64Image: string, isExample?: boolean) => {
     // If changing the kitchen image, clear all persisted results
@@ -148,8 +148,11 @@ export default function Home() {
     setKitchenImage(base64Image);
     setGenerationResults([]);
     setError(null);
-    trackABEvent(abVariant, isExample ? "example_kitchen_selected" : "image_uploaded");
-    
+    trackABEvent(
+      abVariant,
+      isExample ? "example_kitchen_selected" : "image_uploaded",
+    );
+
     // Move to step 2 after selecting kitchen
     setCurrentStep(2);
   };
@@ -177,12 +180,16 @@ export default function Home() {
     // Track only when adding a new slab (not removing)
     const wasSelected = selectedSlabs.find((s) => s.id === slab.id);
     if (!wasSelected && selectedSlabs.length < 3) {
-      trackABEvent(abVariant, "slab_selected", { slabId: slab.id });
+      trackABEvent(abVariant, "slab_selected", {
+        slabId: slab.id,
+        material_type: slab.material_type || null,
+      });
       // Track with material line context
       if (materialLine && typeof window !== "undefined") {
         posthog.capture("slab_selected", {
           slabId: slab.id,
           slabName: slab.name,
+          material_type: slab.material_type || null,
           materialLineId: materialLine.id,
           organizationId: materialLine.organizationId,
         });
@@ -221,7 +228,7 @@ export default function Home() {
   const generateSingleImage = useCallback(
     async (
       slab: Slab,
-      compressedKitchenImage: string
+      compressedKitchenImage: string,
     ): Promise<GenerationResult> => {
       try {
         // Fetch and compress slab image
@@ -270,7 +277,7 @@ export default function Home() {
         };
       }
     },
-    []
+    [],
   );
 
   const handleGenerate = async () => {
@@ -322,8 +329,8 @@ export default function Home() {
 
       const results = await Promise.all(
         selectedSlabs.map((slab) =>
-          generateSingleImage(slab, compressedKitchenImage)
-        )
+          generateSingleImage(slab, compressedKitchenImage),
+        ),
       );
 
       setGenerationResults(results);
@@ -333,7 +340,7 @@ export default function Home() {
         const merged = [...prev];
         results.forEach((newResult) => {
           const existingIndex = merged.findIndex(
-            (r) => r.slabId === newResult.slabId
+            (r) => r.slabId === newResult.slabId,
           );
           if (existingIndex >= 0) {
             merged[existingIndex] = newResult; // Update existing
@@ -358,13 +365,37 @@ export default function Home() {
   const handleReset = () => {
     // Go back to material selection but keep everything
     // Keep kitchenImage and persistedResults so user can view existing results later
+    trackABEvent(abVariant, "reset");
+    trackEvent("back_pressed", {
+      fromStep: 3,
+      toStep: 2,
+    });
+    if (materialLine && typeof window !== "undefined") {
+      posthog.capture("back_pressed", {
+        fromStep: 3,
+        toStep: 2,
+        materialLineId: materialLine.id,
+        organizationId: materialLine.organizationId,
+      });
+    }
     setSelectedSlabs([]);
     setCurrentStep(2);
     setError(null);
-    trackABEvent(abVariant, "reset");
   };
 
   const handleBackToStep1 = () => {
+    trackEvent("back_pressed", {
+      fromStep: 2,
+      toStep: 1,
+    });
+    if (materialLine && typeof window !== "undefined") {
+      posthog.capture("back_pressed", {
+        fromStep: 2,
+        toStep: 1,
+        materialLineId: materialLine.id,
+        organizationId: materialLine.organizationId,
+      });
+    }
     setCurrentStep(1);
     setError(null);
   };
@@ -557,12 +588,11 @@ export default function Home() {
                       Select at least one material to visualize
                     </p>
                   )}
-                {selectedSlabs.length === 0 &&
-                  persistedResults.length > 0 && (
-                    <p className="mt-3 text-sm text-[var(--color-text-muted)]">
-                      View existing results or select more materials
-                    </p>
-                  )}
+                {selectedSlabs.length === 0 && persistedResults.length > 0 && (
+                  <p className="mt-3 text-sm text-[var(--color-text-muted)]">
+                    View existing results or select more materials
+                  </p>
+                )}
               </div>
             </div>
           </div>

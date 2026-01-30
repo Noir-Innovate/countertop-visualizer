@@ -30,16 +30,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (leadError || !lead) {
-      return NextResponse.json(
-        { error: "Lead not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
     if (!lead.image_storage_path) {
       return NextResponse.json(
         { error: "Lead image not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -55,7 +52,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       if (!membership) {
         return NextResponse.json(
           { error: "You don't have access to this lead" },
-          { status: 403 }
+          { status: 403 },
         );
       }
     }
@@ -63,14 +60,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Get signed URL for the image
     const { url, error: urlError } = await getLeadImageUrl(
       lead.image_storage_path,
-      3600 // 1 hour expiration
+      3600, // 1 hour expiration
     );
 
     if (urlError || !url) {
       console.error("Error creating signed URL:", urlError);
       return NextResponse.json(
         { error: urlError || "Failed to generate image URL" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -79,8 +76,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

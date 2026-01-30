@@ -47,7 +47,9 @@ export default function DashboardContent({
   };
 
   const handleViewMaterialLine = (orgId: string, materialLineId: string) => {
-    router.push(`/dashboard/organizations/${orgId}/material-lines/${materialLineId}`);
+    router.push(
+      `/dashboard/organizations/${orgId}/material-lines/${materialLineId}`,
+    );
   };
 
   const handleCreateMaterialLine = (orgId: string) => {
@@ -244,7 +246,9 @@ export default function DashboardContent({
                   {org.material_lines.map((materialLine) => (
                     <button
                       key={materialLine.id}
-                      onClick={() => handleViewMaterialLine(org.id, materialLine.id)}
+                      onClick={() =>
+                        handleViewMaterialLine(org.id, materialLine.id)
+                      }
                       className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors text-left cursor-pointer"
                     >
                       <div>

@@ -37,7 +37,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to manage invitations" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -47,7 +47,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -63,7 +63,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!invitation || invitation.organization_id !== orgId) {
       return NextResponse.json(
         { error: "Invitation not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -78,19 +78,19 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       console.error("Error deleting invitation:", deleteError);
       return NextResponse.json(
         { error: deleteError.message || "Failed to delete invitation" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
       { message: "Invitation deleted successfully" },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to resend invitations" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (inviteError || !invitation) {
       return NextResponse.json(
         { error: "Invitation not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (invitation.accepted_at) {
       return NextResponse.json(
         { error: "Cannot resend an already accepted invitation" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -199,19 +199,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.error("Failed to resend invitation email:", emailResult.error);
       return NextResponse.json(
         { error: emailResult.error || "Failed to resend invitation email" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
       { message: "Invitation resent successfully", email_sent: true },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

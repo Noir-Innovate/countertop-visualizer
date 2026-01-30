@@ -71,7 +71,7 @@ export default async function TeamPage({ params }: Props) {
         role,
         created_at,
         profiles(id, full_name, email, phone)
-      `
+      `,
       )
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });

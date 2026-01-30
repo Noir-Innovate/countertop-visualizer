@@ -56,11 +56,11 @@ export default function MemberList({
   const handleRemove = async (
     memberId: string,
     memberRole: string,
-    memberProfileId: string
+    memberProfileId: string,
   ) => {
     if (
       !confirm(
-        "Are you sure you want to remove this member from the organization?"
+        "Are you sure you want to remove this member from the organization?",
       )
     ) {
       return;
@@ -80,7 +80,7 @@ export default function MemberList({
         `/api/organizations/${orgId}/members/${memberId}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       const data = await response.json();
@@ -111,7 +111,7 @@ export default function MemberList({
         `/api/organizations/${orgId}/invitations/${invitationId}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       const data = await response.json();
@@ -127,7 +127,7 @@ export default function MemberList({
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to delete invitation"
+        err instanceof Error ? err.message : "Failed to delete invitation",
       );
     } finally {
       setDeletingInvitationId(null);
@@ -138,7 +138,7 @@ export default function MemberList({
     memberId: string,
     newRole: string,
     currentRole: string,
-    memberProfileId: string
+    memberProfileId: string,
   ) => {
     // Prevent changing your own role from owner
     if (
@@ -163,7 +163,7 @@ export default function MemberList({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ role: newRole }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -194,7 +194,7 @@ export default function MemberList({
         `/api/organizations/${orgId}/invitations/${invitationId}`,
         {
           method: "POST",
-        }
+        },
       );
 
       const data = await response.json();
@@ -209,7 +209,7 @@ export default function MemberList({
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to resend invitation"
+        err instanceof Error ? err.message : "Failed to resend invitation",
       );
     } finally {
       setResendingInvitationId(null);
@@ -317,12 +317,12 @@ export default function MemberList({
                             member.id,
                             e.target.value,
                             member.role,
-                            member.profile_id
+                            member.profile_id,
                           )
                         }
                         disabled={updatingRoleId === member.id}
                         className={`px-2 py-1 text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-blue-500 ${getRoleBadgeColor(
-                          member.role
+                          member.role,
                         )} disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         <option value="member">Member</option>
@@ -335,7 +335,7 @@ export default function MemberList({
                     ) : (
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(
-                          member.role
+                          member.role,
                         )}`}
                       >
                         {formatRole(member.role)}
@@ -347,7 +347,7 @@ export default function MemberList({
                           handleRemove(
                             member.id,
                             member.role,
-                            member.profile_id
+                            member.profile_id,
                           )
                         }
                         disabled={removingId === member.id}
@@ -396,7 +396,7 @@ export default function MemberList({
                   <div className="flex items-center gap-3">
                     <span
                       className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(
-                        invitation.role
+                        invitation.role,
                       )}`}
                     >
                       {formatRole(invitation.role)}

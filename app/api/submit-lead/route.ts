@@ -43,7 +43,7 @@ function sanitizeUUID(value: string | null | undefined): string | null {
 
 // Parse base64 image data to extract MIME type
 export function parseBase64Image(
-  base64Data: string | undefined
+  base64Data: string | undefined,
 ): { mimeType: string; data: string } | null {
   if (!base64Data || !base64Data.startsWith("data:image")) {
     return null;
@@ -60,7 +60,7 @@ export function parseBase64Image(
 export async function uploadImage(
   base64Data: string | undefined,
   orgSlug: string,
-  materialLineSlug: string
+  materialLineSlug: string,
 ): Promise<{ storagePath: string | null; signedUrl: string | null }> {
   // Parse base64 data
   const parsed = parseBase64Image(base64Data);
@@ -73,7 +73,7 @@ export async function uploadImage(
     orgSlug,
     materialLineSlug,
     parsed.data,
-    parsed.mimeType
+    parsed.mimeType,
   );
 
   if (uploadResult.path && uploadResult.url) {
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     if (!data.name || !data.email || !data.address) {
       return NextResponse.json(
         { error: "Name, email, and address are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     if (!emailRegex.test(data.email)) {
       return NextResponse.json(
         { error: "Invalid email format" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     // Use direct Supabase client with service role key to properly bypass RLS
     const supabase = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
     // Get user session if phone exists (optional - for linking leads to sessions)
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
             orgSlug,
             materialLineSlug,
             buffer,
-            contentType
+            contentType,
           );
           if (result.path && result.url) {
             imageStoragePath = result.path;
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
       const result = await uploadImage(
         data.selectedImageBase64,
         orgSlug,
-        materialLineSlug
+        materialLineSlug,
       );
       imageStoragePath = result.storagePath;
       imageSignedUrl = result.signedUrl;
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
             orgSlug,
             materialLineSlug,
             buffer,
-            contentType
+            contentType,
           );
           if (result.path && result.url) {
             originalImageStoragePath = result.path;
@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
       const result = await uploadImage(
         data.originalImageBase64,
         orgSlug,
-        materialLineSlug
+        materialLineSlug,
       );
       originalImageStoragePath = result.storagePath;
       originalImageSignedUrl = result.signedUrl;
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
       console.error("Failed to store lead:", insertError);
       return NextResponse.json(
         { error: "Failed to submit lead" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -281,6 +281,10 @@ export async function POST(request: NextRequest) {
         host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
       });
 
+      // Extract zip code from address (look for 5-digit zip or 5+4 format)
+      const zipMatch = data.address.match(/\b(\d{5})(?:-(\d{4}))?\b/);
+      const zip = zipMatch ? zipMatch[1] : null;
+
       posthog.capture({
         distinctId: sessionId || "anonymous",
         event: "quote_submitted",
@@ -288,6 +292,8 @@ export async function POST(request: NextRequest) {
           name: data.name,
           email: data.email,
           selectedSlab: data.selectedSlabName,
+          address: data.address,
+          zip: zip,
           materialLineId: materialLineId,
           organizationId: organizationId,
         },
@@ -300,11 +306,11 @@ export async function POST(request: NextRequest) {
     let materialLineName: string | undefined = undefined;
     let materialLineSenderName: string | undefined = undefined;
     let materialLineReplyTo: string | undefined = undefined;
-    
+
     // Get organization email settings (defaults)
     let orgSenderName: string | undefined = undefined;
     let orgReplyTo: string | undefined = undefined;
-    
+
     if (organizationId) {
       const { data: org } = await supabase
         .from("organizations")
@@ -316,7 +322,7 @@ export async function POST(request: NextRequest) {
         orgReplyTo = org.email_reply_to || undefined;
       }
     }
-    
+
     if (materialLineId) {
       const { data: materialLine } = await supabase
         .from("material_lines")
@@ -325,13 +331,15 @@ export async function POST(request: NextRequest) {
         .single();
       if (materialLine) {
         // Use display_title for public-facing emails, fallback to name
-        materialLineName = materialLine.display_title || materialLine.name || undefined;
+        materialLineName =
+          materialLine.display_title || materialLine.name || undefined;
         // Material line settings override organization settings
-        materialLineSenderName = materialLine.email_sender_name || orgSenderName;
+        materialLineSenderName =
+          materialLine.email_sender_name || orgSenderName;
         materialLineReplyTo = materialLine.email_reply_to || orgReplyTo;
       }
     }
-    
+
     // Use organization settings if no material line settings
     const emailSenderName = materialLineSenderName || orgSenderName;
     const emailReplyTo = materialLineReplyTo || orgReplyTo;
@@ -347,7 +355,7 @@ export async function POST(request: NextRequest) {
           sms_enabled,
           email_enabled,
           profiles(id, full_name, phone, email)
-        `
+        `,
         )
         .eq("material_line_id", materialLineId);
 
@@ -380,7 +388,7 @@ export async function POST(request: NextRequest) {
           if (notification.sms_enabled && userPhone) {
             try {
               const messenger = new NoirMessenger();
-              
+
               // Base message with lead details
               const baseMessage = `New Countertop Visualizer Lead!\n\nName: ${
                 leadInfo.name
@@ -389,29 +397,33 @@ export async function POST(request: NextRequest) {
               }Address: ${leadInfo.address}\nSelected: ${
                 leadInfo.selectedSlab
               }\n\nCall them immediately!`;
-              
+
               // Send base message
-              await messenger.sendMessage(userPhone, baseMessage, leadInfo.name);
-              
+              await messenger.sendMessage(
+                userPhone,
+                baseMessage,
+                leadInfo.name,
+              );
+
               // Send original kitchen image link if available
               if (originalImageSignedUrl) {
                 // Small delay between messages to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise((resolve) => setTimeout(resolve, 1000));
                 await messenger.sendMessage(
                   userPhone,
                   `Before: ${originalImageSignedUrl}`,
-                  leadInfo.name
+                  leadInfo.name,
                 );
               }
-              
+
               // Send new kitchen image link if available
               if (imageSignedUrl) {
                 // Small delay between messages to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise((resolve) => setTimeout(resolve, 1000));
                 await messenger.sendMessage(
                   userPhone,
                   `Wants Quote For: ${imageSignedUrl}`,
-                  leadInfo.name
+                  leadInfo.name,
                 );
               }
             } catch (error) {
@@ -434,7 +446,7 @@ export async function POST(request: NextRequest) {
             if (!emailResult.success) {
               console.error(
                 "Failed to send lead notification email:",
-                emailResult.error
+                emailResult.error,
               );
             }
           }
@@ -455,11 +467,11 @@ export async function POST(request: NextRequest) {
         senderName: emailSenderName,
         replyTo: emailReplyTo,
       });
-      
+
       if (!emailResult.success) {
         console.error(
           "Failed to send user confirmation email:",
-          emailResult.error
+          emailResult.error,
         );
       }
     } catch (error) {
@@ -476,7 +488,7 @@ export async function POST(request: NextRequest) {
     console.error("Submit lead error:", error);
     return NextResponse.json(
       { error: "Failed to submit lead" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
