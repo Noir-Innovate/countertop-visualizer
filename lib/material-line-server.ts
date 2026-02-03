@@ -21,6 +21,24 @@ export async function getMaterialLineFromHeaders(): Promise<MaterialLineConfig> 
     return value && value.trim() ? value.trim() : fallback;
   };
 
+  // Parse kitchen images from header
+  let kitchenImages: Array<{
+    id: string;
+    filename: string;
+    title: string | null;
+    order: number;
+  }> = [];
+  try {
+    const kitchenImagesHeader = headersList.get(
+      "x-material-line-kitchen-images",
+    );
+    if (kitchenImagesHeader) {
+      kitchenImages = JSON.parse(kitchenImagesHeader);
+    }
+  } catch (error) {
+    console.error("Failed to parse kitchen images:", error);
+  }
+
   return {
     id: materialLineId,
     organizationId: getHeaderValue("x-organization-id", ""),
@@ -30,9 +48,10 @@ export async function getMaterialLineFromHeaders(): Promise<MaterialLineConfig> 
     primaryColor: getHeaderValue("x-material-line-primary-color", "#2563eb"),
     backgroundColor: getHeaderValue(
       "x-material-line-background-color",
-      "#ffffff"
+      "#ffffff",
     ),
     supabaseFolder: getHeaderValue("x-material-line-folder", "default"),
+    kitchenImages,
   };
 }
 

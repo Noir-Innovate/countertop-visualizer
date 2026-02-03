@@ -11,6 +11,12 @@ export interface MaterialLineConfig {
   primaryColor: string;
   backgroundColor: string;
   supabaseFolder: string;
+  kitchenImages?: Array<{
+    id: string;
+    filename: string;
+    title: string | null;
+    order: number;
+  }>;
 }
 
 const MaterialLineContext = createContext<MaterialLineConfig | null>(null);
@@ -46,4 +52,5 @@ export const DEFAULT_MATERIAL_LINE_CONFIG: MaterialLineConfig = {
   primaryColor: "#2563eb",
   backgroundColor: "#ffffff",
   supabaseFolder: "accent-countertops",
+  kitchenImages: [],
 };

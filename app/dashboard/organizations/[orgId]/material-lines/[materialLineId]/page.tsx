@@ -60,6 +60,12 @@ export default async function MaterialLinePage({ params }: Props) {
       file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i),
     ).length || 0;
 
+  // Check if kitchen images exist
+  const { count: kitchenImageCount } = await supabase
+    .from("kitchen_images")
+    .select("*", { count: "exact", head: true })
+    .eq("material_line_id", materialLineId);
+
   // Fetch total leads count
   const { count: totalLeads } = await supabase
     .from("leads")
@@ -225,7 +231,7 @@ export default async function MaterialLinePage({ params }: Props) {
       )}
 
       {/* Quick Links */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
           href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/settings`}
           className={`bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 transition-colors ${
@@ -294,6 +300,21 @@ export default async function MaterialLinePage({ params }: Props) {
               : `${materialCount} material${
                   materialCount !== 1 ? "s" : ""
                 } available`}
+          </p>
+        </Link>
+        <Link
+          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/kitchens`}
+          className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:border-blue-300 transition-colors"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <h3 className="font-semibold text-slate-900">Kitchen Images</h3>
+          </div>
+          <p className="text-sm text-slate-600">
+            {kitchenImageCount === 0
+              ? "Upload custom kitchen stock photos"
+              : `${kitchenImageCount} of 3 kitchen image${
+                  kitchenImageCount !== 1 ? "s" : ""
+                }`}
           </p>
         </Link>
       </div>

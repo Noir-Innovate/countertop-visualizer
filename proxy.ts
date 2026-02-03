@@ -24,14 +24,23 @@ interface MaterialLineConfig {
   supabase_folder: string;
 }
 
+interface MaterialLineWithKitchens extends MaterialLineConfig {
+  kitchen_images: Array<{
+    id: string;
+    filename: string;
+    title: string | null;
+    order: number;
+  }>;
+}
+
 async function getMaterialLineBySlugOrDomain(
   hostname: string,
-  appDomain: string
-): Promise<MaterialLineConfig | null> {
+  appDomain: string,
+): Promise<MaterialLineWithKitchens | null> {
   // Check cache first
   const cached = materialLineCache.get(hostname);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.materialLine;
+    return cached.materialLine as MaterialLineWithKitchens | null;
   }
 
   // Create a minimal supabase client for material line lookup
@@ -45,7 +54,7 @@ async function getMaterialLineBySlugOrDomain(
         },
         setAll() {},
       },
-    }
+    },
   );
 
   let materialLine: MaterialLineConfig | null = null;
@@ -70,10 +79,28 @@ async function getMaterialLineBySlugOrDomain(
     materialLine = data;
   }
 
-  // Cache the result
-  materialLineCache.set(hostname, { materialLine, timestamp: Date.now() });
+  // If we found a material line, fetch its kitchen images
+  let materialLineWithKitchens: MaterialLineWithKitchens | null = null;
+  if (materialLine) {
+    const { data: kitchenImagesData } = await supabase
+      .from("kitchen_images")
+      .select("id, filename, title, order")
+      .eq("material_line_id", materialLine.id)
+      .order("order", { ascending: true });
 
-  return materialLine;
+    materialLineWithKitchens = {
+      ...materialLine,
+      kitchen_images: kitchenImagesData || [],
+    };
+  }
+
+  // Cache the result
+  materialLineCache.set(hostname, {
+    materialLine: materialLineWithKitchens,
+    timestamp: Date.now(),
+  });
+
+  return materialLineWithKitchens;
 }
 
 export async function proxy(request: NextRequest) {
@@ -147,7 +174,7 @@ export async function proxy(request: NextRequest) {
     }
     const materialLine = await getMaterialLineBySlugOrDomain(
       hostname,
-      effectiveAppDomain
+      effectiveAppDomain,
     );
 
     if (materialLine) {
@@ -155,34 +182,39 @@ export async function proxy(request: NextRequest) {
       supabaseResponse.headers.set("x-material-line-id", materialLine.id);
       supabaseResponse.headers.set(
         "x-organization-id",
-        materialLine.organization_id
+        materialLine.organization_id,
       );
       supabaseResponse.headers.set("x-material-line-slug", materialLine.slug);
       // Use display_title for public-facing pages, fallback to name
       const displayName = materialLine.display_title || materialLine.name;
       supabaseResponse.headers.set(
         "x-material-line-name",
-        encodeURIComponent(displayName)
+        encodeURIComponent(displayName),
       );
       supabaseResponse.headers.set(
         "x-material-line-logo",
-        materialLine.logo_url || ""
+        materialLine.logo_url || "",
       );
       supabaseResponse.headers.set(
         "x-material-line-primary-color",
-        materialLine.primary_color
+        materialLine.primary_color,
       );
       supabaseResponse.headers.set(
         "x-material-line-accent-color",
-        materialLine.accent_color
+        materialLine.accent_color,
       );
       supabaseResponse.headers.set(
         "x-material-line-background-color",
-        materialLine.background_color
+        materialLine.background_color,
       );
       supabaseResponse.headers.set(
         "x-material-line-folder",
-        materialLine.supabase_folder
+        materialLine.supabase_folder,
+      );
+      // Add kitchen images as JSON-encoded string
+      supabaseResponse.headers.set(
+        "x-material-line-kitchen-images",
+        JSON.stringify(materialLine.kitchen_images || []),
       );
     } else if (!pathname.startsWith("/api")) {
       // If no material line found and not an API route, could redirect to error page

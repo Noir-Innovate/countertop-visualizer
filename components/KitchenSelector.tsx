@@ -8,15 +8,21 @@ import { EXAMPLE_KITCHENS, type ExampleKitchen } from "@/lib/types";
 interface KitchenSelectorProps {
   onKitchenSelect: (base64Image: string, isExample?: boolean) => void;
   exampleKitchens?: ExampleKitchen[];
+  customKitchens?: ExampleKitchen[];
 }
 
 export default function KitchenSelector({
   onKitchenSelect,
   exampleKitchens = EXAMPLE_KITCHENS,
+  customKitchens = [],
 }: KitchenSelectorProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingExampleId, setLoadingExampleId] = useState<string | null>(null);
+
+  // If custom kitchens exist, show only those. Otherwise, show default examples
+  const allKitchens =
+    customKitchens.length > 0 ? customKitchens : exampleKitchens;
 
   const processFile = useCallback(
     (file: File) => {
@@ -203,20 +209,20 @@ export default function KitchenSelector({
       </div>
 
       {/* Divider */}
-      {exampleKitchens.length > 0 && (
+      {allKitchens.length > 0 && (
         <div className="flex items-center gap-4">
           <div className="flex-1 h-px bg-[var(--color-border)]" />
           <span className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
-            Or choose one of ours
+            Or choose one of these
           </span>
           <div className="flex-1 h-px bg-[var(--color-border)]" />
         </div>
       )}
 
       {/* Example Kitchens Grid */}
-      {exampleKitchens.length > 0 && (
+      {allKitchens.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {exampleKitchens.map((kitchen) => (
+          {allKitchens.map((kitchen) => (
             <button
               key={kitchen.id}
               onClick={() => handleExampleSelect(kitchen)}
@@ -240,9 +246,25 @@ export default function KitchenSelector({
                 fill
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                unoptimized={
+                  kitchen.imageUrl.includes("127.0.0.1") ||
+                  kitchen.imageUrl.includes("localhost")
+                }
                 onError={(e) => {
-                  // Hide broken images
+                  // Log and hide broken images
+                  console.error(
+                    "Failed to load kitchen image:",
+                    kitchen.name,
+                    kitchen.imageUrl,
+                  );
                   (e.target as HTMLImageElement).style.display = "none";
+                }}
+                onLoad={() => {
+                  console.log(
+                    "Successfully loaded kitchen image:",
+                    kitchen.name,
+                    kitchen.imageUrl,
+                  );
                 }}
               />
 

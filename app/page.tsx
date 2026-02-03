@@ -19,6 +19,7 @@ import {
   EXAMPLE_SLABS,
   type Slab,
   type GenerationResult,
+  type ExampleKitchen,
 } from "@/lib/types";
 import { useMaterialLine } from "@/lib/material-line";
 import { getSlabsForMaterialLine } from "@/lib/slabs";
@@ -44,6 +45,9 @@ export default function Home() {
   // Dynamic slabs state
   const [dynamicSlabs, setDynamicSlabs] = useState<Slab[]>([]);
   const [slabsLoading, setSlabsLoading] = useState(true);
+
+  // Custom kitchens state
+  const [customKitchens, setCustomKitchens] = useState<ExampleKitchen[]>([]);
 
   // AB Testing state
   const [abVariant, setAbVariant] = useState<ABVariant>("A");
@@ -87,6 +91,54 @@ export default function Home() {
       }
     };
     loadSlabs();
+  }, [materialLine]);
+
+  // Load custom kitchen images dynamically based on material line context
+  useEffect(() => {
+    const loadCustomKitchens = () => {
+      if (
+        !materialLine ||
+        !materialLine.kitchenImages ||
+        materialLine.kitchenImages.length === 0
+      ) {
+        setCustomKitchens([]);
+        return;
+      }
+
+      // Use environment variable or construct from window location
+      const supabaseUrl =
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        (typeof window !== "undefined"
+          ? `${window.location.protocol}//${window.location.hostname}:54321`
+          : "http://127.0.0.1:54321");
+
+      console.log("Loading custom kitchens:", {
+        supabaseUrl,
+        folder: materialLine.supabaseFolder,
+        kitchenImages: materialLine.kitchenImages,
+      });
+
+      const customKitchensData: ExampleKitchen[] = materialLine.kitchenImages
+        .sort((a, b) => a.order - b.order) // Ensure proper ordering
+        .map((img) => {
+          const imageUrl = `${supabaseUrl}/storage/v1/object/public/public-assets/${materialLine.supabaseFolder}/kitchens/${img.filename}`;
+          console.log(`Custom kitchen:`, {
+            title: img.title,
+            filename: img.filename,
+            order: img.order,
+            fullUrl: imageUrl,
+          });
+          return {
+            id: img.id,
+            name: img.title || `Kitchen ${img.order}`,
+            imageUrl,
+          };
+        });
+
+      setCustomKitchens(customKitchensData);
+    };
+
+    loadCustomKitchens();
   }, [materialLine]);
 
   // Scroll to top when navigating to step 2
@@ -433,7 +485,10 @@ export default function Home() {
                   stepNumber={1}
                   totalSteps={3}
                 />
-                <KitchenSelector onKitchenSelect={handleKitchenSelect} />
+                <KitchenSelector
+                  onKitchenSelect={handleKitchenSelect}
+                  customKitchens={customKitchens}
+                />
               </div>
             )}
 
@@ -448,13 +503,13 @@ export default function Home() {
 
                 {/* Selected Kitchen Preview */}
                 {kitchenImage && (
-                  <div className="mb-8 max-w-2xl mx-auto">
-                    <div className="relative rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] shadow-lg">
+                  <div className="mb-8 max-w-3xl mx-auto">
+                    <div className="relative aspect-video rounded-xl overflow-hidden bg-[var(--color-bg-secondary)] shadow-lg">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={kitchenImage}
                         alt="Selected kitchen"
-                        className="w-full max-h-[300px] object-contain"
+                        className="w-full h-full object-cover"
                       />
                       <button
                         onClick={handleBackToStep1}
