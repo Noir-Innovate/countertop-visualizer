@@ -23,6 +23,7 @@ import {
 } from "@/lib/types";
 import { useMaterialLine } from "@/lib/material-line";
 import { getSlabsForMaterialLine } from "@/lib/slabs";
+import { captureAndPersistAttribution } from "@/lib/attribution";
 import posthog from "posthog-js";
 
 export default function Home() {
@@ -52,6 +53,11 @@ export default function Home() {
   // AB Testing state
   const [abVariant, setAbVariant] = useState<ABVariant>("A");
   const [verifiedPhone, setVerifiedPhoneState] = useState<string | null>(null);
+
+  // First-touch attribution: capture UTM/referrer on first load
+  useEffect(() => {
+    captureAndPersistAttribution();
+  }, []);
 
   // Load slabs dynamically based on material line context
   useEffect(() => {

@@ -8,6 +8,7 @@ import PhoneVerificationModal from "@/components/PhoneVerificationModal";
 import { setVerifiedPhone, getVerifiedPhone } from "@/lib/ab-testing";
 import { useMaterialLine } from "@/lib/material-line";
 import { upload } from "@vercel/blob/client";
+import { getStoredAttribution } from "@/lib/attribution";
 import type { LeadFormData } from "@/lib/types";
 
 interface QuoteModalProps {
@@ -227,8 +228,9 @@ export default function QuoteModal({
       // Step 2: Submit the form
       setUploadStep("Handling your request...");
 
-      // Now submit the form with Vercel Blob URLs
+      // Now submit the form with Vercel Blob URLs and attribution
       // The submit-lead route will download from Blob and upload to Supabase
+      const attribution = getStoredAttribution();
       const response = await fetch("/api/submit-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -241,6 +243,18 @@ export default function QuoteModal({
           abVariant,
           materialLineId: materialLine?.id || null,
           organizationId: materialLine?.organizationId || null,
+          ...(attribution && {
+            utm_source: attribution.utm_source,
+            utm_medium: attribution.utm_medium,
+            utm_campaign: attribution.utm_campaign,
+            utm_term: attribution.utm_term,
+            utm_content: attribution.utm_content,
+            referrer: attribution.referrer,
+            tags:
+              Object.keys(attribution.tags ?? {}).length > 0
+                ? attribution.tags
+                : undefined,
+          }),
         }),
       });
 

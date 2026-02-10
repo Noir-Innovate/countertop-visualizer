@@ -35,4 +35,12 @@ export interface Lead {
   material_line_id: string | null;
   organization_id: string | null;
   created_at: string;
+  // Attribution
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  referrer: string | null;
+  tags: Record<string, string> | null;
 }

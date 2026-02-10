@@ -326,6 +326,17 @@ export default async function MaterialLinePage({ params }: Props) {
                 }`}
           </p>
         </Link>
+        <Link
+          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/links`}
+          className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:border-blue-300 transition-colors"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <h3 className="font-semibold text-slate-900">Tracking Links</h3>
+          </div>
+          <p className="text-sm text-slate-600">
+            Create and save UTM links for ads, social, and campaigns
+          </p>
+        </Link>
       </div>
     </div>
   );

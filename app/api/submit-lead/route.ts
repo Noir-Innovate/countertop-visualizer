@@ -31,6 +31,14 @@ interface LeadData {
   abVariant?: string;
   materialLineId?: string;
   organizationId?: string;
+  // Attribution (UTM, referrer, custom tags)
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_term?: string | null;
+  utm_content?: string | null;
+  referrer?: string | null;
+  tags?: Record<string, string> | null;
 }
 
 // Convert "default" to null, otherwise return the value or null
@@ -245,6 +253,14 @@ export async function POST(request: NextRequest) {
       originalImageSignedUrl = result.signedUrl;
     }
 
+    // Normalize tags to JSONB (object or undefined)
+    const tagsJson =
+      data.tags &&
+      typeof data.tags === "object" &&
+      Object.keys(data.tags).length > 0
+        ? data.tags
+        : null;
+
     // Store lead in Supabase
     const { data: lead, error: insertError } = await supabase
       .from("leads")
@@ -263,6 +279,13 @@ export async function POST(request: NextRequest) {
         ab_variant: data.abVariant || null,
         material_line_id: materialLineId,
         organization_id: organizationId,
+        utm_source: data.utm_source ?? null,
+        utm_medium: data.utm_medium ?? null,
+        utm_campaign: data.utm_campaign ?? null,
+        utm_term: data.utm_term ?? null,
+        utm_content: data.utm_content ?? null,
+        referrer: data.referrer ?? null,
+        tags: tagsJson,
       })
       .select()
       .single();
@@ -296,6 +319,14 @@ export async function POST(request: NextRequest) {
           zip: zip,
           materialLineId: materialLineId,
           organizationId: organizationId,
+          utm_source: data.utm_source ?? undefined,
+          utm_medium: data.utm_medium ?? undefined,
+          utm_campaign: data.utm_campaign ?? undefined,
+          utm_term: data.utm_term ?? undefined,
+          utm_content: data.utm_content ?? undefined,
+          referrer: data.referrer ?? undefined,
+          ...(data.tags &&
+            Object.keys(data.tags).length > 0 && { tags: data.tags }),
         },
       });
 

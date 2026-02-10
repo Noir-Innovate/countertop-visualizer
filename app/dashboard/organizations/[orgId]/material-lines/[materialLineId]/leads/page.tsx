@@ -9,6 +9,23 @@ interface Props {
 
 const LEADS_PER_PAGE = 20;
 
+function formatSourceLabel(lead: {
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  referrer?: string | null;
+}): string {
+  if (lead.utm_source) return lead.utm_source;
+  if (lead.utm_medium) return lead.utm_medium;
+  if (lead.referrer) {
+    try {
+      return new URL(lead.referrer).hostname;
+    } catch {
+      return lead.referrer;
+    }
+  }
+  return "—";
+}
+
 export default async function LeadsPage({ params, searchParams }: Props) {
   const { orgId, materialLineId } = await params;
   const { page } = await searchParams;
@@ -61,10 +78,12 @@ export default async function LeadsPage({ params, searchParams }: Props) {
     .select("*", { count: "exact", head: true })
     .eq("material_line_id", materialLineId);
 
-  // Fetch leads with pagination
+  // Fetch leads with pagination (include attribution for Source column)
   const { data: leads } = await supabase
     .from("leads")
-    .select("id, name, email, phone, created_at, selected_slab_id")
+    .select(
+      "id, name, email, phone, created_at, selected_slab_id, utm_source, utm_medium, utm_campaign, referrer",
+    )
     .eq("material_line_id", materialLineId)
     .order("created_at", { ascending: false })
     .range(offset, offset + LEADS_PER_PAGE - 1);
@@ -121,6 +140,9 @@ export default async function LeadsPage({ params, searchParams }: Props) {
                   Phone
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Source
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Date Submitted
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -147,6 +169,11 @@ export default async function LeadsPage({ params, searchParams }: Props) {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-slate-600">
+                        {formatSourceLabel(lead)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-slate-600">
                         {new Date(lead.created_at).toLocaleDateString("en-US", {
                           year: "numeric",
                           month: "short",
@@ -168,7 +195,7 @@ export default async function LeadsPage({ params, searchParams }: Props) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <p className="text-slate-500">No leads yet</p>
                   </td>
                 </tr>

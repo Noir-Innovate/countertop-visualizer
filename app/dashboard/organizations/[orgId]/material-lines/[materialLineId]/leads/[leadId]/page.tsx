@@ -49,7 +49,7 @@ export default async function LeadDetailPage({ params }: Props) {
     .eq("id", orgId)
     .single();
 
-  // Fetch lead with all details
+  // Fetch lead with all details (includes attribution columns)
   const { data: lead } = await supabase
     .from("leads")
     .select("*")
@@ -60,6 +60,11 @@ export default async function LeadDetailPage({ params }: Props) {
   if (!lead) {
     notFound();
   }
+
+  const tagsRecord =
+    lead.tags && typeof lead.tags === "object"
+      ? (lead.tags as Record<string, string>)
+      : null;
 
   // Get image URLs
   let selectedImageUrl: string | null = null;
@@ -193,16 +198,82 @@ export default async function LeadDetailPage({ params }: Props) {
                 </dd>
               </div>
             )}
-            {lead.ab_variant && (
-              <div>
-                <dt className="text-sm font-medium text-slate-500">
-                  A/B Test Variant
-                </dt>
-                <dd className="mt-1 text-sm text-slate-900">
-                  {lead.ab_variant}
-                </dd>
-              </div>
-            )}
+          </dl>
+        </div>
+
+        {/* Attribution – always show so all fields are visible */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">
+            Attribution
+          </h2>
+          <dl className="space-y-4">
+            <div>
+              <dt className="text-sm font-medium text-slate-500">UTM Source</dt>
+              <dd className="mt-1 text-sm text-slate-900">
+                {lead.utm_source || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-slate-500">UTM Medium</dt>
+              <dd className="mt-1 text-sm text-slate-900">
+                {lead.utm_medium || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-slate-500">
+                UTM Campaign
+              </dt>
+              <dd className="mt-1 text-sm text-slate-900">
+                {lead.utm_campaign || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-slate-500">UTM Term</dt>
+              <dd className="mt-1 text-sm text-slate-900">
+                {lead.utm_term || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-slate-500">
+                UTM Content
+              </dt>
+              <dd className="mt-1 text-sm text-slate-900">
+                {lead.utm_content || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-slate-500">Referrer</dt>
+              <dd className="mt-1 text-sm text-slate-900 break-all">
+                {lead.referrer ? (
+                  <a
+                    href={lead.referrer}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    {lead.referrer}
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-slate-500">Tags</dt>
+              <dd className="mt-1 text-sm text-slate-900">
+                {tagsRecord && Object.keys(tagsRecord).length > 0 ? (
+                  <ul className="list-disc list-inside space-y-1">
+                    {Object.entries(tagsRecord).map(([key, value]) => (
+                      <li key={key}>
+                        <span className="font-medium">{key}:</span> {value}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  "—"
+                )}
+              </dd>
+            </div>
           </dl>
         </div>
 
