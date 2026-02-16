@@ -318,9 +318,10 @@ export async function POST(request: NextRequest) {
         referrer: data.referrer ?? null,
         tags: tagsJson ?? {},
       })
-      .then(() => {})
-      .catch((err) =>
-        console.error("[analytics] quote_submitted insert:", err),
+      .then(
+        () => {},
+        (err) =>
+          console.error("[analytics] quote_submitted insert:", err),
       );
 
     // Track analytics event with PostHog
