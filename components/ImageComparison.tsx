@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { trackEvent } from "@/lib/posthog";
 import { useMaterialLine } from "@/lib/material-line";
-import posthog from "posthog-js";
 import type { Slab } from "@/lib/types";
 
 interface ComparisonImage {
@@ -83,21 +82,9 @@ export default function ImageComparison({
       rightSlabId: rightImage.id,
       rightSlabName: rightImage.name,
       rightMaterialType: rightMaterialType,
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
     });
-
-    if (materialLine && typeof window !== "undefined") {
-      posthog.capture("material_viewed", {
-        viewMode: "compare",
-        leftSlabId: leftImage.id,
-        leftSlabName: leftImage.name,
-        leftMaterialType: leftMaterialType,
-        rightSlabId: rightImage.id,
-        rightSlabName: rightImage.name,
-        rightMaterialType: rightMaterialType,
-        materialLineId: materialLine.id,
-        organizationId: materialLine.organizationId,
-      });
-    }
   }, [
     leftImage,
     rightImage,

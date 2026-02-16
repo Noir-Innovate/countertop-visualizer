@@ -7,7 +7,6 @@ import ImageComparison from "./ImageComparison";
 import QuoteModal from "./QuoteModal";
 import { trackEvent } from "@/lib/posthog";
 import { useMaterialLine } from "@/lib/material-line";
-import posthog from "posthog-js";
 import type { GenerationResult } from "@/lib/types";
 import type { Slab } from "@/lib/types";
 
@@ -134,14 +133,9 @@ export default function ResultDisplay({
     setViewMode("compare");
     trackEvent("view_mode_changed", {
       viewMode: "compare",
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
     });
-    if (materialLine && typeof window !== "undefined") {
-      posthog.capture("view_mode_changed", {
-        viewMode: "compare",
-        materialLineId: materialLine.id,
-        organizationId: materialLine.organizationId,
-      });
-    }
     if (allImages.length > 1) {
       setCompareLeftIndex(0);
       setCompareRightIndex(Math.min(1, allImages.length - 1));
@@ -152,14 +146,9 @@ export default function ResultDisplay({
     setViewMode("carousel");
     trackEvent("view_mode_changed", {
       viewMode: "carousel",
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
     });
-    if (materialLine && typeof window !== "undefined") {
-      posthog.capture("view_mode_changed", {
-        viewMode: "carousel",
-        materialLineId: materialLine.id,
-        organizationId: materialLine.organizationId,
-      });
-    }
   };
 
   const handleDownload = (imageData: string, slabName: string) => {
@@ -213,16 +202,9 @@ export default function ResultDisplay({
       trackEvent("saw_it", {
         slabCount: completedCount,
         allImagesLoaded: true,
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
       });
-
-      if (materialLine && typeof window !== "undefined") {
-        posthog.capture("saw_it", {
-          slabCount: completedCount,
-          allImagesLoaded: true,
-          materialLineId: materialLine.id,
-          organizationId: materialLine.organizationId,
-        });
-      }
     }
   }, [allComplete, hasCompletedImages, allResults, materialLine]);
 

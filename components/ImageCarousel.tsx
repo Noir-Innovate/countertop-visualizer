@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { trackEvent } from "@/lib/posthog";
 import { useMaterialLine } from "@/lib/material-line";
-import posthog from "posthog-js";
 import type { Slab } from "@/lib/types";
 
 interface CarouselImage {
@@ -61,20 +60,9 @@ export default function ImageCarousel({
         material_type: materialType,
         imageIndex: index,
         totalImages: images.length,
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
       });
-
-      if (materialLine && typeof window !== "undefined") {
-        posthog.capture("material_viewed", {
-          viewMode: "carousel",
-          slabId: currentImage.id,
-          slabName: currentImage.name,
-          material_type: materialType,
-          imageIndex: index,
-          totalImages: images.length,
-          materialLineId: materialLine.id,
-          organizationId: materialLine.organizationId,
-        });
-      }
     },
     [images, selectedSlabs, materialLine],
   );

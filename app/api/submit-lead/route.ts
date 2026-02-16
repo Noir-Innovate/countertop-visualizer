@@ -298,6 +298,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Track quote_submitted in Supabase (with UTM for segmentation)
+    supabase
+      .from("analytics_events")
+      .insert({
+        event_type: "quote_submitted",
+        material_line_id: materialLineId,
+        organization_id: organizationId,
+        session_id: sessionId,
+        metadata: {
+          lead_id: lead?.id,
+          selectedSlab: data.selectedSlabName,
+        },
+        utm_source: data.utm_source ?? null,
+        utm_medium: data.utm_medium ?? null,
+        utm_campaign: data.utm_campaign ?? null,
+        utm_term: data.utm_term ?? null,
+        utm_content: data.utm_content ?? null,
+        referrer: data.referrer ?? null,
+        tags: tagsJson ?? {},
+      })
+      .then(() => {})
+      .catch((err) =>
+        console.error("[analytics] quote_submitted insert:", err),
+      );
+
     // Track analytics event with PostHog
     if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
       const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {

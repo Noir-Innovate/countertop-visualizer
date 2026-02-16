@@ -1,14 +1,21 @@
 "use client";
 
-import { useEventCount } from "./useEventCount";
+import { useEventCount, type EventCountUtmFilters } from "./useEventCount";
 
 interface Step1AnalyticsProps {
   materialLineId: string;
   days: number;
+  utm?: EventCountUtmFilters | null;
 }
 
-function ImageUploadedCard({ materialLineId, days }: Step1AnalyticsProps) {
-  const { count } = useEventCount("image_uploaded", materialLineId, days);
+function ImageUploadedCard({ materialLineId, days, utm }: Step1AnalyticsProps) {
+  const { count } = useEventCount(
+    "image_uploaded",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -25,8 +32,14 @@ function ImageUploadedCard({ materialLineId, days }: Step1AnalyticsProps) {
   );
 }
 
-function ImageSelectedCard({ materialLineId, days }: Step1AnalyticsProps) {
-  const { count } = useEventCount("image_selected", materialLineId, days);
+function ImageSelectedCard({ materialLineId, days, utm }: Step1AnalyticsProps) {
+  const { count } = useEventCount(
+    "image_selected",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -60,6 +73,7 @@ function LoadingCard() {
 export default function Step1Analytics({
   materialLineId,
   days,
+  utm,
 }: Step1AnalyticsProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -73,8 +87,16 @@ export default function Step1Analytics({
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ImageUploadedCard materialLineId={materialLineId} days={days} />
-        <ImageSelectedCard materialLineId={materialLineId} days={days} />
+        <ImageUploadedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
+        <ImageSelectedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
       </div>
     </div>
   );

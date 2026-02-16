@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getPostHogEventData } from "@/lib/posthog-server";
+import { getSupabaseEventData } from "@/lib/analytics-server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +8,9 @@ export async function GET(request: NextRequest) {
     const eventName = searchParams.get("eventName");
     const materialLineId = searchParams.get("materialLineId");
     const days = parseInt(searchParams.get("days") || "30", 10);
+    const utmSource = searchParams.get("utm_source");
+    const utmMedium = searchParams.get("utm_medium");
+    const utmCampaign = searchParams.get("utm_campaign");
 
     if (!eventName || !materialLineId) {
       return NextResponse.json(
@@ -16,7 +19,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify authentication
     const supabase = await createClient();
     const {
       data: { user },
@@ -26,7 +28,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this material line
     const { data: materialLine } = await supabase
       .from("material_lines")
       .select("organization_id")
@@ -51,16 +52,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Calculate date range
     const now = new Date();
     const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-    // Fetch event data
-    const events = await getPostHogEventData({
+    const events = await getSupabaseEventData({
       eventName,
       materialLineIds: [materialLineId],
       startDate,
       limit: 100,
+      utm_source: utmSource ?? undefined,
+      utm_medium: utmMedium ?? undefined,
+      utm_campaign: utmCampaign ?? undefined,
     });
 
     return NextResponse.json({ events });

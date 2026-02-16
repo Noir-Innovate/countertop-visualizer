@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
 
@@ -10,6 +11,7 @@ interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   email: string | null;
+  is_super_admin?: boolean;
 }
 
 interface Organization {
@@ -71,6 +73,15 @@ export default function DashboardNav({
           >
             Dashboard
           </button>
+
+          {profile?.is_super_admin && (
+            <Link
+              href="/admin/analytics"
+              className="text-sm text-slate-600 hover:text-slate-900 font-medium"
+            >
+              Admin
+            </Link>
+          )}
 
           {organizations.length > 0 && (
             <div className="relative">

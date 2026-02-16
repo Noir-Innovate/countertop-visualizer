@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { getPostHogEventCounts } from "@/lib/posthog-server";
+import { getSupabaseEventCounts } from "@/lib/analytics-server";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -48,7 +48,6 @@ export default async function OrganizationPage({ params }: Props) {
     notFound();
   }
 
-  // Fetch analytics from PostHog
   const materialLineIds = org.material_lines?.map((ml) => ml.id) || [];
 
   let pageViews = 0;
@@ -56,7 +55,7 @@ export default async function OrganizationPage({ params }: Props) {
   let generationsStarted = 0;
 
   if (materialLineIds.length > 0) {
-    const [pv, qr, gs] = await getPostHogEventCounts([
+    const [pv, qr, gs] = await getSupabaseEventCounts([
       {
         eventName: "page_view",
         materialLineIds,

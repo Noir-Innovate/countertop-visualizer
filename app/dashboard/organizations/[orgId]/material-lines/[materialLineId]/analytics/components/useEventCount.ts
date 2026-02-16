@@ -6,20 +6,31 @@ import { useEffect, useState, useRef } from "react";
 const cache = new Map<string, { count: number; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+export interface EventCountUtmFilters {
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+}
+
 function getCacheKey(
   eventName: string,
   materialLineId: string,
   days: number,
+  utm?: EventCountUtmFilters | null,
 ): string {
-  return `${eventName}-${materialLineId}-${days}`;
+  const u = utm
+    ? `${utm.utm_source ?? ""}-${utm.utm_medium ?? ""}-${utm.utm_campaign ?? ""}`
+    : "";
+  return `${eventName}-${materialLineId}-${days}-${u}`;
 }
 
 function getCachedCount(
   eventName: string,
   materialLineId: string,
   days: number,
+  utm?: EventCountUtmFilters | null,
 ): number | null {
-  const key = getCacheKey(eventName, materialLineId, days);
+  const key = getCacheKey(eventName, materialLineId, days, utm);
   const cached = cache.get(key);
 
   if (cached) {
@@ -40,8 +51,9 @@ function setCachedCount(
   materialLineId: string,
   days: number,
   count: number,
+  utm?: EventCountUtmFilters | null,
 ): void {
-  const key = getCacheKey(eventName, materialLineId, days);
+  const key = getCacheKey(eventName, materialLineId, days, utm);
   cache.set(key, { count, timestamp: Date.now() });
 }
 
@@ -50,11 +62,11 @@ export function useEventCount(
   materialLineId: string,
   days: number,
   forceRefresh = false,
+  utm?: EventCountUtmFilters | null,
 ) {
   const [count, setCount] = useState<number | null>(() => {
-    // Check cache on initial render
     if (!forceRefresh) {
-      return getCachedCount(eventName, materialLineId, days);
+      return getCachedCount(eventName, materialLineId, days, utm);
     }
     return null;
   });
@@ -66,14 +78,12 @@ export function useEventCount(
     let cancelled = false;
 
     async function fetchCount() {
-      // Prevent duplicate requests
       if (fetchingRef.current) {
         return;
       }
 
-      // Check cache first (unless force refresh)
       if (!forceRefresh) {
-        const cached = getCachedCount(eventName, materialLineId, days);
+        const cached = getCachedCount(eventName, materialLineId, days, utm);
         if (cached !== null) {
           if (!cancelled) {
             setCount(cached);
@@ -95,6 +105,9 @@ export function useEventCount(
           days: days.toString(),
           ...(forceRefresh && { forceRefresh: "true" }),
         });
+        if (utm?.utm_source) params.set("utm_source", utm.utm_source);
+        if (utm?.utm_medium) params.set("utm_medium", utm.utm_medium);
+        if (utm?.utm_campaign) params.set("utm_campaign", utm.utm_campaign);
 
         const response = await fetch(`/api/analytics/event-count?${params}`, {
           // Use browser cache if available
@@ -111,8 +124,7 @@ export function useEventCount(
           const fetchedCount = data.count || 0;
           setCount(fetchedCount);
           setLoading(false);
-          // Cache the result
-          setCachedCount(eventName, materialLineId, days, fetchedCount);
+          setCachedCount(eventName, materialLineId, days, fetchedCount, utm);
         }
       } catch (err) {
         if (!cancelled) {
@@ -130,7 +142,15 @@ export function useEventCount(
     return () => {
       cancelled = true;
     };
-  }, [eventName, materialLineId, days, forceRefresh]);
+  }, [
+    eventName,
+    materialLineId,
+    days,
+    forceRefresh,
+    utm?.utm_source,
+    utm?.utm_medium,
+    utm?.utm_campaign,
+  ]);
 
   return { count, loading, error };
 }

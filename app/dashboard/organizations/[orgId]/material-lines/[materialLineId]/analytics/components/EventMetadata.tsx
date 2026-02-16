@@ -7,6 +7,11 @@ interface EventMetadataProps {
   eventCount: number;
   materialLineId: string;
   days: number;
+  utm?: {
+    utm_source?: string | null;
+    utm_medium?: string | null;
+    utm_campaign?: string | null;
+  } | null;
 }
 
 export default function EventMetadata({
@@ -14,6 +19,7 @@ export default function EventMetadata({
   eventCount,
   materialLineId,
   days,
+  utm,
 }: EventMetadataProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [metadata, setMetadata] = useState<
@@ -75,10 +81,16 @@ export default function EventMetadata({
 
     setIsLoading(true);
     try {
+      const params = new URLSearchParams({
+        eventName,
+        materialLineId,
+        days: days.toString(),
+      });
+      if (utm?.utm_source) params.set("utm_source", utm.utm_source);
+      if (utm?.utm_medium) params.set("utm_medium", utm.utm_medium);
+      if (utm?.utm_campaign) params.set("utm_campaign", utm.utm_campaign);
       const response = await fetch(
-        `/api/analytics/events?eventName=${encodeURIComponent(
-          eventName,
-        )}&materialLineId=${materialLineId}&days=${days}`,
+        `/api/analytics/events?${params.toString()}`,
       );
       const data = await response.json();
       setMetadata(data.events || []);

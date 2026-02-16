@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getPostHogEventCounts } from "@/lib/posthog-server";
+import { getSupabaseEventCounts } from "@/lib/analytics-server";
 import DashboardContent from "./components/DashboardContent";
 
 export default async function DashboardPage() {
@@ -61,7 +61,6 @@ export default async function DashboardPage() {
       })
       .filter((org) => org.id) || [];
 
-  // Fetch analytics from PostHog
   const allMaterialLineIds = organizations.flatMap(
     (org) => org.material_lines?.map((ml) => ml.id) || [],
   );
@@ -70,7 +69,7 @@ export default async function DashboardPage() {
   let totalQuoteRequests = 0;
 
   if (allMaterialLineIds.length > 0) {
-    const [pageViews, quoteRequests] = await getPostHogEventCounts([
+    const [pageViews, quoteRequests] = await getSupabaseEventCounts([
       {
         eventName: "page_view",
         materialLineIds: allMaterialLineIds,

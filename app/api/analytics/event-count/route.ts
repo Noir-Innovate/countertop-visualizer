@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getPostHogEventCount } from "@/lib/posthog-server";
+import { getSupabaseEventCount } from "@/lib/analytics-server";
 
-// Cache PostHog responses for 5 minutes
+// Cache responses for 5 minutes
 const CACHE_REVALIDATE_SECONDS = 60 * 5; // 5 minutes
 
 async function fetchEventCountUncached(
@@ -11,16 +11,20 @@ async function fetchEventCountUncached(
   materialLineId: string,
   days: number,
   userId: string,
+  utmSource: string | null,
+  utmMedium: string | null,
+  utmCampaign: string | null,
 ) {
-  // Calculate date range
   const now = new Date();
   const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-  // Fetch event count
-  const count = await getPostHogEventCount({
+  const count = await getSupabaseEventCount({
     eventName,
     materialLineIds: [materialLineId],
     startDate,
+    utm_source: utmSource ?? undefined,
+    utm_medium: utmMedium ?? undefined,
+    utm_campaign: utmCampaign ?? undefined,
   });
 
   return count;
@@ -33,6 +37,9 @@ export async function GET(request: NextRequest) {
     const materialLineId = searchParams.get("materialLineId");
     const days = parseInt(searchParams.get("days") || "30", 10);
     const forceRefresh = searchParams.get("forceRefresh") === "true";
+    const utmSource = searchParams.get("utm_source");
+    const utmMedium = searchParams.get("utm_medium");
+    const utmCampaign = searchParams.get("utm_campaign");
 
     if (!eventName || !materialLineId) {
       return NextResponse.json(
@@ -76,10 +83,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Create cache key based on parameters
-    const cacheKey = `event-count-${eventName}-${materialLineId}-${days}-${user.id}`;
+    const cacheKey = `event-count-${eventName}-${materialLineId}-${days}-${user.id}-${utmSource ?? ""}-${utmMedium ?? ""}-${utmCampaign ?? ""}`;
 
-    // Fetch with caching (unless force refresh)
     let count: number;
     if (forceRefresh) {
       count = await fetchEventCountUncached(
@@ -87,11 +92,22 @@ export async function GET(request: NextRequest) {
         materialLineId,
         days,
         user.id,
+        utmSource,
+        utmMedium,
+        utmCampaign,
       );
     } else {
       const cachedFetch = unstable_cache(
         async () =>
-          fetchEventCountUncached(eventName, materialLineId, days, user.id),
+          fetchEventCountUncached(
+            eventName,
+            materialLineId,
+            days,
+            user.id,
+            utmSource,
+            utmMedium,
+            utmCampaign,
+          ),
         [cacheKey],
         {
           revalidate: CACHE_REVALIDATE_SECONDS,

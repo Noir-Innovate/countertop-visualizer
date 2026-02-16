@@ -1,15 +1,16 @@
 "use client";
 
-import { useEventCount } from "./useEventCount";
+import { useEventCount, type EventCountUtmFilters } from "./useEventCount";
 import EventMetadata from "./EventMetadata";
 
 interface Step3AnalyticsProps {
   materialLineId: string;
   days: number;
+  utm?: EventCountUtmFilters | null;
 }
 
-function SawItCard({ materialLineId, days }: Step3AnalyticsProps) {
-  const { count } = useEventCount("saw_it", materialLineId, days);
+function SawItCard({ materialLineId, days, utm }: Step3AnalyticsProps) {
+  const { count } = useEventCount("saw_it", materialLineId, days, false, utm);
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -26,8 +27,18 @@ function SawItCard({ materialLineId, days }: Step3AnalyticsProps) {
   );
 }
 
-function ViewModeChangedCard({ materialLineId, days }: Step3AnalyticsProps) {
-  const { count } = useEventCount("view_mode_changed", materialLineId, days);
+function ViewModeChangedCard({
+  materialLineId,
+  days,
+  utm,
+}: Step3AnalyticsProps) {
+  const { count } = useEventCount(
+    "view_mode_changed",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -46,8 +57,18 @@ function ViewModeChangedCard({ materialLineId, days }: Step3AnalyticsProps) {
   );
 }
 
-function MaterialViewedCard({ materialLineId, days }: Step3AnalyticsProps) {
-  const { count } = useEventCount("material_viewed", materialLineId, days);
+function MaterialViewedCard({
+  materialLineId,
+  days,
+  utm,
+}: Step3AnalyticsProps) {
+  const { count } = useEventCount(
+    "material_viewed",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -64,8 +85,18 @@ function MaterialViewedCard({ materialLineId, days }: Step3AnalyticsProps) {
   );
 }
 
-function GetQuotePressedCard({ materialLineId, days }: Step3AnalyticsProps) {
-  const { count } = useEventCount("lead_form_submitted", materialLineId, days);
+function GetQuotePressedCard({
+  materialLineId,
+  days,
+  utm,
+}: Step3AnalyticsProps) {
+  const { count } = useEventCount(
+    "lead_form_submitted",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -82,11 +113,13 @@ function GetQuotePressedCard({ materialLineId, days }: Step3AnalyticsProps) {
   );
 }
 
-function PhoneVerifiedCard({ materialLineId, days }: Step3AnalyticsProps) {
+function PhoneVerifiedCard({ materialLineId, days, utm }: Step3AnalyticsProps) {
   const { count } = useEventCount(
     "verification_successful",
     materialLineId,
     days,
+    false,
+    utm,
   );
 
   return (
@@ -106,8 +139,18 @@ function PhoneVerifiedCard({ materialLineId, days }: Step3AnalyticsProps) {
   );
 }
 
-function QuoteSubmittedCard({ materialLineId, days }: Step3AnalyticsProps) {
-  const { count } = useEventCount("quote_submitted", materialLineId, days);
+function QuoteSubmittedCard({
+  materialLineId,
+  days,
+  utm,
+}: Step3AnalyticsProps) {
+  const { count } = useEventCount(
+    "quote_submitted",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -127,6 +170,7 @@ function QuoteSubmittedCard({ materialLineId, days }: Step3AnalyticsProps) {
         eventCount={count || 0}
         materialLineId={materialLineId}
         days={days}
+        utm={utm}
       />
     </div>
   );
@@ -147,6 +191,7 @@ function LoadingCard() {
 export default function Step3Analytics({
   materialLineId,
   days,
+  utm,
 }: Step3AnalyticsProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -162,14 +207,34 @@ export default function Step3Analytics({
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <SawItCard materialLineId={materialLineId} days={days} />
-        <ViewModeChangedCard materialLineId={materialLineId} days={days} />
-        <MaterialViewedCard materialLineId={materialLineId} days={days} />
-        <GetQuotePressedCard materialLineId={materialLineId} days={days} />
+        <SawItCard materialLineId={materialLineId} days={days} utm={utm} />
+        <ViewModeChangedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
+        <MaterialViewedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
+        <GetQuotePressedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <PhoneVerifiedCard materialLineId={materialLineId} days={days} />
-        <QuoteSubmittedCard materialLineId={materialLineId} days={days} />
+        <PhoneVerifiedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
+        <QuoteSubmittedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
       </div>
     </div>
   );

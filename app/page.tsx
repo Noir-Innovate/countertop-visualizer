@@ -24,7 +24,6 @@ import {
 import { useMaterialLine } from "@/lib/material-line";
 import { getSlabsForMaterialLine } from "@/lib/slabs";
 import { captureAndPersistAttribution } from "@/lib/attribution";
-import posthog from "posthog-js";
 
 export default function Home() {
   const materialLine = useMaterialLine();
@@ -164,12 +163,14 @@ export default function Home() {
 
     // Track page view with material line context
     if (materialLine && typeof window !== "undefined") {
-      posthog.capture("page_view", {
+      trackEvent("page_view", {
         materialLineId: materialLine.id,
         organizationId: materialLine.organizationId,
-        url: window.location.href,
-        referrer: document.referrer,
-        userAgent: navigator.userAgent,
+        url: typeof window !== "undefined" ? window.location.href : undefined,
+        referrer:
+          typeof document !== "undefined" ? document.referrer : undefined,
+        userAgent:
+          typeof navigator !== "undefined" ? navigator.userAgent : undefined,
       });
     }
   }, [materialLine]);
@@ -252,7 +253,7 @@ export default function Home() {
       });
       // Track with material line context
       if (materialLine && typeof window !== "undefined") {
-        posthog.capture("slab_selected", {
+        trackEvent("slab_selected", {
           slabId: slab.id,
           slabName: slab.name,
           material_type: slab.material_type || null,
@@ -372,7 +373,7 @@ export default function Home() {
 
     // Track with material line context
     if (materialLine && typeof window !== "undefined") {
-      posthog.capture("generation_started", {
+      trackEvent("generation_started", {
         slabCount: selectedSlabs.length,
         slabIds: selectedSlabs.map((s) => s.id),
         materialLineId: materialLine.id,
@@ -437,7 +438,7 @@ export default function Home() {
       toStep: 2,
     });
     if (materialLine && typeof window !== "undefined") {
-      posthog.capture("back_pressed", {
+      trackEvent("back_pressed", {
         fromStep: 3,
         toStep: 2,
         materialLineId: materialLine.id,
@@ -455,7 +456,7 @@ export default function Home() {
       toStep: 1,
     });
     if (materialLine && typeof window !== "undefined") {
-      posthog.capture("back_pressed", {
+      trackEvent("back_pressed", {
         fromStep: 2,
         toStep: 1,
         materialLineId: materialLine.id,

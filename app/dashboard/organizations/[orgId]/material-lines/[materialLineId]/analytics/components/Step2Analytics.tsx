@@ -1,15 +1,26 @@
 "use client";
 
-import { useEventCount } from "./useEventCount";
+import { useEventCount, type EventCountUtmFilters } from "./useEventCount";
 import EventMetadata from "./EventMetadata";
 
 interface Step2AnalyticsProps {
   materialLineId: string;
   days: number;
+  utm?: EventCountUtmFilters | null;
 }
 
-function MaterialSelectedCard({ materialLineId, days }: Step2AnalyticsProps) {
-  const { count } = useEventCount("slab_selected", materialLineId, days);
+function MaterialSelectedCard({
+  materialLineId,
+  days,
+  utm,
+}: Step2AnalyticsProps) {
+  const { count } = useEventCount(
+    "slab_selected",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -29,13 +40,20 @@ function MaterialSelectedCard({ materialLineId, days }: Step2AnalyticsProps) {
         eventCount={count || 0}
         materialLineId={materialLineId}
         days={days}
+        utm={utm}
       />
     </div>
   );
 }
 
-function SeeItPressedCard({ materialLineId, days }: Step2AnalyticsProps) {
-  const { count } = useEventCount("generation_started", materialLineId, days);
+function SeeItPressedCard({ materialLineId, days, utm }: Step2AnalyticsProps) {
+  const { count } = useEventCount(
+    "generation_started",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -54,8 +72,14 @@ function SeeItPressedCard({ materialLineId, days }: Step2AnalyticsProps) {
   );
 }
 
-function BackPressedCard({ materialLineId, days }: Step2AnalyticsProps) {
-  const { count } = useEventCount("back_pressed", materialLineId, days);
+function BackPressedCard({ materialLineId, days, utm }: Step2AnalyticsProps) {
+  const { count } = useEventCount(
+    "back_pressed",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -87,6 +111,7 @@ function LoadingCard() {
 export default function Step2Analytics({
   materialLineId,
   days,
+  utm,
 }: Step2AnalyticsProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -102,9 +127,21 @@ export default function Step2Analytics({
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MaterialSelectedCard materialLineId={materialLineId} days={days} />
-        <SeeItPressedCard materialLineId={materialLineId} days={days} />
-        <BackPressedCard materialLineId={materialLineId} days={days} />
+        <MaterialSelectedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
+        <SeeItPressedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
+        <BackPressedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
       </div>
     </div>
   );

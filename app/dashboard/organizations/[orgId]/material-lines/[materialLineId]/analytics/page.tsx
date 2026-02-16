@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import TimeframeSelector from "./components/TimeframeSelector";
+import UtmSegmentSelector from "./components/UtmSegmentSelector";
 import GeneralAnalytics from "./components/GeneralAnalytics";
 import Step1Analytics from "./components/Step1Analytics";
 import Step2Analytics from "./components/Step2Analytics";
@@ -10,13 +11,26 @@ import Step3Analytics from "./components/Step3Analytics";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
-  searchParams: Promise<{ days?: string }>;
+  searchParams: Promise<{
+    days?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+  }>;
 }
 
 export default async function AnalyticsPage({ params, searchParams }: Props) {
   const { orgId, materialLineId } = await params;
-  const { days } = await searchParams;
+  const { days, utm_source, utm_medium, utm_campaign } = await searchParams;
   const daysToShow = parseInt(days || "30", 10);
+  const utmSegment =
+    utm_source || utm_medium || utm_campaign
+      ? {
+          utm_source: utm_source ?? null,
+          utm_medium: utm_medium ?? null,
+          utm_campaign: utm_campaign ?? null,
+        }
+      : null;
 
   const supabase = await createClient();
   const {
@@ -89,7 +103,13 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
               Conversion funnel and performance metrics
             </p>
           </div>
-          <TimeframeSelector currentDays={daysToShow} />
+          <div className="flex items-center gap-4 flex-wrap">
+            <TimeframeSelector currentDays={daysToShow} />
+            <UtmSegmentSelector
+              currentUtm={{ utm_source, utm_medium, utm_campaign }}
+              currentDays={daysToShow}
+            />
+          </div>
         </div>
       </div>
 
@@ -117,7 +137,11 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
           </div>
         }
       >
-        <GeneralAnalytics materialLineId={materialLineId} days={daysToShow} />
+        <GeneralAnalytics
+          materialLineId={materialLineId}
+          days={daysToShow}
+          utm={utmSegment}
+        />
       </Suspense>
 
       {/* Step-by-Step Analytics */}
@@ -150,7 +174,11 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
             </div>
           }
         >
-          <Step1Analytics materialLineId={materialLineId} days={daysToShow} />
+          <Step1Analytics
+            materialLineId={materialLineId}
+            days={daysToShow}
+            utm={utmSegment}
+          />
         </Suspense>
 
         <Suspense
@@ -181,7 +209,11 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
             </div>
           }
         >
-          <Step2Analytics materialLineId={materialLineId} days={daysToShow} />
+          <Step2Analytics
+            materialLineId={materialLineId}
+            days={daysToShow}
+            utm={utmSegment}
+          />
         </Suspense>
 
         <Suspense
@@ -223,7 +255,11 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
             </div>
           }
         >
-          <Step3Analytics materialLineId={materialLineId} days={daysToShow} />
+          <Step3Analytics
+            materialLineId={materialLineId}
+            days={daysToShow}
+            utm={utmSegment}
+          />
         </Suspense>
       </div>
     </div>

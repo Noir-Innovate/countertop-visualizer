@@ -155,6 +155,17 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // For /admin routes, require authentication (super_admin check happens in admin layout)
+  if (pathname.startsWith("/admin")) {
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard/login";
+      url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
   // For non-dashboard routes, resolve material line from hostname
   // Allow subdomain testing on localhost (e.g., subdomain.localhost:3000)
   const isLocalhost =

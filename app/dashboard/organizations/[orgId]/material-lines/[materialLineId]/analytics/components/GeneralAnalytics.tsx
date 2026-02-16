@@ -1,15 +1,22 @@
 "use client";
 
-import { useEventCount } from "./useEventCount";
+import { useEventCount, type EventCountUtmFilters } from "./useEventCount";
 import EventMetadata from "./EventMetadata";
 
 interface GeneralAnalyticsProps {
   materialLineId: string;
   days: number;
+  utm?: EventCountUtmFilters | null;
 }
 
-function PageViewsCard({ materialLineId, days }: GeneralAnalyticsProps) {
-  const { count } = useEventCount("page_view", materialLineId, days);
+function PageViewsCard({ materialLineId, days, utm }: GeneralAnalyticsProps) {
+  const { count } = useEventCount(
+    "page_view",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -25,13 +32,24 @@ function PageViewsCard({ materialLineId, days }: GeneralAnalyticsProps) {
         eventCount={count || 0}
         materialLineId={materialLineId}
         days={days}
+        utm={utm}
       />
     </div>
   );
 }
 
-function QuoteSubmittedCard({ materialLineId, days }: GeneralAnalyticsProps) {
-  const { count } = useEventCount("quote_submitted", materialLineId, days);
+function QuoteSubmittedCard({
+  materialLineId,
+  days,
+  utm,
+}: GeneralAnalyticsProps) {
+  const { count } = useEventCount(
+    "quote_submitted",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -45,27 +63,44 @@ function QuoteSubmittedCard({ materialLineId, days }: GeneralAnalyticsProps) {
         eventCount={count || 0}
         materialLineId={materialLineId}
         days={days}
+        utm={utm}
       />
     </div>
   );
 }
 
-function ConversionRateCard({ materialLineId, days }: GeneralAnalyticsProps) {
-  const { count: pageViews } = useEventCount("page_view", materialLineId, days);
+function ConversionRateCard({
+  materialLineId,
+  days,
+  utm,
+}: GeneralAnalyticsProps) {
+  const { count: pageViews } = useEventCount(
+    "page_view",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
   const { count: imageUploaded } = useEventCount(
     "image_uploaded",
     materialLineId,
     days,
+    false,
+    utm,
   );
   const { count: imageSelected } = useEventCount(
     "image_selected",
     materialLineId,
     days,
+    false,
+    utm,
   );
   const { count: quoteSubmitted } = useEventCount(
     "quote_submitted",
     materialLineId,
     days,
+    false,
+    utm,
   );
 
   const step1Total = (imageUploaded || 0) + (imageSelected || 0);
@@ -102,6 +137,7 @@ function LoadingCard() {
 export default function GeneralAnalytics({
   materialLineId,
   days,
+  utm,
 }: GeneralAnalyticsProps) {
   return (
     <div className="mb-8">
@@ -109,9 +145,17 @@ export default function GeneralAnalytics({
         General Analytics
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <PageViewsCard materialLineId={materialLineId} days={days} />
-        <QuoteSubmittedCard materialLineId={materialLineId} days={days} />
-        <ConversionRateCard materialLineId={materialLineId} days={days} />
+        <PageViewsCard materialLineId={materialLineId} days={days} utm={utm} />
+        <QuoteSubmittedCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
+        <ConversionRateCard
+          materialLineId={materialLineId}
+          days={days}
+          utm={utm}
+        />
       </div>
     </div>
   );
