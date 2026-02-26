@@ -20,6 +20,7 @@ interface QuoteModalProps {
   originalImageUrl: string | null;
   verifiedPhone: string | null;
   abVariant: string;
+  prefillEmail?: string;
   onSubmitSuccess: () => void;
   onVerificationUpdate?: (phone: string) => void;
 }
@@ -33,6 +34,7 @@ export default function QuoteModal({
   originalImageUrl,
   verifiedPhone,
   abVariant,
+  prefillEmail,
   onSubmitSuccess,
   onVerificationUpdate,
 }: QuoteModalProps) {
@@ -58,19 +60,28 @@ export default function QuoteModal({
     if (isOpen) {
       // Check localStorage in case prop is stale
       const storedVerifiedPhone = getVerifiedPhone() || verifiedPhone;
+      const normalizedPrefillEmail = prefillEmail?.trim() || "";
 
       if (storedVerifiedPhone) {
         setStep("form");
         setCurrentVerifiedPhone(storedVerifiedPhone);
-        setFormData((prev) => ({ ...prev, phone: storedVerifiedPhone }));
+        setFormData((prev) => ({
+          ...prev,
+          phone: storedVerifiedPhone,
+          email: prev.email || normalizedPrefillEmail,
+        }));
       } else {
         setStep("verify");
         setCurrentVerifiedPhone(null);
+        setFormData((prev) => ({
+          ...prev,
+          email: prev.email || normalizedPrefillEmail,
+        }));
       }
       setSuccess(false);
       setError(null);
     }
-  }, [isOpen, verifiedPhone]);
+  }, [isOpen, verifiedPhone, prefillEmail]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

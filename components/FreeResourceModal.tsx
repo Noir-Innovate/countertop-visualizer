@@ -11,7 +11,7 @@ interface FreeResourceModalProps {
   materialLineId?: string;
   onSkip: () => void;
   onSuccess: () => void;
-  onSubmitted?: () => void;
+  onSubmitted?: (email: string) => void;
   onEmailResult?: (success: boolean) => void;
 }
 
@@ -88,8 +88,9 @@ export default function FreeResourceModal({
         throw new Error(data.error || "Failed to send resource email.");
       }
 
+      const submittedEmail = email.trim();
       onEmailResult?.(true);
-      onSubmitted?.();
+      onSubmitted?.(submittedEmail);
       setIsSubmitted(true);
     } catch (err) {
       onEmailResult?.(false);

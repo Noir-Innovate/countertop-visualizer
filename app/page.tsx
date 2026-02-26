@@ -43,6 +43,8 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showFreeResourceModal, setShowFreeResourceModal] = useState(false);
+  const [capturedFreeResourceEmail, setCapturedFreeResourceEmail] =
+    useState<string>("");
 
   // Dynamic slabs state
   const [dynamicSlabs, setDynamicSlabs] = useState<Slab[]>([]);
@@ -351,6 +353,8 @@ export default function Home() {
 
   const getFreeResourceAnsweredKey = () =>
     `free_resource_answered:${materialLine?.id || "default"}`;
+  const getFreeResourceEmailKey = () =>
+    `free_resource_email:${materialLine?.id || "default"}`;
 
   const isFreeResourceConfigured = Boolean(
     materialLine?.freeResourceEnabled &&
@@ -367,6 +371,20 @@ export default function Home() {
     if (typeof window === "undefined") return;
     sessionStorage.setItem(getFreeResourceAnsweredKey(), "1");
   };
+
+  const storeFreeResourceEmail = (email: string) => {
+    if (typeof window === "undefined") return;
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    sessionStorage.setItem(getFreeResourceEmailKey(), trimmed);
+    setCapturedFreeResourceEmail(trimmed);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = sessionStorage.getItem(getFreeResourceEmailKey()) || "";
+    setCapturedFreeResourceEmail(stored);
+  }, [materialLine?.id]);
 
   const runGenerationFlow = async () => {
     if (!kitchenImage) {
@@ -614,6 +632,7 @@ export default function Home() {
                 onReset={handleReset}
                 verifiedPhone={verifiedPhone}
                 abVariant={abVariant}
+                prefillEmail={capturedFreeResourceEmail}
                 onVerificationUpdate={handleVerificationUpdate}
               />
             )}
@@ -758,8 +777,9 @@ export default function Home() {
               organizationId: materialLine?.organizationId,
             });
           }}
-          onSubmitted={() => {
+          onSubmitted={(email) => {
             markFreeResourceAnswered();
+            storeFreeResourceEmail(email);
             trackEvent("free_resource_submitted", {
               materialLineId: materialLine?.id,
               organizationId: materialLine?.organizationId,

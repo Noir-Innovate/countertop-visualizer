@@ -18,6 +18,7 @@ interface ResultDisplayProps {
   onReset: () => void;
   verifiedPhone: string | null;
   abVariant: string;
+  prefillEmail?: string;
   onVerificationUpdate?: (phone: string) => void;
 }
 
@@ -31,6 +32,7 @@ export default function ResultDisplay({
   onReset,
   verifiedPhone,
   abVariant,
+  prefillEmail,
   onVerificationUpdate,
 }: ResultDisplayProps) {
   const materialLine = useMaterialLine();
@@ -346,6 +348,7 @@ export default function ResultDisplay({
           originalImageUrl={originalImage}
           verifiedPhone={verifiedPhone}
           abVariant={abVariant}
+          prefillEmail={prefillEmail}
           onSubmitSuccess={() => setShowLeadForm(false)}
           onVerificationUpdate={onVerificationUpdate}
         />
