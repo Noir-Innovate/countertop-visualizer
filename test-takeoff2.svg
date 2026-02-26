@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="100%" height="100%">
+    <defs>
+        <pattern id="stonePattern" width="20" height="20" patternUnits="userSpaceOnUse">
+            <rect width="20" height="20" fill="#f0f2f5" />
+            <path d="M 20 0 L 0 20 Z" stroke="#e1e4e8" stroke-width="0.5" />
+            <circle cx="10" cy="10" r="1" fill="#d1d5da" />
+            <circle cx="4" cy="15" r="0.5" fill="#a3a8ae" />
+        </pattern>
+
+        <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="0" refY="4" orient="auto">
+            <path d="M 8 0 L 0 4 L 8 8 Z" fill="#555" />
+        </marker>
+        <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+            <path d="M 0 0 L 8 4 L 0 8 Z" fill="#555" />
+        </marker>
+        
+        <style>
+            .title { font-family: 'Segoe UI', Helvetica, sans-serif; font-size: 24px; font-weight: bold; fill: #333; }
+            .subtitle { font-family: 'Segoe UI', Helvetica, sans-serif; font-size: 14px; fill: #666; }
+            .label { font-family: 'Segoe UI', Helvetica, sans-serif; font-size: 14px; font-weight: bold; fill: #333; }
+            .dim-text { font-family: 'Segoe UI', Helvetica, sans-serif; font-size: 12px; fill: #555; font-weight: bold;}
+            .note-text { font-family: 'Segoe UI', Helvetica, sans-serif; font-size: 11px; fill: #d73a49; font-weight: bold;}
+            .appliance-text { font-family: 'Segoe UI', Helvetica, sans-serif; font-size: 14px; fill: #888; letter-spacing: 1px;}
+            
+            .stone { fill: url(#stonePattern); }
+            
+            .edge-finished { stroke: #28a745; stroke-width: 4; stroke-linecap: square; }
+            .edge-wall { stroke: #d73a49; stroke-width: 4; stroke-linecap: square; }
+            .edge-appliance { stroke: #f66a0a; stroke-width: 4; stroke-linecap: square; }
+            
+            .dim-line { stroke: #555; stroke-width: 1.5; }
+            .appliance { fill: none; stroke: #888; stroke-width: 2; stroke-dasharray: 6,4; }
+            .cutout { fill: #fff; stroke: #d73a49; stroke-width: 2; stroke-dasharray: 4,4; }
+        </style>
+    </defs>
+
+    <rect width="1000" height="700" fill="#ffffff" />
+
+    <rect x="20" y="20" width="300" height="90" fill="#f8f9fa" stroke="#e1e4e8" stroke-width="1" rx="4" />
+    <text x="35" y="50" class="title">PROJECT TAKEOFF</text>
+    <text x="35" y="70" class="subtitle">Material: Quartz/Granite (TBD)</text>
+    <text x="35" y="90" class="subtitle">Estimated Total: 45.5 SQ FT</text>
+
+    <rect x="730" y="20" width="250" height="110" fill="#f8f9fa" stroke="#e1e4e8" stroke-width="1" rx="4" />
+    <text x="745" y="45" class="label" style="font-size: 14px;">Edge Condition Legend</text>
+    <line x1="745" y1="65" x2="775" y2="65" class="edge-finished" />
+    <text x="785" y="70" class="subtitle">Finished / Polished Edge</text>
+    <line x1="745" y1="90" x2="775" y2="90" class="edge-wall" />
+    <text x="785" y="95" class="subtitle">Wall / Backsplash Edge</text>
+    <line x1="745" y1="115" x2="775" y2="115" class="edge-appliance" />
+    <text x="785" y="120" class="subtitle">Appliance Edge</text>
+
+    <g transform="translate(50, 150)">
+        
+        <rect x="0" y="0" width="144" height="120" class="appliance" />
+        <text x="72" y="65" class="appliance-text" text-anchor="middle">REFRIGERATOR</text>
+        <text x="72" y="85" class="appliance-text" text-anchor="middle" style="font-size: 11px;">(36" x 30")</text>
+
+        <rect x="144" y="0" width="72" height="102" class="stone" />
+        <line x1="144" y1="0" x2="216" y2="0" class="edge-wall" /> <line x1="144" y1="102" x2="216" y2="102" class="edge-finished" /> <line x1="144" y1="0" x2="144" y2="102" class="edge-finished" /> <line x1="216" y1="0" x2="216" y2="102" class="edge-appliance" /> <text x="180" y="45" class="label" text-anchor="middle">P1: L of Stove</text>
+        <text x="180" y="65" class="subtitle" text-anchor="middle">3.19 SQ FT</text>
+        <line x1="144" y1="-15" x2="216" y2="-15" class="dim-line" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+        <text x="180" y="-22" class="dim-text" text-anchor="middle">18"</text>
+        <line x1="129" y1="0" x2="129" y2="102" class="dim-line" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+        <text x="120" y="55" class="dim-text" text-anchor="middle" transform="rotate(-90 120 55)">25.5"</text>
+
+        <rect x="216" y="0" width="120" height="102" class="appliance" />
+        <text x="276" y="50" class="appliance-text" text-anchor="middle">STOVE</text>
+        <text x="276" y="70" class="appliance-text" text-anchor="middle" style="font-size: 11px;">(30" x 25.5")</text>
+
+        <rect x="336" y="0" width="144" height="102" class="stone" />
+        <line x1="336" y1="0" x2="480" y2="0" class="edge-wall" /> <line x1="336" y1="102" x2="480" y2="102" class="edge-finished" /> <line x1="336" y1="0" x2="336" y2="102" class="edge-appliance" /> <line x1="480" y1="0" x2="480" y2="102" class="edge-finished" /> <text x="408" y="45" class="label" text-anchor="middle">P2: R of Stove</text>
+        <text x="408" y="65" class="subtitle" text-anchor="middle">6.38 SQ FT</text>
+        <line x1="336" y1="-15" x2="480" y2="-15" class="dim-line" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+        <text x="408" y="-22" class="dim-text" text-anchor="middle">36"</text>
+
+        <rect x="144" y="220" width="288" height="168" class="stone" />
+        <rect x="144" y="220" width="288" height="168" fill="none" class="edge-finished" /> 
+        <text x="288" y="295" class="label" text-anchor="middle">P3: Island</text>
+        <text x="288" y="315" class="subtitle" text-anchor="middle">21.00 SQ FT</text>
+        <line x1="144" y1="205" x2="432" y2="205" class="dim-line" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+        <text x="288" y="198" class="dim-text" text-anchor="middle">72"</text>
+        <line x1="129" y1="220" x2="129" y2="388" class="dim-line" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+        <text x="120" y="304" class="dim-text" text-anchor="middle" transform="rotate(-90 120 304)">42"</text>
+
+
+        <rect x="650" y="0" width="102" height="336" class="stone" />
+        
+        <line x1="650" y1="0" x2="752" y2="0" class="edge-wall" /> <line x1="752" y1="0" x2="752" y2="336" class="edge-wall" /> <line x1="650" y1="0" x2="650" y2="336" class="edge-finished" /> <line x1="650" y1="336" x2="752" y2="336" class="edge-finished" /> <rect x="670" y="80" width="62" height="110" class="cutout" rx="8" />
+        <text x="701" y="130" class="note-text" text-anchor="middle" transform="rotate(90 701 130)">SINK CUT</text>
+
+        <text x="701" y="250" class="label" text-anchor="middle" transform="rotate(90 701 250)">P4: Sink Run</text>
+        <text x="701" y="270" class="subtitle" text-anchor="middle" transform="rotate(90 701 270)">14.88 SQ FT</text>
+        
+        <line x1="650" y1="-15" x2="752" y2="-15" class="dim-line" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+        <text x="701" y="-22" class="dim-text" text-anchor="middle">25.5"</text>
+        
+        <line x1="767" y1="0" x2="767" y2="336" class="dim-line" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+        <text x="778" y="168" class="dim-text" text-anchor="middle" transform="rotate(90 778 168)">84"</text>
+
+    </g>
+</svg>

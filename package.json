@@ -7,13 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate:posthog": "tsx scripts/migrate-posthog-to-supabase.ts"
+    "migrate:posthog": "tsx scripts/migrate-posthog-to-supabase.ts",
+    "takeoff:test": "tsx scripts/takeoff-testbed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "^1.34.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.0",
     "@vercel/blob": "^2.0.0",
@@ -25,6 +29,9 @@
     "react-dom": "19.2.3",
     "react-hot-toast": "^2.6.0",
     "resend": "^6.7.0",
+    "sharp": "^0.34.5",
+    "stripe": "^20.4.0",
+    "three": "^0.182.0",
     "twilio": "^5.11.2"
   },
   "devDependencies": {

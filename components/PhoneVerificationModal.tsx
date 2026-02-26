@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { trackEvent } from "@/lib/posthog";
+import { useMaterialLine } from "@/lib/material-line";
 import { getVerifiedPhone, setVerifiedPhone } from "@/lib/ab-testing";
 
 interface PhoneVerificationModalProps {
@@ -19,6 +20,7 @@ export default function PhoneVerificationModal({
   onVerified,
   autoClose = true,
 }: PhoneVerificationModalProps) {
+  const materialLine = useMaterialLine();
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
@@ -64,7 +66,7 @@ export default function PhoneVerificationModal({
     }
     return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(
       3,
-      6
+      6,
     )}-${limitedDigits.slice(6)}`;
   };
 
@@ -138,7 +140,11 @@ export default function PhoneVerificationModal({
 
     setIsLoading(true);
     setError(null);
-    trackEvent("verification_code_requested", { phone: digits });
+    trackEvent("verification_code_requested", {
+      phone: digits,
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
+    });
 
     try {
       const response = await fetch("/api/send-verification", {
@@ -156,7 +162,7 @@ export default function PhoneVerificationModal({
       setStep("code");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to send verification code"
+        err instanceof Error ? err.message : "Failed to send verification code",
       );
     } finally {
       setIsLoading(false);
@@ -172,7 +178,10 @@ export default function PhoneVerificationModal({
 
     setIsLoading(true);
     setError(null);
-    trackEvent("verification_code_submitted");
+    trackEvent("verification_code_submitted", {
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
+    });
 
     try {
       const digits = phone.replace(/\D/g, "");
@@ -191,7 +200,10 @@ export default function PhoneVerificationModal({
         throw new Error(data.error || "Invalid code");
       }
 
-      trackEvent("verification_successful");
+      trackEvent("verification_successful", {
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
 
       // Save verified phone to localStorage
       const verifiedPhoneNumber = `+1${digits}`;
@@ -207,7 +219,10 @@ export default function PhoneVerificationModal({
         }
       }, 1500);
     } catch (err) {
-      trackEvent("verification_failed");
+      trackEvent("verification_failed", {
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
       setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setIsLoading(false);

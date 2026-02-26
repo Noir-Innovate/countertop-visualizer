@@ -130,6 +130,8 @@ export default function ImageCarousel({
         slabId: currentImage.id,
         slabName: currentImage.name,
         isOriginal: currentImage.isOriginal || false,
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
       });
 
       try {
@@ -199,7 +201,7 @@ export default function ImageCarousel({
         }
       }
     },
-    [currentImage],
+    [currentImage, materialLine],
   );
 
   return (

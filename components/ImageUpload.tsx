@@ -5,9 +5,15 @@ import { trackEvent } from "@/lib/posthog";
 
 interface ImageUploadProps {
   onImageUpload: (base64Image: string) => void;
+  materialLineId?: string | null;
+  organizationId?: string | null;
 }
 
-export default function ImageUpload({ onImageUpload }: ImageUploadProps) {
+export default function ImageUpload({
+  onImageUpload,
+  materialLineId,
+  organizationId,
+}: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +39,8 @@ export default function ImageUpload({ onImageUpload }: ImageUploadProps) {
         trackEvent("image_uploaded", {
           fileSize: file.size,
           fileType: file.type,
+          materialLineId: materialLineId ?? undefined,
+          organizationId: organizationId ?? undefined,
         });
         onImageUpload(base64);
       };
@@ -41,7 +49,7 @@ export default function ImageUpload({ onImageUpload }: ImageUploadProps) {
       };
       reader.readAsDataURL(file);
     },
-    [onImageUpload]
+    [onImageUpload, materialLineId, organizationId],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -64,7 +72,7 @@ export default function ImageUpload({ onImageUpload }: ImageUploadProps) {
         processFile(files[0]);
       }
     },
-    [processFile]
+    [processFile],
   );
 
   const handleFileSelect = useCallback(
@@ -74,7 +82,7 @@ export default function ImageUpload({ onImageUpload }: ImageUploadProps) {
         processFile(files[0]);
       }
     },
-    [processFile]
+    [processFile],
   );
 
   return (

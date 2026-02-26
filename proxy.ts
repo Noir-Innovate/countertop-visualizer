@@ -108,6 +108,11 @@ export async function proxy(request: NextRequest) {
   const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || "localhost:3000";
   const pathname = request.nextUrl.pathname;
 
+  // Stripe webhook must bypass session/auth middleware for signature safety.
+  if (pathname === "/api/billing/webhook") {
+    return NextResponse.next();
+  }
+
   // Skip middleware for static files and API routes that don't need material line context
   if (
     pathname.startsWith("/_next") ||
@@ -246,6 +251,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/billing/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

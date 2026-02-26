@@ -108,6 +108,7 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
             <UtmSegmentSelector
               currentUtm={{ utm_source, utm_medium, utm_campaign }}
               currentDays={daysToShow}
+              materialLineId={materialLineId}
             />
           </div>
         </div>

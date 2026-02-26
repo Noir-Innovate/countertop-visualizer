@@ -113,77 +113,82 @@ export default function ImageComparison({
     [onRightIndexChange],
   );
 
-  const handleShare = useCallback(async (image: ComparisonImage) => {
-    // Track share event
-    trackEvent("countertop_shared", {
-      slabId: image.id,
-      slabName: image.name,
-      isOriginal: image.isOriginal || false,
-    });
+  const handleShare = useCallback(
+    async (image: ComparisonImage) => {
+      // Track share event
+      trackEvent("countertop_shared", {
+        slabId: image.id,
+        slabName: image.name,
+        isOriginal: image.isOriginal || false,
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
 
-    try {
-      let file: File | null = null;
+      try {
+        let file: File | null = null;
 
-      // Handle data URLs (base64) or regular URLs
-      if (image.imageUrl.startsWith("data:")) {
-        // Convert data URL to blob
-        const response = await fetch(image.imageUrl);
-        const blob = await response.blob();
-        file = new File([blob], `${image.name.replace(/\s+/g, "-")}.png`, {
-          type: "image/png",
-        });
-      } else {
-        // Regular URL - fetch and convert to blob
-        try {
+        // Handle data URLs (base64) or regular URLs
+        if (image.imageUrl.startsWith("data:")) {
+          // Convert data URL to blob
           const response = await fetch(image.imageUrl);
           const blob = await response.blob();
           file = new File([blob], `${image.name.replace(/\s+/g, "-")}.png`, {
-            type: blob.type || "image/png",
+            type: "image/png",
           });
-        } catch (fetchError) {
-          // If fetch fails, fall back to URL sharing
-          console.warn("Could not fetch image for sharing:", fetchError);
+        } else {
+          // Regular URL - fetch and convert to blob
+          try {
+            const response = await fetch(image.imageUrl);
+            const blob = await response.blob();
+            file = new File([blob], `${image.name.replace(/\s+/g, "-")}.png`, {
+              type: blob.type || "image/png",
+            });
+          } catch (fetchError) {
+            // If fetch fails, fall back to URL sharing
+            console.warn("Could not fetch image for sharing:", fetchError);
+          }
         }
-      }
 
-      // Use Web Share API if available
-      if (
-        file &&
-        navigator.share &&
-        navigator.canShare &&
-        navigator.canShare({ files: [file] })
-      ) {
-        await navigator.share({
-          title: `Check out this ${image.name} countertop`,
-          text: `I found this beautiful ${image.name} countertop design!`,
-          files: [file],
-        });
-      } else if (navigator.share) {
-        // Fallback: share without file (some browsers don't support file sharing)
-        await navigator.share({
-          title: `Check out this ${image.name} countertop`,
-          text: `I found this beautiful ${image.name} countertop design!`,
-          url: image.imageUrl,
-        });
-      } else {
-        // Fallback: copy image URL to clipboard
-        await navigator.clipboard.writeText(image.imageUrl);
-        alert("Image link copied to clipboard!");
-      }
-    } catch (error) {
-      // User cancelled or error occurred
-      if (error instanceof Error && error.name !== "AbortError") {
-        console.error("Error sharing:", error);
-        // Fallback: copy URL to clipboard
-        try {
+        // Use Web Share API if available
+        if (
+          file &&
+          navigator.share &&
+          navigator.canShare &&
+          navigator.canShare({ files: [file] })
+        ) {
+          await navigator.share({
+            title: `Check out this ${image.name} countertop`,
+            text: `I found this beautiful ${image.name} countertop design!`,
+            files: [file],
+          });
+        } else if (navigator.share) {
+          // Fallback: share without file (some browsers don't support file sharing)
+          await navigator.share({
+            title: `Check out this ${image.name} countertop`,
+            text: `I found this beautiful ${image.name} countertop design!`,
+            url: image.imageUrl,
+          });
+        } else {
+          // Fallback: copy image URL to clipboard
           await navigator.clipboard.writeText(image.imageUrl);
           alert("Image link copied to clipboard!");
-        } catch (clipboardError) {
-          console.error("Error copying to clipboard:", clipboardError);
+        }
+      } catch (error) {
+        // User cancelled or error occurred
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Error sharing:", error);
+          // Fallback: copy URL to clipboard
+          try {
+            await navigator.clipboard.writeText(image.imageUrl);
+            alert("Image link copied to clipboard!");
+          } catch (clipboardError) {
+            console.error("Error copying to clipboard:", clipboardError);
+          }
         }
       }
-    }
-  }, []);
+    },
+    [materialLine],
+  );
 
   // Handle mouse/touch events for dragging
   const updateSliderPosition = (clientX: number) => {

@@ -4,6 +4,8 @@ export interface Slab {
   imageUrl: string;
   description: string; // Keep for backwards compatibility
   material_type?: string | null;
+  price_per_sqft?: number | null;
+  filename?: string; // For matching with materials table
 }
 
 // Example kitchen images for users who don't have their own photo

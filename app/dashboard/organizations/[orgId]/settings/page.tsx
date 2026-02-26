@@ -130,6 +130,14 @@ export default function OrganizationSettingsPage({ params }: Props) {
           <p className="text-slate-600 mt-1">
             Configure default email settings for your organization
           </p>
+          <div className="mt-4">
+            <Link
+              href={`/dashboard/organizations/${orgId}/billing`}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Go to Billing
+            </Link>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" style="background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+    </marker>
+    
+    <pattern id="stone" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="#e2e8f0" />
+      <circle cx="4" cy="4" r="1" fill="#cbd5e1" />
+      <circle cx="16" cy="12" r="1.5" fill="#f1f5f9" />
+      <circle cx="10" cy="18" r="0.8" fill="#94a3b8" />
+    </pattern>
+
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="2" dy="4" stdDeviation="3" flood-opacity="0.1" />
+    </filter>
+  </defs>
+
+  <rect x="30" y="30" width="350" height="100" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" />
+  <text x="50" y="65" font-size="24" font-weight="bold" fill="#0f172a">PROJECT TAKEOFF</text>
+  <text x="50" y="90" font-size="14" fill="#475569">Estimated Total: ~41.3 SQ. FT.</text>
+  <text x="50" y="110" font-size="14" fill="#475569">Material: Granit/Quartz (Placeholder)</text>
+
+  <rect x="400" y="30" width="300" height="100" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" />
+  <text x="420" y="55" font-size="16" font-weight="bold" fill="#0f172a">Edge Condition Legend</text>
+  
+  <line x1="420" y1="75" x2="450" y2="75" stroke="#22c55e" stroke-width="4" />
+  <text x="460" y="80" font-size="14" fill="#334155">Finished / Polished Edge</text>
+
+  <line x1="420" y1="95" x2="450" y2="95" stroke="#ef4444" stroke-width="4" />
+  <text x="460" y="100" font-size="14" fill="#334155">Wall / Backsplash Edge</text>
+
+  <line x1="420" y1="115" x2="450" y2="115" stroke="#f97316" stroke-width="4" />
+  <text x="460" y="120" font-size="14" fill="#334155">Appliance / Unfinished Edge</text>
+
+  <g transform="translate(150, 220)">
+    <rect x="0" y="0" width="90" height="127.5" fill="url(#stone)" filter="url(#shadow)" />
+    <line x1="0" y1="0" x2="90" y2="0" stroke="#ef4444" stroke-width="4" /> <line x1="0" y1="127.5" x2="90" y2="127.5" stroke="#22c55e" stroke-width="4" /> <line x1="0" y1="0" x2="0" y2="127.5" stroke="#ef4444" stroke-width="4" /> <line x1="90" y1="0" x2="90" y2="127.5" stroke="#f97316" stroke-width="4" /> <text x="45" y="55" font-size="14" font-weight="bold" fill="#1e293b" text-anchor="middle">Left Perimeter</text>
+    <text x="45" y="75" font-size="12" fill="#475569" text-anchor="middle">3.2 SQ FT</text>
+    <line x1="0" y1="-15" x2="90" y2="-15" stroke="#64748b" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    <text x="45" y="-25" font-size="12" fill="#475569" text-anchor="middle">18"</text>
+    <line x1="-15" y1="0" x2="-15" y2="127.5" stroke="#64748b" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    <text x="-25" y="68" font-size="12" fill="#475569" text-anchor="end" dominant-baseline="middle">25.5"</text>
+  </g>
+
+  <g transform="translate(330, 220)">
+    <rect x="0" y="0" width="90" height="127.5" fill="url(#stone)" filter="url(#shadow)" />
+    <line x1="0" y1="0" x2="90" y2="0" stroke="#ef4444" stroke-width="4" /> <line x1="0" y1="127.5" x2="90" y2="127.5" stroke="#22c55e" stroke-width="4" /> <line x1="0" y1="0" x2="0" y2="127.5" stroke="#f97316" stroke-width="4" /> <line x1="90" y1="0" x2="90" y2="127.5" stroke="#ef4444" stroke-width="4" /> <text x="45" y="55" font-size="14" font-weight="bold" fill="#1e293b" text-anchor="middle">Right Perim.</text>
+    <text x="45" y="75" font-size="12" fill="#475569" text-anchor="middle">3.2 SQ FT</text>
+    <line x1="0" y1="-15" x2="90" y2="-15" stroke="#64748b" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    <text x="45" y="-25" font-size="12" fill="#475569" text-anchor="middle">18"</text>
+  </g>
+
+  <g transform="translate(150, 480)">
+    <rect x="0" y="0" width="360" height="200" fill="url(#stone)" filter="url(#shadow)" />
+    <line x1="0" y1="0" x2="360" y2="0" stroke="#22c55e" stroke-width="4" /> <line x1="0" y1="200" x2="360" y2="200" stroke="#22c55e" stroke-width="4" /> <line x1="0" y1="0" x2="0" y2="200" stroke="#22c55e" stroke-width="4" /> <line x1="360" y1="0" x2="360" y2="200" stroke="#22c55e" stroke-width="4" /> <text x="180" y="95" font-size="18" font-weight="bold" fill="#1e293b" text-anchor="middle">Center Island</text>
+    <text x="180" y="120" font-size="14" fill="#475569" text-anchor="middle">20.0 SQ FT</text>
+    <line x1="0" y1="-15" x2="360" y2="-15" stroke="#64748b" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    <text x="180" y="-25" font-size="14" fill="#475569" text-anchor="middle">72"</text>
+    <line x1="-15" y1="0" x2="-15" y2="200" stroke="#64748b" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    <text x="-25" y="100" font-size="14" fill="#475569" text-anchor="end" dominant-baseline="middle">40"</text>
+  </g>
+
+  <g transform="translate(680, 220)">
+    <rect x="0" y="0" width="127.5" height="420" fill="url(#stone)" filter="url(#shadow)" />
+    
+    <rect x="18.75" y="135" width="90" height="150" rx="8" fill="none" stroke="#0f172a" stroke-width="2" stroke-dasharray="6,4" />
+    <text x="63.75" y="210" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle" transform="rotate(-90, 63.75, 210)">SINK CUTOUT</text>
+
+    <line x1="0" y1="0" x2="127.5" y2="0" stroke="#ef4444" stroke-width="4" /> <line x1="0" y1="420" x2="127.5" y2="420" stroke="#22c55e" stroke-width="4" /> <line x1="0" y1="0" x2="0" y2="420" stroke="#22c55e" stroke-width="4" /> <line x1="127.5" y1="0" x2="127.5" y2="420" stroke="#ef4444" stroke-width="4" /> <text x="63.75" y="80" font-size="14" font-weight="bold" fill="#1e293b" text-anchor="middle" transform="rotate(-90, 63.75, 80)">Sink Peninsula</text>
+    <text x="63.75" y="60" font-size="12" fill="#475569" text-anchor="middle" transform="rotate(-90, 63.75, 60)">14.9 SQ FT</text>
+    
+    <line x1="0" y1="-15" x2="127.5" y2="-15" stroke="#64748b" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    <text x="63.75" y="-25" font-size="12" fill="#475569" text-anchor="middle">25.5"</text>
+    <line x1="142.5" y1="0" x2="142.5" y2="420" stroke="#64748b" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+    <text x="152.5" y="210" font-size="12" fill="#475569" text-anchor="start" dominant-baseline="middle">84"</text>
+  </g>
+
+</svg>

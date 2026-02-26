@@ -421,9 +421,19 @@ export default function Home() {
       trackABEvent(abVariant, "generation_completed", {
         successCount: results.filter((r) => r.imageData).length,
       });
+      if (materialLine && typeof window !== "undefined") {
+        trackEvent("generation_completed", {
+          successCount: results.filter((r) => r.imageData).length,
+          materialLineId: materialLine.id,
+          organizationId: materialLine.organizationId,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
-      trackEvent("generation_error");
+      trackEvent("generation_error", {
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
     } finally {
       setIsGenerating(false);
     }

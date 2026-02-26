@@ -106,7 +106,9 @@ export async function POST(request: NextRequest) {
         text: `The first image is a slab of rock.
 Put the design on the countertops of the second image.
 Use the aspect ratio of the second image.
-Only edit the countertops, keep the rest of the kitchen the same.`,
+Only edit the countertops, keep the rest of the kitchen the same.
+Be sure to edit the edges of the countertops to match the colors of the slab as well (important for wood-trimmed countertops).
+If there is a waterfall or a backsplash, make sure to edit them to match the colors of the slab as well.`,
       },
     ];
 

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import Image from "next/image";
 import { trackEvent } from "@/lib/posthog";
+import { useMaterialLine } from "@/lib/material-line";
 import { EXAMPLE_KITCHENS, type ExampleKitchen } from "@/lib/types";
 
 interface KitchenSelectorProps {
@@ -16,6 +17,7 @@ export default function KitchenSelector({
   exampleKitchens = EXAMPLE_KITCHENS,
   customKitchens = [],
 }: KitchenSelectorProps) {
+  const materialLine = useMaterialLine();
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingExampleId, setLoadingExampleId] = useState<string | null>(null);
@@ -46,6 +48,8 @@ export default function KitchenSelector({
         trackEvent("image_uploaded", {
           fileSize: file.size,
           fileType: file.type,
+          materialLineId: materialLine?.id,
+          organizationId: materialLine?.organizationId,
         });
         onKitchenSelect(base64, false);
       };
@@ -54,7 +58,7 @@ export default function KitchenSelector({
       };
       reader.readAsDataURL(file);
     },
-    [onKitchenSelect],
+    [onKitchenSelect, materialLine],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -113,6 +117,8 @@ export default function KitchenSelector({
             kitchenId: kitchen.id,
             kitchenName: kitchen.name,
             isExample: true,
+            materialLineId: materialLine?.id,
+            organizationId: materialLine?.organizationId,
           });
           onKitchenSelect(base64, true);
           setLoadingExampleId(null);
@@ -129,7 +135,7 @@ export default function KitchenSelector({
         setLoadingExampleId(null);
       }
     },
-    [onKitchenSelect],
+    [onKitchenSelect, materialLine],
   );
 
   return (

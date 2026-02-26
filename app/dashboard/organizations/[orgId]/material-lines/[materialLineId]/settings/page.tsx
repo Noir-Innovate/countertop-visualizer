@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import toast from "react-hot-toast";
 import { Toaster } from "react-hot-toast";
+import { getMaterialLineBasePath } from "@/lib/material-line-path";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -14,6 +15,7 @@ interface Props {
 interface MaterialLine {
   id: string;
   name: string;
+  line_kind: "external" | "internal";
   display_title: string | null;
   slug: string;
   logo_url: string | null;
@@ -41,6 +43,11 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [emailSenderName, setEmailSenderName] = useState("");
   const [emailReplyTo, setEmailReplyTo] = useState("");
+  const materialLineBasePath = getMaterialLineBasePath(
+    orgId,
+    materialLineId,
+    materialLine?.line_kind,
+  );
 
   useEffect(() => {
     const fetchMaterialLine = async () => {
@@ -146,10 +153,7 @@ export default function MaterialLineSettingsPage({ params }: Props) {
               Organization
             </Link>
             <span>/</span>
-            <Link
-              href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}`}
-              className="hover:text-slate-700"
-            >
+            <Link href={materialLineBasePath} className="hover:text-slate-700">
               {materialLine.name}
             </Link>
             <span>/</span>
@@ -171,6 +175,20 @@ export default function MaterialLineSettingsPage({ params }: Props) {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Material Line Type
+              </label>
+              <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                {materialLine.line_kind === "internal"
+                  ? "Internal line"
+                  : "External line"}
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                Type is locked after creation.
+              </p>
+            </div>
+
             <div>
               <label
                 htmlFor="name"

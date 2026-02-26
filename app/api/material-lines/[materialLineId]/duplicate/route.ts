@@ -160,6 +160,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         accent_color: sourceLine.accent_color ?? "#f59e0b",
         background_color: sourceLine.background_color ?? "#ffffff",
         supabase_folder: targetFolder,
+        line_kind: sourceLine.line_kind ?? "external",
         display_title: sourceLine.display_title ?? sourceLine.name,
         email_sender_name: sourceLine.email_sender_name ?? null,
         email_reply_to: sourceLine.email_reply_to ?? null,

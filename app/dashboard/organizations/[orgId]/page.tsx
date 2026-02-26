@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseEventCounts } from "@/lib/analytics-server";
+import { getMaterialLineBasePath } from "@/lib/material-line-path";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -38,7 +39,7 @@ export default async function OrganizationPage({ params }: Props) {
       id,
       name,
       created_at,
-      material_lines(id, name, slug, custom_domain, custom_domain_verified, created_at)
+      material_lines(id, name, slug, custom_domain, custom_domain_verified, line_kind, created_at)
     `,
     )
     .eq("id", orgId)
@@ -131,6 +132,25 @@ export default async function OrganizationPage({ params }: Props) {
                 Settings
               </Link>
               <Link
+                href={`/dashboard/organizations/${orgId}/billing`}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 9V7a5 5 0 00-10 0v2m-2 0h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1v-9a1 1 0 011-1z"
+                  />
+                </svg>
+                Billing
+              </Link>
+              <Link
                 href={`/dashboard/organizations/${orgId}/material-lines/new`}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
               >
@@ -198,13 +218,24 @@ export default async function OrganizationPage({ params }: Props) {
             {org.material_lines.map((materialLine) => (
               <Link
                 key={materialLine.id}
-                href={`/dashboard/organizations/${orgId}/material-lines/${materialLine.id}`}
+                href={getMaterialLineBasePath(
+                  orgId,
+                  materialLine.id,
+                  materialLine.line_kind,
+                )}
                 className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
               >
                 <div>
-                  <p className="font-medium text-slate-900">
-                    {materialLine.name}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-slate-900">
+                      {materialLine.name}
+                    </p>
+                    <span className="px-2 py-0.5 text-[11px] rounded-full bg-slate-100 text-slate-600">
+                      {materialLine.line_kind === "internal"
+                        ? "Internal"
+                        : "External"}
+                    </span>
+                  </div>
                   <p className="text-sm text-slate-500">
                     {materialLine.custom_domain &&
                     materialLine.custom_domain_verified

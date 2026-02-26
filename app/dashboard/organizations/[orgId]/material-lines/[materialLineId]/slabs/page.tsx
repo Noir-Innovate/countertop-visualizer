@@ -34,6 +34,7 @@ interface MaterialFile {
   title?: string | null;
   material_type?: string | null;
   order?: number;
+  price_per_sqft?: number | null;
 }
 
 interface FileWithMetadata {
@@ -157,7 +158,7 @@ export default function MaterialsPage({ params }: Props) {
         // Fetch material metadata from database, ordered by order field
         const { data: materialsData } = await supabase
           .from("materials")
-          .select("id, filename, title, material_type, order")
+          .select("id, filename, title, material_type, order, price_per_sqft")
           .eq("material_line_id", materialLineId)
           .order("order", { ascending: true });
 
@@ -169,6 +170,7 @@ export default function MaterialsPage({ params }: Props) {
             title: string | null;
             material_type: string | null;
             order: number;
+            price_per_sqft: number | null;
           }
         >();
         if (materialsData) {
@@ -178,6 +180,7 @@ export default function MaterialsPage({ params }: Props) {
               title: m.title,
               material_type: m.material_type,
               order: m.order,
+              price_per_sqft: m.price_per_sqft ?? null,
             });
           });
         }
@@ -192,6 +195,7 @@ export default function MaterialsPage({ params }: Props) {
               title: meta?.title || null,
               material_type: meta?.material_type || null,
               order: meta?.order ?? 999999, // Put materials without order at the end
+              price_per_sqft: meta?.price_per_sqft ?? null,
             };
           })
           // Sort by order from database
@@ -443,6 +447,7 @@ export default function MaterialsPage({ params }: Props) {
     material: MaterialFile,
     title: string,
     materialType: string,
+    pricePerSqft: number | null,
   ) => {
     try {
       const supabase = createClient();
@@ -477,11 +482,13 @@ export default function MaterialsPage({ params }: Props) {
         title: string | null;
         material_type: string | null;
         order: number;
+        price_per_sqft: number | null;
       } = {
         title: title.trim() || null,
         material_type:
           materialType === "none" || materialType === "" ? null : materialType,
         order: currentOrder,
+        price_per_sqft: pricePerSqft,
       };
 
       // Use update instead of upsert since we're updating an existing record by ID
@@ -1201,8 +1208,13 @@ export default function MaterialsPage({ params }: Props) {
               <EditMaterialForm
                 material={editingMaterial}
                 materialTypes={MATERIAL_TYPES}
-                onSave={(title, materialType) => {
-                  handleUpdateMaterial(editingMaterial, title, materialType);
+                onSave={(title, materialType, pricePerSqft) => {
+                  handleUpdateMaterial(
+                    editingMaterial,
+                    title,
+                    materialType,
+                    pricePerSqft,
+                  );
                 }}
                 onCancel={() => setEditingMaterial(null)}
               />
@@ -1465,9 +1477,15 @@ function SortableMaterialCard({
           >
             {displayTitle}
           </p>
-          {material.material_type && (
+          {(material.material_type || material.price_per_sqft != null) && (
             <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full whitespace-nowrap flex-shrink-0">
-              {material.material_type}
+              {[
+                material.material_type,
+                material.price_per_sqft != null &&
+                  `$${material.price_per_sqft}/sq ft`,
+              ]
+                .filter(Boolean)
+                .join(" • ")}
             </span>
           )}
         </div>
@@ -1486,12 +1504,19 @@ function EditMaterialForm({
 }: {
   material: MaterialFile;
   materialTypes: Array<{ value: string; label: string }>;
-  onSave: (title: string, materialType: string) => void;
+  onSave: (
+    title: string,
+    materialType: string,
+    pricePerSqft: number | null,
+  ) => void;
   onCancel: () => void;
 }) {
   const [title, setTitle] = useState(material.title || "");
   const [materialType, setMaterialType] = useState(
     material.material_type || "none",
+  );
+  const [pricePerSqft, setPricePerSqft] = useState(
+    material.price_per_sqft != null ? String(material.price_per_sqft) : "",
   );
   const [saving, setSaving] = useState(false);
 
@@ -1499,7 +1524,13 @@ function EditMaterialForm({
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave(title, materialType);
+      const parsed =
+        pricePerSqft.trim() === "" ? null : parseFloat(pricePerSqft);
+      await onSave(
+        title,
+        materialType,
+        parsed != null && !Number.isNaN(parsed) ? parsed : null,
+      );
     } finally {
       setSaving(false);
     }
@@ -1535,6 +1566,24 @@ function EditMaterialForm({
               </option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Price per sq ft ($)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={pricePerSqft}
+            onChange={(e) => setPricePerSqft(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g. 75.00 (leave empty for contact for quote)"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Used for designer quotes. Leave empty to show &quot;Contact for
+            quote&quot;.
+          </p>
         </div>
       </div>
       <div className="p-6 border-t border-slate-200 flex justify-end gap-3">

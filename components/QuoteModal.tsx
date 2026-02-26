@@ -124,6 +124,8 @@ export default function QuoteModal({
     trackEvent("lead_form_submitted", {
       selectedSlab: selectedSlabName,
       hasPhone: !!formData.phone,
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
     });
 
     try {
@@ -264,11 +266,17 @@ export default function QuoteModal({
         throw new Error(data.error || "Failed to submit");
       }
 
-      trackEvent("lead_submission_successful");
+      trackEvent("lead_submission_successful", {
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
       setUploadStep(null);
       setSuccess(true);
     } catch (err) {
-      trackEvent("lead_submission_failed");
+      trackEvent("lead_submission_failed", {
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
       setUploadStep(null);
       setError(
         err instanceof Error

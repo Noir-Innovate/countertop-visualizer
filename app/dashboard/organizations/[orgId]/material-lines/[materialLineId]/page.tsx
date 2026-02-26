@@ -4,6 +4,7 @@ import Link from "next/link";
 import NotificationButton from "./components/NotificationButton";
 import NotificationList from "./components/NotificationList";
 import DuplicateLineButton from "./components/DuplicateLineButton";
+import { getMaterialLineBasePath } from "@/lib/material-line-path";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -79,6 +80,11 @@ export default async function MaterialLinePage({ params }: Props) {
     materialLine.custom_domain && materialLine.custom_domain_verified
       ? `https://${materialLine.custom_domain}`
       : `https://${materialLine.slug}.${appDomain}`;
+  const materialLineBasePath = getMaterialLineBasePath(
+    orgId,
+    materialLineId,
+    materialLine.line_kind,
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -99,9 +105,16 @@ export default async function MaterialLinePage({ params }: Props) {
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">
-              {materialLine.name}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-slate-900">
+                {materialLine.name}
+              </h1>
+              <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700">
+                {materialLine.line_kind === "internal"
+                  ? "Internal line"
+                  : "External line"}
+              </span>
+            </div>
             <a
               href={visualizerUrl}
               target="_blank"
@@ -133,7 +146,7 @@ export default async function MaterialLinePage({ params }: Props) {
                 currentName={materialLine.name}
               />
               <Link
-                href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/settings`}
+                href={`${materialLineBasePath}/settings`}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <svg
@@ -165,7 +178,7 @@ export default async function MaterialLinePage({ params }: Props) {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <Link
-          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/analytics`}
+          href={`${materialLineBasePath}/analytics`}
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:border-blue-300 transition-colors"
         >
           <div className="flex items-center justify-between">
@@ -193,7 +206,7 @@ export default async function MaterialLinePage({ params }: Props) {
           </div>
         </Link>
         <Link
-          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/leads`}
+          href={`${materialLineBasePath}/leads`}
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:border-blue-300 transition-colors"
         >
           <div className="flex items-center justify-between">
@@ -242,7 +255,7 @@ export default async function MaterialLinePage({ params }: Props) {
       {/* Quick Links */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
-          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/settings`}
+          href={`${materialLineBasePath}/settings`}
           className={`bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 transition-colors ${
             !materialLine.logo_url
               ? "border-amber-300 bg-amber-50"
@@ -264,7 +277,7 @@ export default async function MaterialLinePage({ params }: Props) {
           </p>
         </Link>
         <Link
-          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/domain`}
+          href={`${materialLineBasePath}/domain`}
           className={`bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 transition-colors ${
             !materialLine.custom_domain
               ? "border-amber-300 bg-amber-50"
@@ -288,7 +301,7 @@ export default async function MaterialLinePage({ params }: Props) {
           </p>
         </Link>
         <Link
-          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/slabs`}
+          href={`${materialLineBasePath}/slabs`}
           className={`bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 transition-colors ${
             materialCount === 0
               ? "border-amber-300 bg-amber-50"
@@ -312,7 +325,7 @@ export default async function MaterialLinePage({ params }: Props) {
           </p>
         </Link>
         <Link
-          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/kitchens`}
+          href={`${materialLineBasePath}/kitchens`}
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:border-blue-300 transition-colors"
         >
           <div className="flex items-start justify-between mb-2">
@@ -327,7 +340,7 @@ export default async function MaterialLinePage({ params }: Props) {
           </p>
         </Link>
         <Link
-          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/links`}
+          href={`${materialLineBasePath}/links`}
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:border-blue-300 transition-colors"
         >
           <div className="flex items-start justify-between mb-2">
