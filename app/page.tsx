@@ -8,6 +8,7 @@ import ResultDisplay from "@/components/ResultDisplay";
 import StepHeader from "@/components/StepHeader";
 import KitchenSelector from "@/components/KitchenSelector";
 import ThemeDebug from "@/components/ThemeDebug";
+import FreeResourceModal from "@/components/FreeResourceModal";
 import { trackEvent, trackABEvent } from "@/lib/posthog";
 import {
   getABVariant,
@@ -41,6 +42,7 @@ export default function Home() {
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showFreeResourceModal, setShowFreeResourceModal] = useState(false);
 
   // Dynamic slabs state
   const [dynamicSlabs, setDynamicSlabs] = useState<Slab[]>([]);
@@ -347,7 +349,26 @@ export default function Home() {
     [],
   );
 
-  const handleGenerate = async () => {
+  const getFreeResourceAnsweredKey = () =>
+    `free_resource_answered:${materialLine?.id || "default"}`;
+
+  const isFreeResourceConfigured = Boolean(
+    materialLine?.freeResourceEnabled &&
+    materialLine.freeResourceFileUrl &&
+    materialLine.freeResourceFileUrl.trim(),
+  );
+
+  const hasAnsweredFreeResource = () => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(getFreeResourceAnsweredKey()) === "1";
+  };
+
+  const markFreeResourceAnswered = () => {
+    if (typeof window === "undefined") return;
+    sessionStorage.setItem(getFreeResourceAnsweredKey(), "1");
+  };
+
+  const runGenerationFlow = async () => {
     if (!kitchenImage) {
       setError("Please upload a kitchen image");
       return;
@@ -439,6 +460,34 @@ export default function Home() {
     }
   };
 
+  const handleGenerate = async () => {
+    if (!kitchenImage) {
+      setError("Please upload a kitchen image");
+      return;
+    }
+    if (selectedSlabs.length === 0 && persistedResults.length === 0) {
+      setError("Please select at least one material to visualize");
+      return;
+    }
+
+    if (selectedSlabs.length === 0 && persistedResults.length > 0) {
+      setCurrentStep(3);
+      return;
+    }
+
+    void runGenerationFlow();
+
+    if (isFreeResourceConfigured && !hasAnsweredFreeResource()) {
+      setTimeout(() => {
+        setShowFreeResourceModal(true);
+      }, 0);
+      trackEvent("free_resource_modal_shown", {
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
+    }
+  };
+
   const handleReset = () => {
     // Go back to material selection but keep everything
     // Keep kitchenImage and persistedResults so user can view existing results later
@@ -511,7 +560,7 @@ export default function Home() {
 
             {/* Step 2: Material Selection */}
             {currentStep === 2 && (
-              <div className="animate-fade-in">
+              <div className="animate-fade-in pb-36 md:pb-40">
                 <StepHeader
                   instruction={stepInstructions[2]}
                   stepNumber={2}
@@ -694,6 +743,43 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        <FreeResourceModal
+          isOpen={showFreeResourceModal}
+          title={materialLine?.freeResourceTitle}
+          description={materialLine?.freeResourceDescription}
+          ctaLabel={materialLine?.freeResourceCtaLabel}
+          materialLineId={materialLine?.id}
+          onSkip={() => {
+            markFreeResourceAnswered();
+            setShowFreeResourceModal(false);
+            trackEvent("free_resource_skipped", {
+              materialLineId: materialLine?.id,
+              organizationId: materialLine?.organizationId,
+            });
+          }}
+          onSubmitted={() => {
+            markFreeResourceAnswered();
+            trackEvent("free_resource_submitted", {
+              materialLineId: materialLine?.id,
+              organizationId: materialLine?.organizationId,
+            });
+          }}
+          onSuccess={() => {
+            setShowFreeResourceModal(false);
+          }}
+          onEmailResult={(success) => {
+            trackEvent(
+              success
+                ? "free_resource_email_sent"
+                : "free_resource_email_failed",
+              {
+                materialLineId: materialLine?.id,
+                organizationId: materialLine?.organizationId,
+              },
+            );
+          }}
+        />
       </div>
 
       {/* Footer - Only show on steps 1 and 3 */}

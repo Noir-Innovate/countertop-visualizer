@@ -277,6 +277,30 @@ export default async function MaterialLinePage({ params }: Props) {
           </p>
         </Link>
         <Link
+          href={`${materialLineBasePath}/free-resource`}
+          className={`bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 transition-colors ${
+            !materialLine.free_resource_file_url
+              ? "border-amber-300 bg-amber-50"
+              : "border-slate-200"
+          }`}
+        >
+          <div className="flex items-start justify-between mb-2">
+            <h3 className="font-semibold text-slate-900">Free Resource</h3>
+            {!materialLine.free_resource_file_url && (
+              <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                Action Needed
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-slate-600">
+            {materialLine.free_resource_enabled
+              ? materialLine.free_resource_file_url
+                ? "Enabled and ready to collect emails"
+                : "Enabled, but upload a resource file"
+              : "Optional post-See It offer and email setup"}
+          </p>
+        </Link>
+        <Link
           href={`${materialLineBasePath}/domain`}
           className={`bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 transition-colors ${
             !materialLine.custom_domain

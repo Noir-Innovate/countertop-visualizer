@@ -20,6 +20,15 @@ export async function getMaterialLineFromHeaders(): Promise<MaterialLineConfig> 
     const value = headersList.get(key);
     return value && value.trim() ? value.trim() : fallback;
   };
+  const decodeHeaderValue = (key: string): string | null => {
+    const value = headersList.get(key);
+    if (!value) return null;
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
 
   // Parse kitchen images from header
   let kitchenImages: Array<{
@@ -52,6 +61,23 @@ export async function getMaterialLineFromHeaders(): Promise<MaterialLineConfig> 
     ),
     supabaseFolder: getHeaderValue("x-material-line-folder", "default"),
     kitchenImages,
+    freeResourceEnabled:
+      headersList.get("x-material-line-free-resource-enabled") === "true",
+    freeResourceTitle: decodeHeaderValue("x-material-line-free-resource-title"),
+    freeResourceDescription: decodeHeaderValue(
+      "x-material-line-free-resource-description",
+    ),
+    freeResourceEmailSubject: null,
+    freeResourceEmailBody: null,
+    freeResourceCtaLabel: decodeHeaderValue(
+      "x-material-line-free-resource-cta-label",
+    ),
+    freeResourceFileUrl: decodeHeaderValue(
+      "x-material-line-free-resource-file-url",
+    ),
+    freeResourceFileName: decodeHeaderValue(
+      "x-material-line-free-resource-file-name",
+    ),
   };
 }
 

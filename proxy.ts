@@ -22,6 +22,14 @@ interface MaterialLineConfig {
   accent_color: string;
   background_color: string;
   supabase_folder: string;
+  free_resource_enabled: boolean;
+  free_resource_title: string | null;
+  free_resource_description: string | null;
+  free_resource_email_subject: string | null;
+  free_resource_email_body: string | null;
+  free_resource_cta_label: string | null;
+  free_resource_file_url: string | null;
+  free_resource_file_name: string | null;
 }
 
 interface MaterialLineWithKitchens extends MaterialLineConfig {
@@ -231,6 +239,30 @@ export async function proxy(request: NextRequest) {
       supabaseResponse.headers.set(
         "x-material-line-kitchen-images",
         JSON.stringify(materialLine.kitchen_images || []),
+      );
+      supabaseResponse.headers.set(
+        "x-material-line-free-resource-enabled",
+        materialLine.free_resource_enabled ? "true" : "false",
+      );
+      supabaseResponse.headers.set(
+        "x-material-line-free-resource-title",
+        encodeURIComponent(materialLine.free_resource_title || ""),
+      );
+      supabaseResponse.headers.set(
+        "x-material-line-free-resource-description",
+        encodeURIComponent(materialLine.free_resource_description || ""),
+      );
+      supabaseResponse.headers.set(
+        "x-material-line-free-resource-cta-label",
+        encodeURIComponent(materialLine.free_resource_cta_label || ""),
+      );
+      supabaseResponse.headers.set(
+        "x-material-line-free-resource-file-url",
+        encodeURIComponent(materialLine.free_resource_file_url || ""),
+      );
+      supabaseResponse.headers.set(
+        "x-material-line-free-resource-file-name",
+        encodeURIComponent(materialLine.free_resource_file_name || ""),
       );
     } else if (!pathname.startsWith("/api")) {
       // If no material line found and not an API route, could redirect to error page

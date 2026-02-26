@@ -17,6 +17,14 @@ export interface MaterialLineConfig {
     title: string | null;
     order: number;
   }>;
+  freeResourceEnabled?: boolean;
+  freeResourceTitle?: string | null;
+  freeResourceDescription?: string | null;
+  freeResourceEmailSubject?: string | null;
+  freeResourceEmailBody?: string | null;
+  freeResourceCtaLabel?: string | null;
+  freeResourceFileUrl?: string | null;
+  freeResourceFileName?: string | null;
 }
 
 const MaterialLineContext = createContext<MaterialLineConfig | null>(null);
@@ -53,4 +61,12 @@ export const DEFAULT_MATERIAL_LINE_CONFIG: MaterialLineConfig = {
   backgroundColor: "#ffffff",
   supabaseFolder: "accent-countertops",
   kitchenImages: [],
+  freeResourceEnabled: false,
+  freeResourceTitle: null,
+  freeResourceDescription: null,
+  freeResourceEmailSubject: null,
+  freeResourceEmailBody: null,
+  freeResourceCtaLabel: null,
+  freeResourceFileUrl: null,
+  freeResourceFileName: null,
 };

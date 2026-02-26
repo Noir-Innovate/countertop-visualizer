@@ -115,7 +115,14 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const subscriptionResponse =
+        await stripe.subscriptions.retrieve(subscriptionId);
+      const subscription: any =
+        subscriptionResponse &&
+        typeof subscriptionResponse === "object" &&
+        "data" in subscriptionResponse
+          ? (subscriptionResponse as any).data
+          : subscriptionResponse;
       await serviceClient.from("organization_billing_accounts").upsert({
         organization_id: organizationId,
         stripe_customer_id: customerId,

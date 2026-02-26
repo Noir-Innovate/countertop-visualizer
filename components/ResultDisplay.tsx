@@ -37,7 +37,7 @@ export default function ResultDisplay({
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
     null,
   );
-  const [viewMode, setViewMode] = useState<ViewMode>("carousel");
+  const [viewMode, setViewMode] = useState<ViewMode>("compare");
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [compareLeftIndex, setCompareLeftIndex] = useState(0);
   const [compareRightIndex, setCompareRightIndex] = useState(1);

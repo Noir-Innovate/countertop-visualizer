@@ -6,7 +6,7 @@ function getResendClient() {
 
   if (!apiKey) {
     throw new Error(
-      "Resend API key not configured. Set RESEND_API_KEY environment variable."
+      "Resend API key not configured. Set RESEND_API_KEY environment variable.",
     );
   }
 
@@ -20,6 +20,15 @@ interface SendEmailParams {
   from?: string;
   replyTo?: string;
   senderName?: string;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // Send email via Resend
@@ -123,8 +132,8 @@ export async function sendInvitationEmail({
             ${
               inviterName ? `${inviterName} has` : "You have been"
             } invited to join <strong style="color: #0f172a;">${organizationName}</strong> as a <strong style="color: #0f172a;">${formatRole(
-    role
-  )}</strong>.
+              role,
+            )}</strong>.
           </p>
           
           <div style="margin: 32px 0;">
@@ -223,7 +232,7 @@ export async function sendLeadNotificationEmail({
                 </div>
               `
                   : originalImageUrl
-                  ? `
+                    ? `
                 <div>
                   <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Original Kitchen</h3>
                   <img 
@@ -233,8 +242,8 @@ export async function sendLeadNotificationEmail({
                   />
                 </div>
               `
-                  : kitchenImageUrl
-                  ? `
+                    : kitchenImageUrl
+                      ? `
                 <div>
                   <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Wants Quote For</h3>
                   <img 
@@ -244,7 +253,7 @@ export async function sendLeadNotificationEmail({
                   />
                 </div>
               `
-                  : ""
+                      : ""
               }
             </div>
           `
@@ -269,8 +278,8 @@ export async function sendLeadNotificationEmail({
                   <a href="mailto:${
                     leadInfo.email
                   }" style="color: #2563eb; text-decoration: none;">${
-    leadInfo.email
-  }</a>
+                    leadInfo.email
+                  }</a>
                 </td>
               </tr>
               ${
@@ -400,7 +409,7 @@ export async function sendUserQuoteConfirmationEmail({
                 </div>
               `
                   : originalImageUrl
-                  ? `
+                    ? `
                 <div>
                   <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Your Current Kitchen</h3>
                   <img 
@@ -410,8 +419,8 @@ export async function sendUserQuoteConfirmationEmail({
                   />
                 </div>
               `
-                  : kitchenImageUrl
-                  ? `
+                    : kitchenImageUrl
+                      ? `
                 <div>
                   <h3 style="color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Your Vision</h3>
                   <img 
@@ -421,7 +430,7 @@ export async function sendUserQuoteConfirmationEmail({
                   />
                 </div>
               `
-                  : ""
+                      : ""
               }
             </div>
           `
@@ -483,6 +492,86 @@ export async function sendUserQuoteConfirmationEmail({
     subject: `Your Quote Request - ${
       materialLineName || "Countertop Visualizer"
     }`,
+    html,
+    senderName,
+    replyTo,
+  });
+}
+
+export async function sendFreeResourceEmail({
+  to,
+  subject,
+  body,
+  resourceTitle,
+  resourceUrl,
+  ctaLabel,
+  buttonColor,
+  senderName,
+  replyTo,
+}: {
+  to: string;
+  subject: string;
+  body: string;
+  resourceTitle: string;
+  resourceUrl: string;
+  ctaLabel?: string;
+  buttonColor?: string;
+  senderName?: string;
+  replyTo?: string;
+}): Promise<{ success: boolean; error?: string; id?: string }> {
+  const safeSubject = escapeHtml(subject).replace(/\r?\n/g, " ");
+  const safeResourceTitle = escapeHtml(resourceTitle);
+  const safeBody = escapeHtml(body).replace(/\r?\n/g, "<br />");
+  const safeUrl = escapeHtml(resourceUrl);
+  const safeCta = escapeHtml(ctaLabel || "Access your free resource");
+  const normalizedButtonColor =
+    typeof buttonColor === "string"
+      ? buttonColor.trim().startsWith("#")
+        ? buttonColor.trim()
+        : `#${buttonColor.trim()}`
+      : "";
+  const safeButtonColor = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(
+    normalizedButtonColor,
+  )
+    ? normalizedButtonColor
+    : "#2563eb";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${safeSubject}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #334155; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: white; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+          <h1 style="color: #0f172a; font-size: 24px; font-weight: 600; margin-top: 0;">
+            ${safeResourceTitle}
+          </h1>
+          <p style="color: #64748b; font-size: 16px; margin: 16px 0;">
+            ${safeBody}
+          </p>
+          <div style="margin: 28px 0;">
+            <a
+              href="${safeUrl}"
+              style="display: inline-block; background: ${safeButtonColor}; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;"
+            >
+              ${safeCta}
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 12px; margin-top: 20px; word-break: break-all;">
+            If the button does not work, copy and paste this URL into your browser:<br />
+            ${safeUrl}
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject,
     html,
     senderName,
     replyTo,
