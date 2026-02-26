@@ -8,7 +8,7 @@ import { PostHog } from "posthog-node";
 import { uploadLeadImage } from "@/lib/storage";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NoirMessenger } from "@/lib/noir-sms";
-import { DEFAULT_LEAD_PRICE_CENTS } from "@/lib/billing";
+import { trackLeadBillingUsage } from "@/lib/billing-usage";
 
 interface LeadData {
   name: string;
@@ -301,31 +301,16 @@ export async function POST(request: NextRequest) {
 
     // Every successfully submitted lead is billable; store one usage ledger row per lead.
     if (organizationId && lead?.id) {
-      const { data: leadPricing } = await supabase
-        .from("organization_billing_pricing")
-        .select("lead_price_cents")
-        .eq("organization_id", organizationId)
-        .lte("effective_at", new Date().toISOString())
-        .order("effective_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const trackedUsage = await trackLeadBillingUsage({
+        supabase,
+        leadId: lead.id,
+        organizationId,
+        materialLineId,
+        occurredAtIso: lead.created_at || new Date().toISOString(),
+      });
 
-      const leadPriceCents =
-        leadPricing?.lead_price_cents ?? DEFAULT_LEAD_PRICE_CENTS;
-      const { error: usageInsertError } = await supabase
-        .from("organization_billing_usage")
-        .insert({
-          organization_id: organizationId,
-          lead_id: lead.id,
-          material_line_id: materialLineId,
-          lead_price_cents: leadPriceCents,
-          billed_amount_cents: leadPriceCents,
-          occurred_at: new Date().toISOString(),
-        });
-
-      if (usageInsertError) {
-        // Unique(lead_id) prevents duplicate billing rows on retries.
-        console.error("Failed to write billing usage row:", usageInsertError);
+      if (!trackedUsage.tracked) {
+        console.error("Failed to write billing usage row:", trackedUsage.error);
       }
     }
 
