@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
         const subscriptionId =
           billingAccountResponse.data.internal_plan_subscription_id;
 
-        const subscription = subscriptionId
+        const subscriptionResponse = subscriptionId
           ? await stripe.subscriptions.retrieve(subscriptionId)
           : (
               await stripe.subscriptions.list({
@@ -150,6 +150,13 @@ export async function GET(request: NextRequest) {
                 limit: 1,
               })
             ).data[0];
+
+        const subscription: any =
+          subscriptionResponse &&
+          typeof subscriptionResponse === "object" &&
+          "data" in subscriptionResponse
+            ? (subscriptionResponse as any).data
+            : subscriptionResponse;
 
         if (subscription) {
           status = normalizeInternalPlanStatus(subscription.status);
