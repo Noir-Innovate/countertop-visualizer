@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { trackLeadBillingUsage } from "@/lib/billing-usage";
 
 interface ToggleExclusionBody {
   organizationId: string;
@@ -25,6 +27,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const supabase = await createClient();
+    const serviceClient = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    );
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -45,9 +51,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { data: lead } = await supabase
+    const { data: lead } = await serviceClient
       .from("leads")
-      .select("id, organization_id, material_line_id")
+      .select("id, organization_id, material_line_id, created_at")
       .eq("id", leadId)
       .single();
 
@@ -70,7 +76,44 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const nowIso = new Date().toISOString();
-    const { error } = await supabase
+    const { data: existingUsage, error: usageLookupError } = await serviceClient
+      .from("organization_billing_usage")
+      .select("id")
+      .eq("lead_id", leadId)
+      .eq("organization_id", body.organizationId)
+      .maybeSingle();
+
+    if (usageLookupError) {
+      return NextResponse.json(
+        {
+          error: `Failed to load billing usage row: ${usageLookupError.message}`,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (!existingUsage) {
+      const trackingResult = await trackLeadBillingUsage({
+        supabase: serviceClient,
+        leadId,
+        organizationId: body.organizationId,
+        materialLineId: lead.material_line_id,
+        occurredAtIso: lead.created_at || nowIso,
+      });
+
+      if (!trackingResult.tracked) {
+        return NextResponse.json(
+          {
+            error: `Failed to create billing usage row: ${
+              trackingResult.error?.message || "unknown error"
+            }`,
+          },
+          { status: 500 },
+        );
+      }
+    }
+
+    const { data: updatedRows, error } = await serviceClient
       .from("organization_billing_usage")
       .update({
         excluded_from_billing: body.excludedFromBilling,
@@ -81,12 +124,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         excluded_by: body.excludedFromBilling ? user.id : null,
       })
       .eq("lead_id", leadId)
-      .eq("organization_id", body.organizationId);
+      .eq("organization_id", body.organizationId)
+      .select("id");
 
     if (error) {
       return NextResponse.json(
         { error: `Failed to update billing exclusion: ${error.message}` },
         { status: 500 },
+      );
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return NextResponse.json(
+        { error: "No billing usage rows were updated for this lead" },
+        { status: 404 },
       );
     }
 
