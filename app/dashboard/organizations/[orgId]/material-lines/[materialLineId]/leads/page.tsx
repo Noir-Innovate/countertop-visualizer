@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import BillingExclusionToggle from "./components/BillingExclusionToggle";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -53,6 +54,12 @@ export default async function LeadsPage({ params, searchParams }: Props) {
     notFound();
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_super_admin")
+    .eq("id", user.id)
+    .single();
+
   // Fetch material line
   const { data: materialLine } = await supabase
     .from("material_lines")
@@ -87,6 +94,33 @@ export default async function LeadsPage({ params, searchParams }: Props) {
     .eq("material_line_id", materialLineId)
     .order("created_at", { ascending: false })
     .range(offset, offset + LEADS_PER_PAGE - 1);
+
+  const leadIds = (leads || []).map((lead) => lead.id);
+  const usageByLeadId = new Map<
+    string,
+    {
+      excluded_from_billing: boolean;
+      stripe_invoice_id: string | null;
+      stripe_invoice_status: string | null;
+    }
+  >();
+
+  if (leadIds.length > 0) {
+    const { data: usageRows } = await supabase
+      .from("organization_billing_usage")
+      .select(
+        "lead_id, excluded_from_billing, stripe_invoice_id, stripe_invoice_status",
+      )
+      .in("lead_id", leadIds);
+
+    for (const usageRow of usageRows || []) {
+      usageByLeadId.set(usageRow.lead_id, {
+        excluded_from_billing: usageRow.excluded_from_billing || false,
+        stripe_invoice_id: usageRow.stripe_invoice_id || null,
+        stripe_invoice_status: usageRow.stripe_invoice_status || null,
+      });
+    }
+  }
 
   const totalPages = Math.ceil((totalLeads || 0) / LEADS_PER_PAGE);
 
@@ -145,6 +179,9 @@ export default async function LeadsPage({ params, searchParams }: Props) {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Date Submitted
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Billing
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -183,19 +220,79 @@ export default async function LeadsPage({ params, searchParams }: Props) {
                         })}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {(() => {
+                        const usage = usageByLeadId.get(lead.id);
+                        if (!usage) {
+                          return (
+                            <span className="text-xs text-slate-500">
+                              Not tracked
+                            </span>
+                          );
+                        }
+                        if (usage.excluded_from_billing) {
+                          return (
+                            <span className="text-xs font-medium text-amber-700">
+                              Excluded
+                            </span>
+                          );
+                        }
+                        if (usage.stripe_invoice_id) {
+                          if (usage.stripe_invoice_status === "paid") {
+                            return (
+                              <span className="text-xs font-medium text-emerald-700">
+                                Paid
+                              </span>
+                            );
+                          }
+                          if (
+                            usage.stripe_invoice_status === "payment_failed"
+                          ) {
+                            return (
+                              <span className="text-xs font-medium text-rose-700">
+                                Payment Failed
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="text-xs font-medium text-sky-700">
+                              Invoice Created
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="text-xs font-medium text-blue-700">
+                            Billable
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/leads/${lead.id}`}
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        View Details
-                      </Link>
+                      <div className="inline-flex items-center gap-3">
+                        {profile?.is_super_admin && (
+                          <BillingExclusionToggle
+                            organizationId={orgId}
+                            materialLineId={materialLineId}
+                            leadId={lead.id}
+                            excludedFromBilling={
+                              usageByLeadId.get(lead.id)
+                                ?.excluded_from_billing || false
+                            }
+                          />
+                        )}
+                        <Link
+                          href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}/leads/${lead.id}`}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          View Details
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <p className="text-slate-500">No leads yet</p>
                   </td>
                 </tr>

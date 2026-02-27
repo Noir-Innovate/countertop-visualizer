@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/billing/invoice-lead-usage",
+      "schedule": "5 0 1 * *"
+    }
+  ]
+}

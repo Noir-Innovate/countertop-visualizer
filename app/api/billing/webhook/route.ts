@@ -17,6 +17,47 @@ function unixToIso(unixTimestamp: number | null | undefined) {
   return new Date(unixTimestamp * 1000).toISOString();
 }
 
+async function ensureCustomerDefaultPaymentMethodFromSession(
+  stripe: ReturnType<typeof getStripeServerClient>,
+  session: any,
+) {
+  const customerId =
+    typeof session.customer === "string"
+      ? session.customer
+      : session.customer?.id;
+  if (!customerId || !session.setup_intent) return;
+
+  const setupIntent =
+    typeof session.setup_intent === "string"
+      ? await stripe.setupIntents.retrieve(session.setup_intent)
+      : session.setup_intent;
+
+  const paymentMethodId =
+    typeof setupIntent?.payment_method === "string"
+      ? setupIntent.payment_method
+      : setupIntent?.payment_method?.id;
+
+  if (!paymentMethodId) return;
+
+  try {
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customerId,
+    });
+  } catch (error) {
+    const maybeStripeError = error as { code?: string };
+    if (
+      maybeStripeError?.code !== "resource_already_exists" &&
+      maybeStripeError?.code !== "payment_method_unexpected_state"
+    ) {
+      throw error;
+    }
+  }
+
+  await stripe.customers.update(customerId, {
+    invoice_settings: { default_payment_method: paymentMethodId },
+  });
+}
+
 async function upsertSubscriptionState(
   supabase: any,
   organizationId: string,
@@ -116,6 +157,7 @@ export async function POST(request: NextRequest) {
           session.mode === "setup" &&
           session.metadata?.purpose === "lead_billing_setup"
         ) {
+          await ensureCustomerDefaultPaymentMethodFromSession(stripe, session);
           const customerId =
             typeof session.customer === "string"
               ? session.customer
@@ -154,6 +196,29 @@ export async function POST(request: NextRequest) {
       case "invoice.paid":
       case "invoice.payment_failed": {
         const invoice = event.data.object as any;
+        const isLeadUsageInvoice =
+          invoice.metadata?.chargeType === "lead_usage";
+        if (isLeadUsageInvoice) {
+          const paidAtIso = invoice.status_transitions?.paid_at
+            ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+            : event.type === "invoice.paid"
+              ? new Date().toISOString()
+              : null;
+          const { error } = await supabase
+            .from("organization_billing_usage")
+            .update({
+              stripe_invoice_status:
+                event.type === "invoice.paid" ? "paid" : "payment_failed",
+              stripe_invoice_paid_at: paidAtIso,
+            })
+            .eq("stripe_invoice_id", invoice.id);
+          if (error) {
+            throw new Error(
+              `Failed to update lead usage payment status: ${error.message}`,
+            );
+          }
+        }
+
         const subscriptionId =
           typeof invoice.subscription === "string"
             ? invoice.subscription

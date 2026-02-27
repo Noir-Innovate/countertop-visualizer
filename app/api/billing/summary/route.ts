@@ -6,6 +6,7 @@ import {
   INTERNAL_LINE_MONTHLY_PRICE_CENTS,
   DEFAULT_LEAD_PRICE_CENTS,
 } from "@/lib/billing";
+import { getCurrentMonthPeriod } from "@/lib/lead-invoicing";
 
 function normalizeInternalPlanStatus(status: string | null | undefined) {
   if (!status) return "inactive";
@@ -89,6 +90,8 @@ export async function GET(request: NextRequest) {
         .from("organization_billing_usage")
         .select("billed_amount_cents, occurred_at")
         .eq("organization_id", organizationId)
+        .eq("excluded_from_billing", false)
+        .is("invoiced_at", null)
         .gte("occurred_at", monthStartIso),
       supabase
         .from("material_lines")
@@ -117,6 +120,7 @@ export async function GET(request: NextRequest) {
       (sum, row) => sum + (row.billed_amount_cents || 0),
       0,
     );
+    const { endIso: leadPeriodEndIso } = getCurrentMonthPeriod(new Date());
 
     let status =
       billingAccountResponse.data?.internal_plan_status ||
@@ -197,6 +201,11 @@ export async function GET(request: NextRequest) {
       usageMonthToDate: {
         leadCount: monthLeadCount,
         totalAmountCents: monthLeadTotalCents,
+      },
+      leadBilling: {
+        periodStartIso: monthStartIso,
+        periodEndIso: leadPeriodEndIso,
+        nextInvoiceRunAt: leadPeriodEndIso,
       },
     });
   } catch (error) {

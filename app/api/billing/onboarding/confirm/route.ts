@@ -12,6 +12,47 @@ function normalizeInternalPlanStatus(status: string | null | undefined) {
   return "inactive";
 }
 
+async function ensureCustomerDefaultPaymentMethod(
+  stripe: ReturnType<typeof getStripeServerClient>,
+  customerId: string,
+  setupIntentRef: any,
+) {
+  if (!setupIntentRef) return null;
+
+  const setupIntent =
+    typeof setupIntentRef === "string"
+      ? await stripe.setupIntents.retrieve(setupIntentRef)
+      : setupIntentRef;
+
+  const paymentMethodId =
+    typeof setupIntent?.payment_method === "string"
+      ? setupIntent.payment_method
+      : setupIntent?.payment_method?.id;
+
+  if (!paymentMethodId) return null;
+
+  try {
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customerId,
+    });
+  } catch (error) {
+    const maybeStripeError = error as { code?: string; message?: string };
+    // Ignore already-attached/payment-method-ownership errors and proceed to set default.
+    if (
+      maybeStripeError?.code !== "resource_already_exists" &&
+      maybeStripeError?.code !== "payment_method_unexpected_state"
+    ) {
+      throw error;
+    }
+  }
+
+  await stripe.customers.update(customerId, {
+    invoice_settings: { default_payment_method: paymentMethodId },
+  });
+
+  return paymentMethodId;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const organizationId = request.nextUrl.searchParams.get("organizationId");
@@ -77,6 +118,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (lineKind === "external") {
+      await ensureCustomerDefaultPaymentMethod(
+        stripe,
+        customerId,
+        session.setup_intent,
+      );
+
       const paymentMethods = await stripe.customers.listPaymentMethods(
         customerId,
         {

@@ -31,6 +31,11 @@ interface BillingSummary {
     leadCount: number;
     totalAmountCents: number;
   };
+  leadBilling: {
+    periodStartIso: string;
+    periodEndIso: string;
+    nextInvoiceRunAt: string;
+  };
 }
 
 function formatUsd(cents: number | null) {
@@ -51,6 +56,7 @@ export default function OrganizationBillingPage({ params }: Props) {
   const [savingPrice, setSavingPrice] = useState(false);
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [loadingPortal, setLoadingPortal] = useState(false);
+  const [runningUsageInvoice, setRunningUsageInvoice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [leadPriceInput, setLeadPriceInput] = useState("");
@@ -66,6 +72,7 @@ export default function OrganizationBillingPage({ params }: Props) {
     internalPlanStatus,
   );
   const showStartOrReactivate = !isPlanActiveLike;
+  const canRunManualUsageInvoice = process.env.NODE_ENV !== "production";
 
   const refreshData = async () => {
     setError(null);
@@ -193,6 +200,50 @@ export default function OrganizationBillingPage({ params }: Props) {
       setError(message);
       toast.error(message);
       setLoadingPortal(false);
+    }
+  };
+
+  const runUsageInvoiceNow = async () => {
+    if (!summary) return;
+    setRunningUsageInvoice(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/billing/invoice-lead-usage/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: orgId,
+        }),
+      });
+
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "Failed to run usage invoice");
+      }
+
+      const orgResult = (body.results || []).find(
+        (row: { organizationId: string }) => row.organizationId === orgId,
+      );
+
+      if (!orgResult || orgResult.skipped) {
+        toast.success(
+          orgResult?.reason
+            ? `Usage invoice skipped: ${orgResult.reason}`
+            : "Usage invoice run completed",
+        );
+      } else {
+        toast.success("Usage invoice created in Stripe");
+      }
+
+      await refreshData();
+      router.refresh();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to run usage invoice";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setRunningUsageInvoice(false);
     }
   };
 
@@ -358,18 +409,32 @@ export default function OrganizationBillingPage({ params }: Props) {
                       : ""}
                   </p>
                 </div>
-                <div className="p-4 rounded-lg border border-slate-200">
-                  <p className="text-xs text-slate-500">Month-to-date Leads</p>
+                <Link
+                  href={`/dashboard/organizations/${orgId}/leads`}
+                  className="block p-4 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition-colors"
+                >
+                  <p className="text-xs text-slate-500">
+                    Uninvoiced Month-to-date Leads
+                  </p>
                   <p className="text-2xl font-bold text-slate-900">
                     {summary.usageMonthToDate.leadCount}
                   </p>
                   <p className="text-xs text-slate-500 mt-3">
-                    Month-to-date Lead Charges
+                    Uninvoiced Month-to-date Lead Charges
                   </p>
                   <p className="text-2xl font-bold text-slate-900">
                     {formatUsd(summary.usageMonthToDate.totalAmountCents)}
                   </p>
-                </div>
+                  <p className="text-xs text-slate-500 mt-3">
+                    Lead Billing Period Ends
+                  </p>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {formatDate(summary.leadBilling.periodEndIso)}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Lead usage is invoiced automatically in arrears each month.
+                  </p>
+                </Link>
               </div>
 
               {canEditLeadPricing && (
@@ -381,6 +446,21 @@ export default function OrganizationBillingPage({ params }: Props) {
                     className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
                     {savingPrice ? "Saving..." : "Save Lead Price"}
+                  </button>
+                </div>
+              )}
+
+              {canRunManualUsageInvoice && (
+                <div className="mt-5 pt-5 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={runUsageInvoiceNow}
+                    disabled={runningUsageInvoice}
+                    className="px-5 py-2.5 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {runningUsageInvoice
+                      ? "Running Usage Invoice..."
+                      : "Run Usage Invoice Now (Non-Prod)"}
                   </button>
                 </div>
               )}
