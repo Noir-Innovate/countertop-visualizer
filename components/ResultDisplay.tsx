@@ -153,7 +153,30 @@ export default function ResultDisplay({
     });
   };
 
-  const handleDownload = (imageData: string, slabName: string) => {
+  const trackDownload = (
+    imageId: string,
+    imageName: string,
+    source: "carousel" | "compare" | "modal",
+  ) => {
+    trackEvent("countertop_downloaded", {
+      slabId: imageId,
+      slabName: imageName,
+      source,
+      materialLineId: materialLine?.id,
+      materialLineName: materialLine?.name,
+      materialLineSlug: materialLine?.slug,
+      organizationId: materialLine?.organizationId,
+    });
+  };
+
+  const handleDownload = (
+    imageId: string,
+    imageData: string,
+    slabName: string,
+    source: "carousel" | "compare" | "modal",
+  ) => {
+    trackDownload(imageId, slabName, source);
+
     const link = document.createElement("a");
     link.href = `data:image/png;base64,${imageData}`;
     link.download = `countertop-${slabName
@@ -298,7 +321,12 @@ export default function ResultDisplay({
                   // Find the result to get base64 data
                   const result = allResults.find((r) => r.slabId === imageId);
                   if (result?.imageData) {
-                    handleDownload(result.imageData, imageName);
+                    handleDownload(
+                      imageId,
+                      result.imageData,
+                      imageName,
+                      "carousel",
+                    );
                   }
                 }
               }}
@@ -328,7 +356,12 @@ export default function ResultDisplay({
                   // Find the result to get base64 data
                   const result = allResults.find((r) => r.slabId === imageId);
                   if (result?.imageData) {
-                    handleDownload(result.imageData, imageName);
+                    handleDownload(
+                      imageId,
+                      result.imageData,
+                      imageName,
+                      "compare",
+                    );
                   }
                 }
               }}
@@ -372,7 +405,7 @@ export default function ResultDisplay({
               // Find the result to get base64 data
               const result = allResults.find((r) => r.slabId === imageId);
               if (result?.imageData) {
-                handleDownload(result.imageData, imageName);
+                handleDownload(imageId, result.imageData, imageName, "modal");
               }
             }
           }}

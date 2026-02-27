@@ -315,6 +315,19 @@ export default function AdminAnalyticsClient() {
   const sawIt = useAdminEventCount("saw_it", filters);
   const viewModeChanged = useAdminEventCount("view_mode_changed", filters);
   const materialViewed = useAdminEventCount("material_viewed", filters);
+  const countertopShared = useAdminEventCount("countertop_shared", filters);
+  const countertopDownloaded = useAdminEventCount(
+    "countertop_downloaded",
+    filters,
+  );
+  const freeResourceAccepted = useAdminEventCount(
+    "free_resource_submitted",
+    filters,
+  );
+  const freeResourceRejected = useAdminEventCount(
+    "free_resource_skipped",
+    filters,
+  );
   const leadFormSubmitted = useAdminEventCount("lead_form_submitted", filters);
   const verificationSuccessful = useAdminEventCount(
     "verification_successful",
@@ -576,7 +589,33 @@ export default function AdminAnalyticsClient() {
               description='Users clicked "Get Quote"'
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StepCard
+              label="Countertop Shared"
+              count={countertopShared.count}
+              loading={countertopShared.loading}
+              description="Users pressed share on a generated countertop"
+            />
+            <StepCard
+              label="Countertop Downloaded"
+              count={countertopDownloaded.count}
+              loading={countertopDownloaded.loading}
+              description="Users pressed download on a generated countertop"
+            />
+            <StepCard
+              label="Free Resource Accepted"
+              count={freeResourceAccepted.count}
+              loading={freeResourceAccepted.loading}
+              description="Users submitted email to receive the free resource"
+            />
+            <StepCard
+              label="Free Resource Rejected"
+              count={freeResourceRejected.count}
+              loading={freeResourceRejected.loading}
+              description="Users dismissed the free resource prompt"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <StepCard
               label="Phone Verified"
               count={verificationSuccessful.count}

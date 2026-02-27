@@ -121,6 +121,8 @@ export default function ImageComparison({
         slabName: image.name,
         isOriginal: image.isOriginal || false,
         materialLineId: materialLine?.id,
+        materialLineName: materialLine?.name,
+        materialLineSlug: materialLine?.slug,
         organizationId: materialLine?.organizationId,
       });
 
@@ -485,7 +487,7 @@ export default function ImageComparison({
                     }
                     className="flex-1 px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-1.5"
                   >
-                    Get Quote
+                    Get The Price
                     <svg
                       className="w-4 h-4"
                       fill="none"
@@ -582,7 +584,7 @@ export default function ImageComparison({
                     }
                     className="flex-1 px-3 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-1.5"
                   >
-                    Get Quote
+                    Get The Price
                     <svg
                       className="w-4 h-4"
                       fill="none"
