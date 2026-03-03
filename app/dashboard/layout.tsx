@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { isSuperAdmin } from "@/lib/admin-auth";
 import DashboardNav from "./components/DashboardNav";
+
+export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({
   children,
@@ -36,7 +37,7 @@ export default async function DashboardLayout({
 
     let organizations: { id: string; name: string; role: string }[] = [];
 
-    if (await isSuperAdmin()) {
+    if (profile?.is_super_admin) {
       // Super admins see all organizations
       const service = await createServiceClient();
       const { data: orgs } = await service

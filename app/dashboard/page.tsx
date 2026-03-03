@@ -2,8 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getSupabaseEventCounts } from "@/lib/analytics-server";
-import { isSuperAdmin } from "@/lib/admin-auth";
 import DashboardContent from "./components/DashboardContent";
+
+export const dynamic = "force-dynamic";
 
 interface MaterialLine {
   id: string;
@@ -32,7 +33,13 @@ export default async function DashboardPage() {
 
   let organizations: Organization[] = [];
 
-  if (await isSuperAdmin()) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_super_admin")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.is_super_admin) {
     // Super admins see all organizations and material lines
     const service = await createServiceClient();
     const { data: orgs } = await service
