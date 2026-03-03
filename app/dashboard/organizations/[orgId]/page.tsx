@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseEventCounts } from "@/lib/analytics-server";
 import { getMaterialLineBasePath } from "@/lib/material-line-path";
+import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -19,20 +21,17 @@ export default async function OrganizationPage({ params }: Props) {
     redirect("/dashboard/login");
   }
 
-  // Verify user has access to this org
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", orgId)
-    .single();
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     notFound();
   }
 
+  // Super admins use service client to bypass RLS; members use anon client
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
+
   // Fetch organization with material lines
-  const { data: org } = await supabase
+  const { data: org } = await db
     .from("organizations")
     .select(
       `
@@ -100,11 +99,13 @@ export default async function OrganizationPage({ params }: Props) {
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{org.name}</h1>
           <p className="text-slate-600 mt-1">
-            Your role: {formatRole(membership.role)}
+            Your role: {formatRole(access.role)}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {(membership.role === "owner" || membership.role === "admin") && (
+          {(access.role === "owner" ||
+            access.role === "admin" ||
+            access.role === "super_admin") && (
             <>
               <Link
                 href={`/dashboard/organizations/${orgId}/settings`}
@@ -320,7 +321,9 @@ export default async function OrganizationPage({ params }: Props) {
       <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Team</h2>
-          {(membership.role === "owner" || membership.role === "admin") && (
+          {(access.role === "owner" ||
+            access.role === "admin" ||
+            access.role === "super_admin") && (
             <Link
               href={`/dashboard/organizations/${orgId}/team`}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"

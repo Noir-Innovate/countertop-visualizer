@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -8,6 +9,7 @@ import GeneralAnalytics from "./components/GeneralAnalytics";
 import Step1Analytics from "./components/Step1Analytics";
 import Step2Analytics from "./components/Step2Analytics";
 import Step3Analytics from "./components/Step3Analytics";
+import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -41,20 +43,16 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
     redirect("/dashboard/login");
   }
 
-  // Verify user has access to this org
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", orgId)
-    .single();
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     notFound();
   }
 
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
+
   // Fetch material line
-  const { data: materialLine } = await supabase
+  const { data: materialLine } = await db
     .from("material_lines")
     .select("*")
     .eq("id", materialLineId)
@@ -66,7 +64,7 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
   }
 
   // Fetch organization name
-  const { data: org } = await supabase
+  const { data: org } = await db
     .from("organizations")
     .select("name")
     .eq("id", orgId)

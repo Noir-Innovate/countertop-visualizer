@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import MemberList from "./components/MemberList";
 import InviteMemberButton from "./components/InviteMemberButton";
+import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -20,24 +22,26 @@ export default async function TeamPage({ params }: Props) {
     redirect("/dashboard/login");
   }
 
-  // Verify user has access to this org and is owner or admin
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", orgId)
-    .single();
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     notFound();
   }
 
-  if (membership.role !== "owner" && membership.role !== "admin") {
+  // Non-super-admins must be owner or admin to access team
+  if (
+    access.role !== "super_admin" &&
+    access.role !== "owner" &&
+    access.role !== "admin"
+  ) {
     redirect(`/dashboard/organizations/${orgId}`);
   }
 
+  // Super admins use service client to bypass RLS
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
+
   // Fetch organization
-  const { data: org } = await supabase
+  const { data: org } = await db
     .from("organizations")
     .select("id, name")
     .eq("id", orgId)
@@ -149,7 +153,7 @@ export default async function TeamPage({ params }: Props) {
             members={membersWithEmails}
             invitations={invitations || []}
             currentUserId={user.id}
-            currentUserRole={membership.role}
+            currentUserRole={access.role}
           />
         </div>
       )}

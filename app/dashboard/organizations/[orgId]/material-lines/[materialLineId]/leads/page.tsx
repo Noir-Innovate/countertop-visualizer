@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import BillingExclusionToggle from "./components/BillingExclusionToggle";
+import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -42,17 +44,13 @@ export default async function LeadsPage({ params, searchParams }: Props) {
     redirect("/dashboard/login");
   }
 
-  // Verify user has access to this org
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", orgId)
-    .single();
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     notFound();
   }
+
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -61,7 +59,7 @@ export default async function LeadsPage({ params, searchParams }: Props) {
     .single();
 
   // Fetch material line
-  const { data: materialLine } = await supabase
+  const { data: materialLine } = await db
     .from("material_lines")
     .select("*")
     .eq("id", materialLineId)
@@ -73,20 +71,20 @@ export default async function LeadsPage({ params, searchParams }: Props) {
   }
 
   // Fetch organization name
-  const { data: org } = await supabase
+  const { data: org } = await db
     .from("organizations")
     .select("name")
     .eq("id", orgId)
     .single();
 
   // Fetch total count
-  const { count: totalLeads } = await supabase
+  const { count: totalLeads } = await db
     .from("leads")
     .select("*", { count: "exact", head: true })
     .eq("material_line_id", materialLineId);
 
   // Fetch leads with pagination (include attribution for Source column)
-  const { data: leads } = await supabase
+  const { data: leads } = await db
     .from("leads")
     .select(
       "id, name, email, phone, created_at, selected_slab_id, utm_source, utm_medium, utm_campaign, referrer",
@@ -106,7 +104,7 @@ export default async function LeadsPage({ params, searchParams }: Props) {
   >();
 
   if (leadIds.length > 0) {
-    const { data: usageRows } = await supabase
+    const { data: usageRows } = await db
       .from("organization_billing_usage")
       .select(
         "lead_id, excluded_from_billing, stripe_invoice_id, stripe_invoice_status",

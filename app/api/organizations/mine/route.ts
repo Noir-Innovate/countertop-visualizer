@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { isSuperAdmin } from "@/lib/admin-auth";
 
 export async function GET() {
   try {
@@ -11,6 +13,31 @@ export async function GET() {
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (await isSuperAdmin()) {
+      // Super admins get all organizations
+      const service = await createServiceClient();
+      const { data: orgs, error } = await service
+        .from("organizations")
+        .select("id, name")
+        .order("name");
+
+      if (error) {
+        console.error("Fetch orgs error (super admin):", error);
+        return NextResponse.json(
+          { error: "Failed to fetch organizations" },
+          { status: 500 },
+        );
+      }
+
+      const organizations = (orgs ?? []).map((o) => ({
+        id: o.id,
+        name: o.name,
+        role: "super_admin",
+      }));
+
+      return NextResponse.json(organizations);
     }
 
     const { data: memberships, error: membershipsError } = await supabase

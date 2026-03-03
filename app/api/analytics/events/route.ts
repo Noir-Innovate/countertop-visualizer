@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseEventData } from "@/lib/analytics-server";
+import { getMaterialLineAccess } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,27 +29,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: materialLine } = await supabase
-      .from("material_lines")
-      .select("organization_id")
-      .eq("id", materialLineId)
-      .single();
-
-    if (!materialLine) {
-      return NextResponse.json(
-        { error: "Material line not found" },
-        { status: 404 },
-      );
-    }
-
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("profile_id", user.id)
-      .eq("organization_id", materialLine.organization_id)
-      .single();
-
-    if (!membership) {
+    const access = await getMaterialLineAccess(materialLineId);
+    if (!access?.allowed) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 

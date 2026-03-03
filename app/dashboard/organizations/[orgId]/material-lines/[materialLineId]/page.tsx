@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import NotificationButton from "./components/NotificationButton";
 import NotificationList from "./components/NotificationList";
 import DuplicateLineButton from "./components/DuplicateLineButton";
 import { getMaterialLineBasePath } from "@/lib/material-line-path";
+import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -21,20 +23,16 @@ export default async function MaterialLinePage({ params }: Props) {
     redirect("/dashboard/login");
   }
 
-  // Verify user has access to this org
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", orgId)
-    .single();
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     notFound();
   }
 
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
+
   // Fetch material line
-  const { data: materialLine } = await supabase
+  const { data: materialLine } = await db
     .from("material_lines")
     .select("*")
     .eq("id", materialLineId)
@@ -53,7 +51,7 @@ export default async function MaterialLinePage({ params }: Props) {
     .single();
 
   // Check if materials exist
-  const { data: materialFiles } = await supabase.storage
+  const { data: materialFiles } = await db.storage
     .from("public-assets")
     .list(materialLine.supabase_folder);
 
@@ -63,13 +61,13 @@ export default async function MaterialLinePage({ params }: Props) {
     ).length || 0;
 
   // Check if kitchen images exist
-  const { count: kitchenImageCount } = await supabase
+  const { count: kitchenImageCount } = await db
     .from("kitchen_images")
     .select("*", { count: "exact", head: true })
     .eq("material_line_id", materialLineId);
 
   // Fetch total leads count
-  const { count: totalLeads } = await supabase
+  const { count: totalLeads } = await db
     .from("leads")
     .select("*", { count: "exact", head: true })
     .eq("material_line_id", materialLineId);
@@ -137,7 +135,9 @@ export default async function MaterialLinePage({ params }: Props) {
               </svg>
             </a>
           </div>
-          {(membership.role === "owner" || membership.role === "admin") && (
+          {(access.role === "owner" ||
+            access.role === "admin" ||
+            access.role === "super_admin") && (
             <div className="flex items-center gap-3">
               <DuplicateLineButton
                 materialLineId={materialLineId}
@@ -233,8 +233,10 @@ export default async function MaterialLinePage({ params }: Props) {
         </Link>
       </div>
 
-      {/* Lead Notifications - Only visible to owners/admins */}
-      {(membership.role === "owner" || membership.role === "admin") && (
+      {/* Lead Notifications - Only visible to owners/admins/super_admins */}
+      {(access.role === "owner" ||
+        access.role === "admin" ||
+        access.role === "super_admin") && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>

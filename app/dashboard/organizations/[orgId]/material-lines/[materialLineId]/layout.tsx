@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { getOrgAccess } from "@/lib/admin-auth";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -22,18 +24,15 @@ export default async function MaterialLineLayout({
     redirect("/dashboard/login");
   }
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", orgId)
-    .single();
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     redirect("/dashboard");
   }
 
-  const { data: materialLine } = await supabase
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
+
+  const { data: materialLine } = await db
     .from("material_lines")
     .select("id, line_kind")
     .eq("id", materialLineId)
@@ -48,7 +47,7 @@ export default async function MaterialLineLayout({
     return <>{children}</>;
   }
 
-  const { data: billingAccount } = await supabase
+  const { data: billingAccount } = await db
     .from("organization_billing_accounts")
     .select(
       "internal_plan_status, internal_plan_current_period_end, internal_plan_cancel_at_period_end",

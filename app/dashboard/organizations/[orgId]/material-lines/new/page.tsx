@@ -62,15 +62,23 @@ export default function NewMaterialLinePage({ params }: Props) {
       throw new Error("You must be logged in");
     }
 
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("profile_id", user.id)
-      .eq("organization_id", orgId)
-      .in("role", ["owner", "admin"])
-      .single();
+    const [{ data: membership }, { data: profile }] = await Promise.all([
+      supabase
+        .from("organization_members")
+        .select("role")
+        .eq("profile_id", user.id)
+        .eq("organization_id", orgId)
+        .in("role", ["owner", "admin"])
+        .single(),
+      supabase
+        .from("profiles")
+        .select("is_super_admin")
+        .eq("id", user.id)
+        .single(),
+    ]);
 
-    if (!membership) {
+    const isSuperAdmin = Boolean(profile?.is_super_admin);
+    if (!membership && !isSuperAdmin) {
       throw new Error(
         "You do not have permission to create material lines in this organization",
       );

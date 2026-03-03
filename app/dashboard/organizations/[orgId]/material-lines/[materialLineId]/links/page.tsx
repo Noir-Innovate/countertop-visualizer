@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import TrackingLinksClient from "./TrackingLinksClient";
+import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -18,18 +20,15 @@ export default async function TrackingLinksPage({ params }: Props) {
     redirect("/dashboard/login");
   }
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", orgId)
-    .single();
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     notFound();
   }
 
-  const { data: materialLine } = await supabase
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
+
+  const { data: materialLine } = await db
     .from("material_lines")
     .select("id, name, slug, custom_domain, custom_domain_verified")
     .eq("id", materialLineId)
@@ -40,7 +39,7 @@ export default async function TrackingLinksPage({ params }: Props) {
     notFound();
   }
 
-  const { data: org } = await supabase
+  const { data: org } = await db
     .from("organizations")
     .select("name")
     .eq("id", orgId)
@@ -77,19 +76,14 @@ export default async function TrackingLinksPage({ params }: Props) {
           <span>/</span>
           <span>Tracking links</span>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">
-          Tracking links
-        </h1>
+        <h1 className="text-3xl font-bold text-slate-900">Tracking links</h1>
         <p className="text-slate-600 mt-1">
           Create URLs with UTM parameters and tags for ads, social, and
           campaigns. Save them to copy again later.
         </p>
       </div>
 
-      <TrackingLinksClient
-        materialLineId={materialLineId}
-        baseUrl={baseUrl}
-      />
+      <TrackingLinksClient materialLineId={materialLineId} baseUrl={baseUrl} />
     </div>
   );
 }

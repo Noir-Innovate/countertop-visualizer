@@ -11,6 +11,7 @@ interface Props {
 }
 
 interface BillingSummary {
+  organizationName?: string;
   membershipRole: string;
   isSuperAdmin: boolean;
   leadPricing: {
@@ -63,7 +64,7 @@ export default function OrganizationBillingPage({ params }: Props) {
 
   const canManageBilling = useMemo(() => {
     const role = summary?.membershipRole;
-    return role === "owner" || role === "admin";
+    return role === "owner" || role === "admin" || role === "super_admin";
   }, [summary?.membershipRole]);
   const canEditLeadPricing = Boolean(summary?.isSuperAdmin);
 
@@ -78,17 +79,6 @@ export default function OrganizationBillingPage({ params }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("name")
-        .eq("id", orgId)
-        .single();
-
-      if (org?.name) {
-        setOrgName(org.name);
-      }
-
       const summaryResponse = await fetch(
         `/api/billing/summary?organizationId=${orgId}`,
       );
@@ -99,6 +89,9 @@ export default function OrganizationBillingPage({ params }: Props) {
 
       const nextSummary = summaryBody as BillingSummary;
       setSummary(nextSummary);
+      if (nextSummary.organizationName) {
+        setOrgName(nextSummary.organizationName);
+      }
       setLeadPriceInput(
         nextSummary.leadPricing.leadPriceCents === null
           ? ""

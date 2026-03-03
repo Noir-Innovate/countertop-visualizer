@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { getStripeServerClient } from "@/lib/stripe";
 import {
   startOfCurrentUtcMonth,
@@ -41,44 +42,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("profile_id", user.id)
-      .eq("organization_id", organizationId)
-      .single();
+    const [{ data: membership }, { data: profile }] = await Promise.all([
+      supabase
+        .from("organization_members")
+        .select("role")
+        .eq("profile_id", user.id)
+        .eq("organization_id", organizationId)
+        .single(),
+      supabase
+        .from("profiles")
+        .select("is_super_admin")
+        .eq("id", user.id)
+        .single(),
+    ]);
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_super_admin")
-      .eq("id", user.id)
-      .single();
-
-    if (!membership) {
+    const isSuperAdmin = Boolean(profile?.is_super_admin);
+    if (!membership && !isSuperAdmin) {
       return NextResponse.json(
         { error: "You do not have access to this organization" },
         { status: 403 },
       );
     }
 
+    const membershipRole =
+      membership?.role ?? (isSuperAdmin ? "super_admin" : "");
+
+    // Super admins use service client to bypass RLS when viewing orgs they're not members of
+    const db = isSuperAdmin ? await createServiceClient() : supabase;
+
     const nowIso = new Date().toISOString();
     const monthStartIso = startOfCurrentUtcMonth();
 
     const [
+      orgResponse,
       billingAccountResponse,
       latestPricingResponse,
       monthUsageResponse,
       internalLineCountResponse,
       latestSubscriptionResponse,
     ] = await Promise.all([
-      supabase
+      db.from("organizations").select("name").eq("id", organizationId).single(),
+      db
         .from("organization_billing_accounts")
         .select(
           "internal_plan_status, internal_plan_current_period_end, internal_plan_cancel_at_period_end, stripe_customer_id, internal_plan_subscription_id",
         )
         .eq("organization_id", organizationId)
         .maybeSingle(),
-      supabase
+      db
         .from("organization_billing_pricing")
         .select("lead_price_cents, effective_at")
         .eq("organization_id", organizationId)
@@ -86,19 +97,19 @@ export async function GET(request: NextRequest) {
         .order("effective_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
-      supabase
+      db
         .from("organization_billing_usage")
         .select("billed_amount_cents, occurred_at")
         .eq("organization_id", organizationId)
         .eq("excluded_from_billing", false)
         .is("invoiced_at", null)
         .gte("occurred_at", monthStartIso),
-      supabase
+      db
         .from("material_lines")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", organizationId)
         .eq("line_kind", "internal"),
-      supabase
+      db
         .from("organization_billing_subscriptions")
         .select("status, current_period_end, cancel_at_period_end")
         .eq("organization_id", organizationId)
@@ -107,6 +118,7 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
     ]);
 
+    const orgName = orgResponse.data?.name ?? "Organization";
     if (billingAccountResponse.error) throw billingAccountResponse.error;
     if (latestPricingResponse.error) throw latestPricingResponse.error;
     if (monthUsageResponse.error) throw monthUsageResponse.error;
@@ -180,7 +192,8 @@ export async function GET(request: NextRequest) {
     const planEndsAt = cancelAtPeriodEnd ? currentPeriodEnd : null;
 
     return NextResponse.json({
-      membershipRole: membership.role,
+      organizationName: orgName,
+      membershipRole,
       isSuperAdmin: Boolean(profile?.is_super_admin),
       leadPricing: {
         leadPriceCents:

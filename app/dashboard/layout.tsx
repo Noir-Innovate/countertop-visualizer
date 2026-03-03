@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { createServiceClient } from "@/lib/supabase/server";
+import { isSuperAdmin } from "@/lib/admin-auth";
 import DashboardNav from "./components/DashboardNav";
 
 export default async function DashboardLayout({
@@ -33,30 +34,47 @@ export default async function DashboardLayout({
       .eq("id", user.id)
       .single();
 
-    const { data: memberships } = await supabase
-      .from("organization_members")
-      .select(
-        `
-        role,
-        organizations(id, name)
-      `,
-      )
-      .eq("profile_id", user.id);
+    let organizations: { id: string; name: string; role: string }[] = [];
 
-    const organizations =
-      memberships
-        ?.map((m) => {
-          const org = m.organizations as unknown as {
-            id: string;
-            name: string;
-          } | null;
-          return {
-            id: org?.id || "",
-            name: org?.name || "",
-            role: m.role,
-          };
-        })
-        .filter((org) => org.id) || [];
+    if (await isSuperAdmin()) {
+      // Super admins see all organizations
+      const service = await createServiceClient();
+      const { data: orgs } = await service
+        .from("organizations")
+        .select("id, name")
+        .order("name");
+      organizations =
+        orgs?.map((o) => ({
+          id: o.id,
+          name: o.name,
+          role: "super_admin",
+        })) ?? [];
+    } else {
+      const { data: memberships } = await supabase
+        .from("organization_members")
+        .select(
+          `
+          role,
+          organizations(id, name)
+        `,
+        )
+        .eq("profile_id", user.id);
+
+      organizations =
+        memberships
+          ?.map((m) => {
+            const org = m.organizations as unknown as {
+              id: string;
+              name: string;
+            } | null;
+            return {
+              id: org?.id || "",
+              name: org?.name || "",
+              role: m.role,
+            };
+          })
+          .filter((org) => org.id) ?? [];
+    }
 
     return (
       <div className="min-h-screen bg-slate-50">

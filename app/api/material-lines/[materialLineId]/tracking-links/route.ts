@@ -1,42 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getMaterialLineAccess } from "@/lib/admin-auth";
 
 interface RouteParams {
   params: Promise<{ materialLineId: string }>;
 }
 
-async function verifyAccess(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  materialLineId: string,
-) {
+async function verifyAccess(materialLineId: string) {
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return { error: "Unauthorized", status: 401 as const };
   }
-  const { data: materialLine } = await supabase
-    .from("material_lines")
-    .select("organization_id")
-    .eq("id", materialLineId)
-    .single();
-  if (!materialLine) {
-    return { error: "Material line not found", status: 404 as const };
-  }
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id)
-    .eq("organization_id", materialLine.organization_id)
-    .single();
-  if (!membership) {
+  const access = await getMaterialLineAccess(materialLineId);
+  if (!access?.allowed) {
     return {
       error: "You don't have access to this material line",
       status: 403 as const,
     };
   }
-  return { user, materialLine };
+  return {
+    user,
+    materialLine: { organization_id: access.organizationId },
+  };
 }
 
 function getServiceClient() {
@@ -49,8 +38,7 @@ function getServiceClient() {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { materialLineId } = await params;
-    const supabase = await createClient();
-    const access = await verifyAccess(supabase, materialLineId);
+    const access = await verifyAccess(materialLineId);
     if ("error" in access) {
       return NextResponse.json(
         { error: access.error },
@@ -87,8 +75,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { materialLineId } = await params;
-    const supabase = await createClient();
-    const access = await verifyAccess(supabase, materialLineId);
+    const access = await verifyAccess(materialLineId);
     if ("error" in access) {
       return NextResponse.json(
         { error: access.error },

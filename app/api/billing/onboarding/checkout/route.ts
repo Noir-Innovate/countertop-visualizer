@@ -33,14 +33,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("profile_id", user.id)
-      .eq("organization_id", organizationId)
-      .single();
+    const [{ data: membership }, { data: profile }] = await Promise.all([
+      supabase
+        .from("organization_members")
+        .select("role")
+        .eq("profile_id", user.id)
+        .eq("organization_id", organizationId)
+        .single(),
+      supabase
+        .from("profiles")
+        .select("is_super_admin")
+        .eq("id", user.id)
+        .single(),
+    ]);
 
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
+    const isSuperAdmin = Boolean(profile?.is_super_admin);
+    const hasAccess =
+      isSuperAdmin ||
+      (membership && ["owner", "admin"].includes(membership.role));
+
+    if (!hasAccess) {
       return NextResponse.json(
         { error: "You do not have permission to create material lines" },
         { status: 403 },

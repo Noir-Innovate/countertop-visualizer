@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
+import { getOrgAccess } from "@/lib/admin-auth";
 import Link from "next/link";
 import BillingExclusionToggle from "../material-lines/[materialLineId]/leads/components/BillingExclusionToggle";
 import { getMaterialLineBasePath } from "@/lib/material-line-path";
@@ -30,32 +32,30 @@ export default async function OrganizationLeadsPage({
     redirect("/dashboard/login");
   }
 
-  const [{ data: membership }, { data: profile }, { data: org }] =
-    await Promise.all([
-      supabase
-        .from("organization_members")
-        .select("role")
-        .eq("profile_id", user.id)
-        .eq("organization_id", orgId)
-        .single(),
-      supabase
-        .from("profiles")
-        .select("is_super_admin")
-        .eq("id", user.id)
-        .single(),
-      supabase.from("organizations").select("name").eq("id", orgId).single(),
-    ]);
-
-  if (!membership) {
+  const access = await getOrgAccess(orgId);
+  if (!access?.allowed) {
     notFound();
   }
 
-  const { count: totalLeads } = await supabase
+  // Super admins use service client to bypass RLS
+  const db =
+    access.role === "super_admin" ? await createServiceClient() : supabase;
+
+  const [{ data: profile }, { data: org }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("is_super_admin")
+      .eq("id", user.id)
+      .single(),
+    db.from("organizations").select("name").eq("id", orgId).single(),
+  ]);
+
+  const { count: totalLeads } = await db
     .from("leads")
     .select("*", { count: "exact", head: true })
     .eq("organization_id", orgId);
 
-  const { data: leads } = await supabase
+  const { data: leads } = await db
     .from("leads")
     .select("id, name, email, phone, created_at, material_line_id")
     .eq("organization_id", orgId)
@@ -81,7 +81,7 @@ export default async function OrganizationLeadsPage({
     }
   >();
   if (leadIds.length > 0) {
-    const { data: usageRows } = await supabase
+    const { data: usageRows } = await db
       .from("organization_billing_usage")
       .select(
         "lead_id, excluded_from_billing, stripe_invoice_id, stripe_invoice_status, billed_amount_cents",

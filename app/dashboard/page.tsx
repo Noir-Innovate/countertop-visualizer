@@ -1,7 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getSupabaseEventCounts } from "@/lib/analytics-server";
+import { isSuperAdmin } from "@/lib/admin-auth";
 import DashboardContent from "./components/DashboardContent";
+
+interface MaterialLine {
+  id: string;
+  name: string;
+  slug: string;
+  custom_domain: string | null;
+  custom_domain_verified: boolean;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  role: string;
+  material_lines?: MaterialLine[];
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -13,53 +30,64 @@ export default async function DashboardPage() {
     redirect("/dashboard/login");
   }
 
-  // Define types for the query result
-  interface MaterialLine {
-    id: string;
-    name: string;
-    slug: string;
-    custom_domain: string | null;
-    custom_domain_verified: boolean;
-  }
+  let organizations: Organization[] = [];
 
-  interface Organization {
-    id: string;
-    name: string;
-    role: string;
-    material_lines?: MaterialLine[];
-  }
-
-  // Fetch user's organizations and their material lines
-  const { data: memberships } = await supabase
-    .from("organization_members")
-    .select(
-      `
-      role,
-      organizations(
-        id, 
+  if (await isSuperAdmin()) {
+    // Super admins see all organizations and material lines
+    const service = await createServiceClient();
+    const { data: orgs } = await service
+      .from("organizations")
+      .select(
+        `
+        id,
         name,
         material_lines(id, name, slug, custom_domain, custom_domain_verified)
+      `,
       )
-    `,
-    )
-    .eq("profile_id", user.id);
+      .order("name");
 
-  const organizations: Organization[] =
-    memberships
-      ?.map((m) => {
-        const org = m.organizations as unknown as {
-          id: string;
-          name: string;
-          material_lines?: MaterialLine[];
-        } | null;
+    organizations =
+      orgs?.map((o) => {
+        const ml = (o as { material_lines?: MaterialLine[] }).material_lines;
         return {
-          id: org?.id || "",
-          name: org?.name || "",
-          role: m.role as string,
-          material_lines: org?.material_lines || [],
+          id: o.id,
+          name: o.name,
+          role: "super_admin",
+          material_lines: ml ?? [],
         };
-      })
-      .filter((org) => org.id) || [];
+      }) ?? [];
+  } else {
+    const { data: memberships } = await supabase
+      .from("organization_members")
+      .select(
+        `
+        role,
+        organizations(
+          id, 
+          name,
+          material_lines(id, name, slug, custom_domain, custom_domain_verified)
+        )
+      `,
+      )
+      .eq("profile_id", user.id);
+
+    organizations =
+      memberships
+        ?.map((m) => {
+          const org = m.organizations as unknown as {
+            id: string;
+            name: string;
+            material_lines?: MaterialLine[];
+          } | null;
+          return {
+            id: org?.id || "",
+            name: org?.name || "",
+            role: m.role as string,
+            material_lines: org?.material_lines || [],
+          };
+        })
+        .filter((org) => org.id) ?? [];
+  }
 
   const allMaterialLineIds = organizations.flatMap(
     (org) => org.material_lines?.map((ml) => ml.id) || [],
