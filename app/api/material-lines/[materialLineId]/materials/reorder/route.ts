@@ -86,100 +86,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
 
-    // Validate that all material IDs belong to this material line and fetch their data
-    const { data: existingMaterials, error: fetchError } = await serviceClient
-      .from("materials")
-      .select("id, filename, title, description")
-      .eq("material_line_id", materialLineId)
-      .in("id", materialIds);
-
-    if (fetchError) {
-      console.error("Error fetching materials:", fetchError);
-      return NextResponse.json(
-        { error: fetchError.message || "Failed to validate materials" },
-        { status: 500 },
-      );
-    }
-
-    if (!existingMaterials || existingMaterials.length !== materialIds.length) {
-      return NextResponse.json(
-        {
-          error:
-            "Some material IDs do not belong to this material line or do not exist",
-        },
-        { status: 400 },
-      );
-    }
-
-    // Create a map of material ID to material data for quick lookup
-    const materialMap = new Map(existingMaterials.map((m) => [m.id, m]));
-
-    // Update all materials' order values atomically using batch upsert
-    // To avoid unique constraint violations, we use a two-phase update:
-    // 1. First, set all orders to negative values (temporary) to free up the space
-    // 2. Then, set them to the correct final values (1-indexed)
-
-    // Phase 1: Set all to temporary negative values using batch upsert
-    // Include all required fields to satisfy NOT NULL constraints
-    const tempUpdates = materialIds.map((materialId: string, index: number) => {
-      const material = materialMap.get(materialId);
-      if (!material) {
-        throw new Error(`Material ${materialId} not found in fetched data`);
-      }
-      return {
-        id: materialId,
-        material_line_id: materialLineId,
-        filename: material.filename,
-        title: material.title,
-        description: material.description,
-        order: -(index + 1), // Negative temporary order
-      };
+    // Call atomic RPC - validates IDs and performs two-phase reorder in a single transaction
+    const { error: rpcError } = await serviceClient.rpc("reorder_materials", {
+      p_material_line_id: materialLineId,
+      p_ordered_ids: materialIds,
     });
 
-    const { error: tempError } = await serviceClient
-      .from("materials")
-      .upsert(tempUpdates, {
-        onConflict: "id",
-      });
-
-    if (tempError) {
-      console.error("Error setting temporary orders:", tempError);
+    if (rpcError) {
+      console.error("Error reordering materials:", rpcError);
+      const isValidationError =
+        rpcError.message?.includes("do not belong") ||
+        rpcError.message?.includes("Duplicate") ||
+        rpcError.message?.includes("required");
       return NextResponse.json(
-        { error: tempError.message || "Failed to update material orders" },
-        { status: 500 },
-      );
-    }
-
-    // Phase 2: Set all to final correct values using batch upsert
-    // Include all required fields to satisfy NOT NULL constraints
-    const finalUpdates = materialIds.map(
-      (materialId: string, index: number) => {
-        const material = materialMap.get(materialId);
-        if (!material) {
-          throw new Error(`Material ${materialId} not found in fetched data`);
-        }
-        return {
-          id: materialId,
-          material_line_id: materialLineId,
-          filename: material.filename,
-          title: material.title,
-          description: material.description,
-          order: index + 1, // Final 1-indexed order
-        };
-      },
-    );
-
-    const { error: finalError } = await serviceClient
-      .from("materials")
-      .upsert(finalUpdates, {
-        onConflict: "id",
-      });
-
-    if (finalError) {
-      console.error("Error setting final orders:", finalError);
-      return NextResponse.json(
-        { error: finalError.message || "Failed to update material orders" },
-        { status: 500 },
+        {
+          error: rpcError.message || "Failed to update material orders",
+        },
+        { status: isValidationError ? 400 : 500 },
       );
     }
 
