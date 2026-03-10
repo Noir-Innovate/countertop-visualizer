@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { materialLineId } = await params;
     const body = await request.json();
-    const { materialIds } = body;
+    const { materialIds, materialCategory } = body;
 
     if (
       !materialIds ||
@@ -86,10 +86,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
 
-    // Call atomic RPC - validates IDs and performs two-phase reorder in a single transaction
     const { error: rpcError } = await serviceClient.rpc("reorder_materials", {
       p_material_line_id: materialLineId,
       p_ordered_ids: materialIds,
+      p_material_category: materialCategory || null,
     });
 
     if (rpcError) {

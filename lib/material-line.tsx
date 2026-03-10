@@ -52,14 +52,14 @@ export function useMaterialLine() {
 
 // Default material line config for development/localhost
 export const DEFAULT_MATERIAL_LINE_CONFIG: MaterialLineConfig = {
-  id: "default",
+  id: "c1b73c87-4c12-44e3-9e49-c8618793cb60",
   organizationId: "default",
   slug: "default",
   name: "Countertop Visualizer",
   logoUrl: "/AccentCountertopsLogo.png",
   primaryColor: "#2563eb",
   backgroundColor: "#ffffff",
-  supabaseFolder: "accent-countertops",
+  supabaseFolder: "test/test-line",
   kitchenImages: [],
   freeResourceEnabled: false,
   freeResourceTitle: null,

@@ -1,6 +1,5 @@
--- Reorder Materials RPC
--- Atomic three-phase reorder. Materials not in ordered_ids are placed after the reordered set
--- to avoid unique constraint violations with "orphan" DB records (e.g. no matching storage file).
+-- Fix reorder_materials: handle materials not in ordered_ids to avoid unique constraint violations
+-- Materials not in the reorder list (e.g. orphan DB records) are placed after the reordered set
 
 CREATE OR REPLACE FUNCTION reorder_materials(
   p_material_line_id UUID,
@@ -72,9 +71,3 @@ BEGIN
     AND m.material_line_id = p_material_line_id;
 END;
 $$;
-
--- Allow service_role to execute (used by API route)
-GRANT EXECUTE ON FUNCTION reorder_materials(UUID, UUID[]) TO service_role;
-
-COMMENT ON FUNCTION reorder_materials(UUID, UUID[]) IS
-  'Atomically reorder materials within a material line. Reordered items get 1..N; others are placed after to avoid unique_material_line_order violations.';

@@ -40,6 +40,8 @@ interface LeadData {
   utm_content?: string | null;
   referrer?: string | null;
   tags?: Record<string, string> | null;
+  // V2 session linking
+  v2SessionId?: string | null;
 }
 
 // Convert "default" to null, otherwise return the value or null
@@ -287,6 +289,7 @@ export async function POST(request: NextRequest) {
         utm_content: data.utm_content ?? null,
         referrer: data.referrer ?? null,
         tags: tagsJson,
+        v2_session_id: data.v2SessionId ?? null,
       })
       .select()
       .single();

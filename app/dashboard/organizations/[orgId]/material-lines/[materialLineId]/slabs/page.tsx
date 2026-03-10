@@ -28,19 +28,27 @@ interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
 }
 
+interface MaterialColor {
+  name: string;
+  hex: string;
+}
+
 interface MaterialFile {
   id: string; // Database material ID (UUID)
   name: string; // Filename
   title?: string | null;
   material_type?: string | null;
+  material_category?: string;
   order?: number;
   price_per_sqft?: number | null;
+  available_colors?: MaterialColor[] | null;
 }
 
 interface FileWithMetadata {
   file: File;
   title: string;
   material_type: string;
+  material_category: string;
 }
 
 export default function MaterialsPage({ params }: Props) {
@@ -53,6 +61,7 @@ export default function MaterialsPage({ params }: Props) {
   const [materialLine, setMaterialLine] = useState<{
     name: string;
     supabase_folder: string;
+    category_colors?: Record<string, MaterialColor[]> | null;
   } | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -67,6 +76,14 @@ export default function MaterialsPage({ params }: Props) {
   const [showEditAllModal, setShowEditAllModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("Countertops");
+
+  const MATERIAL_CATEGORIES = [
+    "Cabinets",
+    "Countertops",
+    "Backsplash",
+    "Flooring",
+  ];
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -118,7 +135,7 @@ export default function MaterialsPage({ params }: Props) {
       // Fetch material line
       const { data: mlData } = await supabase
         .from("material_lines")
-        .select("name, supabase_folder")
+        .select("name, supabase_folder, category_colors")
         .eq("id", materialLineId)
         .single();
 
@@ -128,7 +145,12 @@ export default function MaterialsPage({ params }: Props) {
         return;
       }
 
-      setMaterialLine(mlData);
+      setMaterialLine({
+        name: mlData.name,
+        supabase_folder: mlData.supabase_folder,
+        category_colors:
+          (mlData.category_colors as Record<string, MaterialColor[]>) || null,
+      });
 
       // Fetch organization name
       const { data: orgData } = await supabase
@@ -158,7 +180,9 @@ export default function MaterialsPage({ params }: Props) {
         // Fetch material metadata from database, ordered by order field
         const { data: materialsData } = await supabase
           .from("materials")
-          .select("id, filename, title, material_type, order, price_per_sqft")
+          .select(
+            "id, filename, title, material_type, material_category, order, price_per_sqft, available_colors",
+          )
           .eq("material_line_id", materialLineId)
           .order("order", { ascending: true });
 
@@ -169,8 +193,10 @@ export default function MaterialsPage({ params }: Props) {
             id: string;
             title: string | null;
             material_type: string | null;
+            material_category: string;
             order: number;
             price_per_sqft: number | null;
+            available_colors: MaterialColor[] | null;
           }
         >();
         if (materialsData) {
@@ -179,8 +205,11 @@ export default function MaterialsPage({ params }: Props) {
               id: m.id,
               title: m.title,
               material_type: m.material_type,
+              material_category: m.material_category || "Countertops",
               order: m.order,
               price_per_sqft: m.price_per_sqft ?? null,
+              available_colors:
+                (m.available_colors as MaterialColor[] | null) ?? null,
             });
           });
         }
@@ -190,20 +219,20 @@ export default function MaterialsPage({ params }: Props) {
           .map((file) => {
             const meta = materialsMap.get(file.name);
             return {
-              id: meta?.id || file.id || file.name, // Use database ID if available
+              id: meta?.id || file.id || file.name,
               name: file.name,
               title: meta?.title || null,
               material_type: meta?.material_type || null,
-              order: meta?.order ?? 999999, // Put materials without order at the end
+              material_category: meta?.material_category || "Countertops",
+              order: meta?.order ?? 999999,
               price_per_sqft: meta?.price_per_sqft ?? null,
+              available_colors: meta?.available_colors ?? null,
             };
           })
-          // Sort by order from database
           .sort((a, b) => {
             if (a.order !== undefined && b.order !== undefined) {
               return a.order - b.order;
             }
-            // Fallback to filename alphabetical if order is missing
             return a.name.localeCompare(b.name);
           });
 
@@ -266,11 +295,11 @@ export default function MaterialsPage({ params }: Props) {
       return;
     }
 
-    // Prepare files with auto-generated title and default material type
     const filesWithMetadata: FileWithMetadata[] = validFiles.map((file) => ({
       file,
       title: generateTitleFromFilename(file.name),
-      material_type: "none", // Default to none
+      material_type: "none",
+      material_category: activeCategory,
     }));
 
     setPendingFiles(filesWithMetadata);
@@ -334,11 +363,14 @@ export default function MaterialsPage({ params }: Props) {
         // Continue anyway - bucket might exist
       }
 
-      // Get the maximum order value for this material line to assign order to new materials
+      // Get the maximum order value for this material line + category
+      const uploadCategory =
+        pendingFiles[0]?.material_category || activeCategory;
       const { data: maxOrderData } = await supabase
         .from("materials")
         .select("order")
         .eq("material_line_id", materialLineId)
+        .eq("material_category", uploadCategory)
         .order("order", { ascending: false })
         .limit(1)
         .single();
@@ -348,65 +380,68 @@ export default function MaterialsPage({ params }: Props) {
 
       // Upload files and create material records
       const uploadResults = await Promise.allSettled(
-        pendingFiles.map(async ({ file, title, material_type }) => {
-          // Upload directly to Supabase storage
-          // Folder structure: {org-slug}/{material-line-slug}/{filename}
-          const filePath = `${materialLine.supabase_folder}/${file.name}`;
+        pendingFiles.map(
+          async ({ file, title, material_type, material_category }) => {
+            // Upload directly to Supabase storage
+            // Folder structure: {org-slug}/{material-line-slug}/{filename}
+            const filePath = `${materialLine.supabase_folder}/${file.name}`;
 
-          const { data: uploadData, error: uploadError } =
-            await supabase.storage
-              .from("public-assets")
-              .upload(filePath, file, {
-                cacheControl: "3600",
-                upsert: false, // Don't overwrite existing files
-              });
+            const { data: uploadData, error: uploadError } =
+              await supabase.storage
+                .from("public-assets")
+                .upload(filePath, file, {
+                  cacheControl: "3600",
+                  upsert: false, // Don't overwrite existing files
+                });
 
-          if (uploadError) {
-            if (uploadError.message.includes("already exists")) {
-              throw new Error(`File ${file.name} already exists`);
-            }
-            if (uploadError.message.includes("Bucket not found")) {
+            if (uploadError) {
+              if (uploadError.message.includes("already exists")) {
+                throw new Error(`File ${file.name} already exists`);
+              }
+              if (uploadError.message.includes("Bucket not found")) {
+                throw new Error(
+                  `Bucket 'public-assets' not found. Please create it first or contact support.`,
+                );
+              }
               throw new Error(
-                `Bucket 'public-assets' not found. Please create it first or contact support.`,
+                `Failed to upload ${file.name}: ${uploadError.message}`,
               );
             }
-            throw new Error(
-              `Failed to upload ${file.name}: ${uploadError.message}`,
-            );
-          }
 
-          // Increment order for this material
-          currentOrder += 1;
+            // Increment order for this material
+            currentOrder += 1;
 
-          // Insert material record into database
-          // Title is automatically generated from filename, material_type is optional
-          const finalTitle =
-            title.trim() || generateTitleFromFilename(file.name);
-          const finalMaterialType =
-            material_type === "none" || material_type === ""
-              ? null
-              : material_type;
+            // Insert material record into database
+            // Title is automatically generated from filename, material_type is optional
+            const finalTitle =
+              title.trim() || generateTitleFromFilename(file.name);
+            const finalMaterialType =
+              material_type === "none" || material_type === ""
+                ? null
+                : material_type;
 
-          const { error: materialError } = await supabase
-            .from("materials")
-            .insert({
-              material_line_id: materialLineId,
-              filename: file.name,
-              title: finalTitle,
-              material_type: finalMaterialType,
-              order: currentOrder,
-            });
+            const { error: materialError } = await supabase
+              .from("materials")
+              .insert({
+                material_line_id: materialLineId,
+                filename: file.name,
+                title: finalTitle,
+                material_type: finalMaterialType,
+                material_category: material_category || activeCategory,
+                order: currentOrder,
+              });
 
-          if (materialError) {
-            console.error(
-              `Failed to create material record for ${file.name}:`,
-              materialError,
-            );
-            // Don't throw - file was uploaded successfully, just metadata failed
-          }
+            if (materialError) {
+              console.error(
+                `Failed to create material record for ${file.name}:`,
+                materialError,
+              );
+              // Don't throw - file was uploaded successfully, just metadata failed
+            }
 
-          return uploadData;
-        }),
+            return uploadData;
+          },
+        ),
       );
 
       // Collect upload errors
@@ -448,15 +483,13 @@ export default function MaterialsPage({ params }: Props) {
     title: string,
     materialType: string,
     pricePerSqft: number | null,
+    availableColors?: MaterialColor[] | null,
   ) => {
     try {
       const supabase = createClient();
 
-      // Fetch current material to get order value (handle errors gracefully)
-      // Use the order from the material object if available, otherwise fetch it
       let currentOrder = material.order ?? 999999;
 
-      // Only fetch if we don't have the order in the material object
       if (!material.order) {
         const { data: currentMaterial, error: fetchError } = await supabase
           .from("materials")
@@ -468,27 +501,29 @@ export default function MaterialsPage({ params }: Props) {
         if (!fetchError && currentMaterial?.order) {
           currentOrder = currentMaterial.order;
         } else if (fetchError) {
-          // If fetch fails, use default order
           console.warn(
             "Failed to fetch current order, using default:",
             fetchError,
           );
-          // Continue with default order
         }
       }
 
-      // Prepare the update data (don't include id, material_line_id, or filename in update)
       const updateData: {
         title: string | null;
         material_type: string | null;
         order: number;
         price_per_sqft: number | null;
+        available_colors: MaterialColor[] | null;
       } = {
         title: title.trim() || null,
         material_type:
           materialType === "none" || materialType === "" ? null : materialType,
         order: currentOrder,
         price_per_sqft: pricePerSqft,
+        available_colors:
+          availableColors && availableColors.length > 0
+            ? availableColors
+            : null,
       };
 
       // Use update instead of upsert since we're updating an existing record by ID
@@ -678,6 +713,20 @@ export default function MaterialsPage({ params }: Props) {
     }
   };
 
+  const filteredMaterials = materials.filter(
+    (m) => (m.material_category || "Countertops") === activeCategory,
+  );
+
+  const categoryCountMap = MATERIAL_CATEGORIES.reduce(
+    (acc, cat) => {
+      acc[cat] = materials.filter(
+        (m) => (m.material_category || "Countertops") === cat,
+      ).length;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
   const handleReorderMaterials = async (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -685,16 +734,19 @@ export default function MaterialsPage({ params }: Props) {
       return;
     }
 
-    const oldIndex = materials.findIndex((m) => m.id === active.id);
-    const newIndex = materials.findIndex((m) => m.id === over.id);
+    const oldIndex = filteredMaterials.findIndex((m) => m.id === active.id);
+    const newIndex = filteredMaterials.findIndex((m) => m.id === over.id);
 
     if (oldIndex === -1 || newIndex === -1) {
       return;
     }
 
-    // Optimistically update the UI
-    const newMaterials = arrayMove(materials, oldIndex, newIndex);
-    setMaterials(newMaterials);
+    const newFiltered = arrayMove(filteredMaterials, oldIndex, newIndex);
+    // Rebuild the full list with reordered category items
+    const otherMaterials = materials.filter(
+      (m) => (m.material_category || "Countertops") !== activeCategory,
+    );
+    setMaterials([...otherMaterials, ...newFiltered]);
     setIsReordering(true);
 
     try {
@@ -708,14 +760,12 @@ export default function MaterialsPage({ params }: Props) {
         toast.error(errorMessage);
         setErrors([errorMessage]);
         setIsReordering(false);
-        await fetchMaterials(); // Revert on error
+        await fetchMaterials();
         return;
       }
 
-      // Get material IDs in the new order (using database IDs)
-      const materialIds = newMaterials.map((m) => m.id);
+      const materialIds = newFiltered.map((m) => m.id);
 
-      // Call the reorder API
       const response = await fetch(
         `/api/material-lines/${materialLineId}/materials/reorder`,
         {
@@ -725,6 +775,7 @@ export default function MaterialsPage({ params }: Props) {
           },
           body: JSON.stringify({
             materialIds: materialIds,
+            materialCategory: activeCategory,
           }),
         },
       );
@@ -828,6 +879,42 @@ export default function MaterialsPage({ params }: Props) {
     }
   };
 
+  const handleSaveCategoryColors = async (
+    category: string,
+    colors: MaterialColor[],
+  ) => {
+    try {
+      const supabase = createClient();
+      const current = materialLine?.category_colors || {};
+      const updated = { ...current, [category]: colors };
+      if (colors.length === 0) delete updated[category];
+
+      const { error } = await supabase
+        .from("material_lines")
+        .update({
+          category_colors: Object.keys(updated).length > 0 ? updated : null,
+        })
+        .eq("id", materialLineId);
+
+      if (error) {
+        toast.error("Failed to save colors: " + error.message);
+        return;
+      }
+
+      setMaterialLine((prev) =>
+        prev
+          ? {
+              ...prev,
+              category_colors: Object.keys(updated).length > 0 ? updated : null,
+            }
+          : prev,
+      );
+      toast.success("Colors saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save colors");
+    }
+  };
+
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -918,8 +1005,16 @@ export default function MaterialsPage({ params }: Props) {
                       />
                     </svg>
                     <span className="text-blue-700 font-semibold">
-                      {materials.length}{" "}
-                      {materials.length === 1 ? "material" : "materials"}
+                      {filteredMaterials.length}{" "}
+                      {filteredMaterials.length === 1
+                        ? "material"
+                        : "materials"}
+                      {materials.length !== filteredMaterials.length && (
+                        <span className="text-blue-400 font-normal">
+                          {" "}
+                          ({materials.length} total)
+                        </span>
+                      )}
                     </span>
                   </div>
                 )}
@@ -965,6 +1060,41 @@ export default function MaterialsPage({ params }: Props) {
             />
           </div>
         </div>
+
+        {/* Category Tabs */}
+        <div className="mb-6 flex flex-wrap gap-2">
+          {MATERIAL_CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeCategory === cat
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {cat}
+              {categoryCountMap[cat] > 0 && (
+                <span
+                  className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
+                    activeCategory === cat
+                      ? "bg-blue-500 text-white"
+                      : "bg-slate-200 text-slate-500"
+                  }`}
+                >
+                  {categoryCountMap[cat]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {activeCategory === "Cabinets" && (
+          <CategoryColorsEditor
+            colors={materialLine?.category_colors?.["Cabinets"] || []}
+            onSave={(colors) => handleSaveCategoryColors("Cabinets", colors)}
+          />
+        )}
 
         {errors.length > 0 && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -1046,15 +1176,15 @@ export default function MaterialsPage({ params }: Props) {
           <div className="flex justify-center items-center py-20">
             <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
           </div>
-        ) : materials.length > 0 ? (
+        ) : filteredMaterials.length > 0 ? (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleReorderMaterials}
           >
-            <SortableContext items={materials.map((m) => m.id)}>
+            <SortableContext items={filteredMaterials.map((m) => m.id)}>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {materials.map((material) => (
+                {filteredMaterials.map((material) => (
                   <SortableMaterialCard
                     key={material.id}
                     material={material}
@@ -1146,6 +1276,26 @@ export default function MaterialsPage({ params }: Props) {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Category
+                        </label>
+                        <select
+                          value={fileWithMeta.material_category}
+                          onChange={(e) => {
+                            const updated = [...pendingFiles];
+                            updated[index].material_category = e.target.value;
+                            setPendingFiles(updated);
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {MATERIAL_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
                           Material Type{" "}
                           <span className="text-slate-400 text-xs">
                             (optional)
@@ -1208,12 +1358,19 @@ export default function MaterialsPage({ params }: Props) {
               <EditMaterialForm
                 material={editingMaterial}
                 materialTypes={MATERIAL_TYPES}
-                onSave={(title, materialType, pricePerSqft) => {
+                materialCategories={MATERIAL_CATEGORIES}
+                onSave={(
+                  title,
+                  materialType,
+                  pricePerSqft,
+                  availableColors,
+                ) => {
                   handleUpdateMaterial(
                     editingMaterial,
                     title,
                     materialType,
                     pricePerSqft,
+                    availableColors,
                   );
                 }}
                 onCancel={() => setEditingMaterial(null)}
@@ -1490,6 +1647,18 @@ function SortableMaterialCard({
           )}
         </div>
         <p className="text-xs text-slate-400 mt-1">{material.name}</p>
+        {material.available_colors && material.available_colors.length > 0 && (
+          <div className="flex gap-1 mt-1.5 flex-wrap">
+            {material.available_colors.map((c, i) => (
+              <span
+                key={i}
+                className="w-4 h-4 rounded-full border border-slate-300"
+                style={{ backgroundColor: c.hex }}
+                title={c.name}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1499,15 +1668,18 @@ function SortableMaterialCard({
 function EditMaterialForm({
   material,
   materialTypes,
+  materialCategories,
   onSave,
   onCancel,
 }: {
   material: MaterialFile;
   materialTypes: Array<{ value: string; label: string }>;
+  materialCategories: string[];
   onSave: (
     title: string,
     materialType: string,
     pricePerSqft: number | null,
+    availableColors: MaterialColor[] | null,
   ) => void;
   onCancel: () => void;
 }) {
@@ -1530,6 +1702,7 @@ function EditMaterialForm({
         title,
         materialType,
         parsed != null && !Number.isNaN(parsed) ? parsed : null,
+        null,
       );
     } finally {
       setSaving(false);
@@ -1603,6 +1776,108 @@ function EditMaterialForm({
         </button>
       </div>
     </form>
+  );
+}
+
+// Category Colors Editor Component
+function CategoryColorsEditor({
+  colors,
+  onSave,
+}: {
+  colors: MaterialColor[];
+  onSave: (colors: MaterialColor[]) => void;
+}) {
+  const [localColors, setLocalColors] = useState<MaterialColor[]>(colors);
+  const [newName, setNewName] = useState("");
+  const [newHex, setNewHex] = useState("#3b82f6");
+  const [dirty, setDirty] = useState(false);
+
+  const handleAdd = () => {
+    const name = newName.trim();
+    if (!name || localColors.some((c) => c.name === name)) return;
+    const updated = [...localColors, { name, hex: newHex }];
+    setLocalColors(updated);
+    setNewName("");
+    setNewHex("#3b82f6");
+    setDirty(true);
+  };
+
+  const handleRemove = (index: number) => {
+    setLocalColors(localColors.filter((_, i) => i !== index));
+    setDirty(true);
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-6">
+      <h3 className="text-sm font-semibold text-slate-900 mb-1">
+        Cabinet Colors
+      </h3>
+      <p className="text-xs text-slate-500 mb-4">
+        Users can pick a color in the V2 visualizer to change cabinet color
+        without choosing a design.
+      </p>
+      {localColors.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {localColors.map((color, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 bg-slate-50 border border-slate-200 rounded-full text-sm"
+            >
+              <span
+                className="w-5 h-5 rounded-full border border-slate-300 flex-shrink-0"
+                style={{ backgroundColor: color.hex }}
+              />
+              <span className="text-slate-700">{color.name}</span>
+              <button
+                type="button"
+                onClick={() => handleRemove(idx)}
+                className="ml-1 text-slate-400 hover:text-red-500"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 items-center">
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          placeholder="Color name (e.g. Navy Blue)"
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+        />
+        <input
+          type="color"
+          value={newHex}
+          onChange={(e) => setNewHex(e.target.value)}
+          className="w-10 h-10 rounded-lg border border-slate-300 cursor-pointer p-0.5"
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!newName.trim()}
+          className="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-40 text-sm font-medium"
+        >
+          Add
+        </button>
+      </div>
+      {dirty && (
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              onSave(localColors);
+              setDirty(false);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            Save Colors
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -23,6 +23,7 @@ interface QuoteModalProps {
   prefillEmail?: string;
   onSubmitSuccess: () => void;
   onVerificationUpdate?: (phone: string) => void;
+  v2SessionId?: string | null;
 }
 
 export default function QuoteModal({
@@ -37,6 +38,7 @@ export default function QuoteModal({
   prefillEmail,
   onSubmitSuccess,
   onVerificationUpdate,
+  v2SessionId,
 }: QuoteModalProps) {
   const materialLine = useMaterialLine();
   const [step, setStep] = useState<"verify" | "form">("verify");
@@ -256,6 +258,7 @@ export default function QuoteModal({
           abVariant,
           materialLineId: materialLine?.id || null,
           organizationId: materialLine?.organizationId || null,
+          v2SessionId: v2SessionId || null,
           ...(attribution && {
             utm_source: attribution.utm_source,
             utm_medium: attribution.utm_medium,
