@@ -336,7 +336,6 @@ export default function V2Visualizer({
   const handleBacksplashGenerate = useCallback(
     async (
       heightId: BacksplashHeightId,
-      heightPromptDesc: string,
       materialSource: "match_countertop" | "other",
       material?: V2Material,
     ) => {
@@ -403,7 +402,7 @@ export default function V2Visualizer({
             materialId: material?.id || null,
             kitchenImagePath,
             generationOrder: versions.length + 1,
-            backsplashHeight: heightPromptDesc,
+            backsplashHeightId: heightId,
             backsplashMatchCountertop: materialSource === "match_countertop",
           }),
         });

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
+import {
+  CATEGORY_PROMPTS,
+  getBacksplashPrompt,
+  getCabinetPromptWithColor,
+  getColorOnlyPrompt,
+} from "../prompts";
+
+type BacksplashHeightId = "none" | "4in" | "mid" | "full" | "full_wall";
 
 interface RequestBody {
   kitchenImage: string;
@@ -14,66 +22,8 @@ interface RequestBody {
   colorName?: string | null;
   colorHex?: string | null;
   colorOnly?: boolean;
-  backsplashHeight?: string | null;
+  backsplashHeightId?: BacksplashHeightId | null;
   backsplashMatchCountertop?: boolean;
-}
-
-const CATEGORY_PROMPTS: Record<string, string> = {
-  Countertops: `The first image is a slab of rock.
-Put the design on the countertops of the second image.
-Use the aspect ratio of the second image.
-Only edit the countertops, keep the rest of the kitchen the same.
-Be sure to edit the edges of the countertops to match the colors of the slab as well (important for wood-trimmed countertops).
-If there is a waterfall or a backsplash, make sure to edit them to match the colors of the slab as well.`,
-
-  Cabinets: `The first image is a cabinet design/style reference.
-Change the cabinet style in the second image to match the design pattern shown in the first image.
-Use the aspect ratio of the second image.
-Only edit the cabinets (doors, drawer fronts, and cabinet panels), keep everything else the same.
-Make sure all cabinet surfaces consistently match the design.`,
-
-  Backsplash: ``, // Backsplash uses dynamic prompt construction — see buildBacksplashPrompt
-
-  Flooring: `The first image is a flooring material sample.
-Change the flooring in the second image to match this material sample.
-Use the aspect ratio of the second image.
-Only edit the flooring, keep everything else the same.
-Apply the flooring pattern and color consistently across the entire visible floor area.`,
-};
-
-function buildBacksplashPrompt(
-  heightDesc: string,
-  isMatchCountertop: boolean,
-  hasMaterialImage: boolean,
-): string {
-  if (heightDesc === "REMOVE_BACKSPLASH") {
-    return `Completely remove all backsplash material from this kitchen image.
-The wall area directly above the countertop should be a plain, flat, painted wall — NO tile, NO stone, NO decorative material of any kind.
-The countertop should meet the wall directly with no backsplash strip, no ledge, and no trim piece.
-Replace any existing backsplash (whether 4-inch, mid-height, or full-height) with a clean, smooth, painted wall that matches the surrounding wall color.
-Use the aspect ratio of the image.
-Do not alter countertops, cabinets, flooring, appliances, or any other element — only remove the backsplash.`;
-  }
-
-  if (isMatchCountertop) {
-    return `Add ${heightDesc} to this kitchen image.
-Use the same material, color, and pattern as the countertop that is already visible in the image.
-Use the aspect ratio of the image.
-Only add/change the backsplash area. Do not alter countertops, cabinets, flooring, appliances, or any other element.
-Make sure the backsplash material seamlessly matches the countertop.`;
-  }
-
-  if (hasMaterialImage) {
-    return `The first image is a backsplash material sample.
-Add ${heightDesc} using this material in the second kitchen image.
-Use the aspect ratio of the second image.
-Only add/change the backsplash area. Do not alter countertops, cabinets, flooring, appliances, or any other element.
-Apply the material pattern and color consistently across the entire backsplash area.`;
-  }
-
-  return `Add ${heightDesc} to this kitchen image.
-Use the aspect ratio of the image.
-Only add/change the backsplash area. Do not alter countertops, cabinets, flooring, appliances, or any other element.`;
 }
 
 export async function POST(request: NextRequest) {
@@ -91,17 +41,17 @@ export async function POST(request: NextRequest) {
       colorName,
       colorHex,
       colorOnly,
-      backsplashHeight,
+      backsplashHeightId,
       backsplashMatchCountertop,
     } = body;
 
     const isColorOnly = colorOnly === true && !!colorName;
     const isBacksplash =
-      materialCategory === "Backsplash" && !!backsplashHeight;
+      materialCategory === "Backsplash" && !!backsplashHeightId;
     const isNoMaterialNeeded =
       isColorOnly ||
       (isBacksplash &&
-        (backsplashMatchCountertop || backsplashHeight === "none"));
+        (backsplashMatchCountertop || backsplashHeightId === "none"));
 
     if (!kitchenImage) {
       return NextResponse.json(
@@ -154,11 +104,7 @@ export async function POST(request: NextRequest) {
     let contents: any[];
 
     if (isColorOnly) {
-      promptText = `Change the cabinet color in this kitchen image to "${colorName}"${colorHex ? ` (${colorHex})` : ""}.
-Keep the exact same cabinet style, design, and hardware. Only change the color and finish of the cabinets.
-Do not alter countertops, walls, flooring, appliances, or any other element.
-Use the aspect ratio of the image.
-Make sure all cabinet surfaces (doors, drawer fronts, panels) consistently show this new color.`;
+      promptText = getColorOnlyPrompt(colorName!, colorHex);
 
       contents = [
         {
@@ -170,11 +116,10 @@ Make sure all cabinet surfaces (doors, drawer fronts, panels) consistently show 
         { text: promptText },
       ];
     } else if (isBacksplash) {
-      const heightDesc = backsplashHeight!;
       const isMatch = !!backsplashMatchCountertop;
       const hasMat = !!materialImage;
 
-      promptText = buildBacksplashPrompt(heightDesc, isMatch, hasMat);
+      promptText = getBacksplashPrompt(backsplashHeightId!, isMatch, hasMat);
 
       if (hasMat) {
         const base64MaterialImage = materialImage!.includes(",")
@@ -215,7 +160,7 @@ Make sure all cabinet surfaces (doors, drawer fronts, panels) consistently show 
       promptText = CATEGORY_PROMPTS[materialCategory];
 
       if (colorName && materialCategory === "Cabinets") {
-        promptText += `\nApply the design in "${colorName}" color${colorHex ? ` (${colorHex})` : ""}. The cabinets should clearly be this color.`;
+        promptText = getCabinetPromptWithColor(promptText, colorName, colorHex);
       }
 
       contents = [
@@ -235,8 +180,11 @@ Make sure all cabinet surfaces (doors, drawer fronts, panels) consistently show 
       ];
     }
 
+    console.log("promptText:", promptText);
+
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-image-preview",
+      // model: "gemini-3-pro-image-preview",
+      model: "gemini-3.1-flash-image-preview",
       contents,
       config: {
         responseModalities: ["Image"],

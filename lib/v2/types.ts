@@ -1,35 +1,9 @@
 import type { V2Material, MaterialCategory, MaterialColor } from "./materials";
 
 export const BACKSPLASH_HEIGHTS = [
-  {
-    id: "none",
-    label: "None",
-    promptDesc: "REMOVE_BACKSPLASH",
-  },
-  {
-    id: "4in",
-    label: '4" Standard',
-    promptDesc:
-      "a 4-inch standard backsplash — a thin strip of material sitting between the countertop surface and the wall, about 4 inches tall.",
-  },
-  {
-    id: "mid",
-    label: "Mid-Height",
-    promptDesc:
-      "a mid-height backsplash (roughly 18–24 inches tall) extending from the countertop partway up the wall, ending below the upper cabinets.",
-  },
-  {
-    id: "full",
-    label: "Full Height",
-    promptDesc:
-      "a full-height backsplash extending from the countertop all the way up to the bottom of the upper cabinets.",
-  },
-  {
-    id: "full_wall",
-    label: "Full Wall",
-    promptDesc:
-      "a full-wall backsplash extending from the countertop all the way up to the ceiling, covering the entire wall surface above the counter.",
-  },
+  { id: "none", label: "None" },
+  { id: "4in", label: '4" Standard' },
+  { id: "full", label: "Full Height" },
 ] as const;
 
 export type BacksplashHeightId = (typeof BACKSPLASH_HEIGHTS)[number]["id"];

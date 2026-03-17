@@ -12,7 +12,6 @@ interface V2BacksplashSelectorProps {
   materials: V2Material[];
   onGenerate: (
     heightId: BacksplashHeightId,
-    heightPromptDesc: string,
     materialSource: MaterialSource,
     material?: V2Material,
   ) => void;
@@ -95,8 +94,6 @@ export default function V2BacksplashSelector({
     null,
   );
 
-  const heightInfo = BACKSPLASH_HEIGHTS.find((h) => h.id === selectedHeight);
-
   const canGenerate =
     !disabled &&
     selectedHeight !== null &&
@@ -105,10 +102,9 @@ export default function V2BacksplashSelector({
       selectedHeight === "none");
 
   const handleGenerate = () => {
-    if (!canGenerate || !selectedHeight || !heightInfo) return;
+    if (!canGenerate || !selectedHeight) return;
     onGenerate(
       selectedHeight,
-      heightInfo.promptDesc,
       selectedHeight === "none" ? "match_countertop" : materialSource,
       materialSource === "other" ? (selectedMaterial ?? undefined) : undefined,
     );
