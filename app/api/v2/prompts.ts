@@ -104,12 +104,14 @@ Only add/change the backsplash area. Do not alter countertops, cabinets, floorin
   },
 
   full_wall: {
-    matchCountertop: `Add a full-wall backsplash extending from the countertop all the way up to the ceiling, covering the entire wall surface above the counter, to this kitchen image.
+    matchCountertop: `Identify every wall above a countertop in this image.
+Add a full-wall backsplash extending from the countertop all the way up to the ceiling, covering the entire wall surface above the counter, to each wall you identified.
 Use the same material, color, and pattern as the countertop that is already visible in the image.
 Replace any backsplash that already exists with a full-wall backsplash.
 Use the aspect ratio of the image.
-Only add/change the backsplash area. Do not alter countertops, cabinets, flooring, appliances, or any other element.
-Make sure the backsplash material seamlessly matches the countertop.`,
+Do not alter countertops, walls OTHER than the ones you identified, cabinets, flooring, appliances, or any other element.
+Make sure the backsplash material seamlessly matches the countertop.
+Make no mistakes.`,
     withMaterial: `The first image is a backsplash material sample.
 Add a full-wall backsplash extending from the countertop all the way up to the ceiling, covering the entire wall surface above the counter, using this material in the second kitchen image.
 Replace any backsplash that already exists with a full-wall backsplash of the material from the image.

@@ -3,7 +3,9 @@ import type { V2Material, MaterialCategory, MaterialColor } from "./materials";
 export const BACKSPLASH_HEIGHTS = [
   { id: "none", label: "None" },
   { id: "4in", label: '4" Standard' },
+  { id: "mid", label: '6" Standard' },
   { id: "full", label: "Full Height" },
+  { id: "full_wall", label: "Full Wall" },
 ] as const;
 
 export type BacksplashHeightId = (typeof BACKSPLASH_HEIGHTS)[number]["id"];
