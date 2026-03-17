@@ -42,6 +42,7 @@ const BACKSPLASH_PROMPTS: Record<
   none: `Identify every wall with a backsplash in this image.
 Then, remove that backsplash completely from every wall you identified.
 Once removed, it should just be a painted wall with nothing on it.
+There should be NO 4-inch backsplash or any other backsplash on any wall in the image.
 Use the aspect ratio of the image.
 Do not alter countertops, cabinets, flooring, appliances, or any other element — only remove the backsplash.
 Make no mistakes.`,

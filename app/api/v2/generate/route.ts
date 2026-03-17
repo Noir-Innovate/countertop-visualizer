@@ -51,7 +51,9 @@ export async function POST(request: NextRequest) {
     const isNoMaterialNeeded =
       isColorOnly ||
       (isBacksplash &&
-        (backsplashMatchCountertop || backsplashHeightId === "none"));
+        (backsplashMatchCountertop ||
+          backsplashHeightId === "none" ||
+          !materialImage));
 
     if (!kitchenImage) {
       return NextResponse.json(
