@@ -212,11 +212,13 @@ export default function ResultDisplay({
     imageId: string,
     imageName: string,
     source: "carousel" | "compare" | "modal",
+    verificationKind?: "download" | "share",
   ) => {
     trackEvent("countertop_downloaded", {
       slabId: imageId,
       slabName: imageName,
       source,
+      verificationKind,
       materialLineId: materialLine?.id,
       materialLineName: materialLine?.name,
       materialLineSlug: materialLine?.slug,
@@ -419,7 +421,12 @@ export default function ResultDisplay({
         if (action.type === "download") {
           if (!isDownloadInProgressRef.current) {
             isDownloadInProgressRef.current = true;
-            trackDownload(action.imageId, action.imageName, action.uiSource);
+            trackDownload(
+              action.imageId,
+              action.imageName,
+              action.uiSource,
+              "download",
+            );
             const link = document.createElement("a");
             link.href = `data:image/png;base64,${action.imageData}`;
             link.download = `countertop-${action.imageName
@@ -437,6 +444,7 @@ export default function ResultDisplay({
             slabId: action.imageId,
             slabName: action.imageName,
             isOriginal: false,
+            verificationKind: "share",
             materialLineId: materialLine?.id,
             materialLineName: materialLine?.name,
             materialLineSlug: materialLine?.slug,
@@ -491,7 +499,7 @@ export default function ResultDisplay({
       if (isDownloadInProgressRef.current) return;
       isDownloadInProgressRef.current = true;
 
-      trackDownload(imageId, imageName, uiSource);
+      trackDownload(imageId, imageName, uiSource, "download");
       const link = document.createElement("a");
       link.href = `data:image/png;base64,${imageData}`;
       link.download = `countertop-${imageName
@@ -518,6 +526,33 @@ export default function ResultDisplay({
       uiSource: "carousel" | "compare" | "modal",
     ) => {
       const alreadySubmitted = submittedLeadIdsRef.current.has(imageId);
+      const verifiedAlready = !!verifiedPhone;
+
+      if (type === "download") {
+        trackEvent("download_clicked", {
+          slabId: imageId,
+          slabName: imageName,
+          source: uiSource,
+          verifiedAlready,
+          alreadySubmitted,
+          materialLineId: materialLine?.id,
+          materialLineName: materialLine?.name,
+          materialLineSlug: materialLine?.slug,
+          organizationId: materialLine?.organizationId,
+        });
+      } else {
+        trackEvent("share_clicked", {
+          slabId: imageId,
+          slabName: imageName,
+          source: uiSource,
+          verifiedAlready,
+          alreadySubmitted,
+          materialLineId: materialLine?.id,
+          materialLineName: materialLine?.name,
+          materialLineSlug: materialLine?.slug,
+          organizationId: materialLine?.organizationId,
+        });
+      }
 
       if (alreadySubmitted) {
         if (type === "download") {
@@ -527,6 +562,7 @@ export default function ResultDisplay({
             slabId: imageId,
             slabName: imageName,
             isOriginal: false,
+            verificationKind: "share",
             materialLineId: materialLine?.id,
             materialLineName: materialLine?.name,
             materialLineSlug: materialLine?.slug,
@@ -547,6 +583,13 @@ export default function ResultDisplay({
       };
 
       if (verifiedPhone) {
+        trackEvent("verification_applied", {
+          verificationKind: type,
+          slabId: imageId,
+          slabName: imageName,
+          materialLineId: materialLine?.id,
+          organizationId: materialLine?.organizationId,
+        });
         submitLeadAndExecute(verifiedPhone, action);
       } else {
         setPendingAction(action);
@@ -784,6 +827,13 @@ export default function ResultDisplay({
         <PhoneVerificationModal
           isOpen={true}
           onClose={() => {
+            trackEvent("verification_modal_closed", {
+              verificationKind: pendingAction.type,
+              slabId: pendingAction.imageId,
+              slabName: pendingAction.imageName,
+              materialLineId: materialLine?.id,
+              organizationId: materialLine?.organizationId,
+            });
             setPendingAction(null);
             setDownloadShareError(null);
           }}
