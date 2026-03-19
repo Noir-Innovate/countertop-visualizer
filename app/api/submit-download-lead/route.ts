@@ -3,6 +3,8 @@ import { uploadLeadImage } from "@/lib/storage";
 import { uploadImage } from "@/app/api/submit-lead/route";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { trackLeadBillingUsage } from "@/lib/billing-usage";
+import { sendLeadNotificationEmail } from "@/lib/resend";
+import { NoirMessenger } from "@/lib/noir-sms";
 
 interface DownloadLeadData {
   phone: string;
@@ -245,6 +247,119 @@ export async function POST(request: NextRequest) {
         () => {},
         (err) => console.error(`[analytics] ${eventType} insert:`, err),
       );
+
+    // Send notifications to subscribed salespeople (same as quote flow)
+    if (materialLineId) {
+      let materialLineName: string | undefined;
+      let orgSenderName: string | undefined;
+      let orgReplyTo: string | undefined;
+
+      if (organizationId) {
+        const { data: org } = await supabase
+          .from("organizations")
+          .select("email_sender_name, email_reply_to")
+          .eq("id", organizationId)
+          .single();
+        if (org) {
+          orgSenderName = org.email_sender_name || undefined;
+          orgReplyTo = org.email_reply_to || undefined;
+        }
+      }
+
+      const { data: materialLine } = await supabase
+        .from("material_lines")
+        .select("name, display_title, email_sender_name, email_reply_to")
+        .eq("id", materialLineId)
+        .single();
+
+      if (materialLine) {
+        materialLineName =
+          materialLine.display_title || materialLine.name || undefined;
+      }
+
+      const emailSenderName = materialLine?.email_sender_name || orgSenderName;
+      const emailReplyTo = materialLine?.email_reply_to || orgReplyTo;
+
+      const { data: notifications, error: notificationsError } = await supabase
+        .from("material_line_notifications")
+        .select(
+          `
+          profile_id,
+          sms_enabled,
+          email_enabled,
+          profiles(id, full_name, phone, email)
+        `,
+        )
+        .eq("material_line_id", materialLineId);
+
+      if (!notificationsError && notifications && notifications.length > 0) {
+        const leadInfo = {
+          name: "Download/Share lead",
+          email: "Phone only",
+          phone: data.phone.trim(),
+          address: "—",
+          selectedSlab: data.selectedSlabName || "Not specified",
+        };
+        const notificationMaterialLineName =
+          materialLineName || "Countertop Visualizer";
+
+        for (const notification of notifications) {
+          const profile = Array.isArray(notification.profiles)
+            ? notification.profiles[0]
+            : notification.profiles;
+          const userEmail = profile?.email;
+          const userPhone = profile?.phone;
+
+          if (notification.sms_enabled && userPhone) {
+            try {
+              const messenger = new NoirMessenger();
+              const baseMessage = `New Countertop Visualizer Lead!\n\nType: Download/Share\nPhone: ${leadInfo.phone}\nSelected: ${leadInfo.selectedSlab}\n\nCall them immediately!`;
+              await messenger.sendMessage(
+                userPhone,
+                baseMessage,
+                leadInfo.name,
+              );
+              if (originalImageSignedUrl) {
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                await messenger.sendMessage(
+                  userPhone,
+                  `Before: ${originalImageSignedUrl}`,
+                  leadInfo.name,
+                );
+              }
+              if (imageSignedUrl) {
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                await messenger.sendMessage(
+                  userPhone,
+                  `Wants: ${imageSignedUrl}`,
+                  leadInfo.name,
+                );
+              }
+            } catch (error) {
+              console.error("Failed to send SMS notification:", error);
+            }
+          }
+
+          if (notification.email_enabled && userEmail) {
+            const emailResult = await sendLeadNotificationEmail({
+              to: userEmail,
+              leadInfo,
+              kitchenImageUrl: imageSignedUrl || undefined,
+              originalImageUrl: originalImageSignedUrl || undefined,
+              materialLineName: notificationMaterialLineName,
+              senderName: emailSenderName,
+              replyTo: emailReplyTo,
+            });
+            if (!emailResult.success) {
+              console.error(
+                "Failed to send lead notification email:",
+                emailResult.error,
+              );
+            }
+          }
+        }
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

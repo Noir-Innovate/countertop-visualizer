@@ -417,15 +417,21 @@ export default function ResultDisplay({
         }
 
         if (action.type === "download") {
-          trackDownload(action.imageId, action.imageName, action.uiSource);
-          const link = document.createElement("a");
-          link.href = `data:image/png;base64,${action.imageData}`;
-          link.download = `countertop-${action.imageName
-            .toLowerCase()
-            .replace(/\s+/g, "-")}.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (!isDownloadInProgressRef.current) {
+            isDownloadInProgressRef.current = true;
+            trackDownload(action.imageId, action.imageName, action.uiSource);
+            const link = document.createElement("a");
+            link.href = `data:image/png;base64,${action.imageData}`;
+            link.download = `countertop-${action.imageName
+              .toLowerCase()
+              .replace(/\s+/g, "-")}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => {
+              isDownloadInProgressRef.current = false;
+            }, 500);
+          }
         } else {
           trackEvent("countertop_shared", {
             slabId: action.imageId,
@@ -473,6 +479,8 @@ export default function ResultDisplay({
     [pendingAction, submitLeadAndExecute],
   );
 
+  const isDownloadInProgressRef = useRef(false);
+
   const doImmediateDownload = useCallback(
     (
       imageData: string,
@@ -480,6 +488,9 @@ export default function ResultDisplay({
       imageId: string,
       uiSource: "carousel" | "compare" | "modal",
     ) => {
+      if (isDownloadInProgressRef.current) return;
+      isDownloadInProgressRef.current = true;
+
       trackDownload(imageId, imageName, uiSource);
       const link = document.createElement("a");
       link.href = `data:image/png;base64,${imageData}`;
@@ -489,6 +500,10 @@ export default function ResultDisplay({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      setTimeout(() => {
+        isDownloadInProgressRef.current = false;
+      }, 500);
     },
     [],
   );
