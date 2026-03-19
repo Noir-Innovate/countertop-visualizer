@@ -5,20 +5,30 @@ import { trackEvent } from "@/lib/posthog";
 import { useMaterialLine } from "@/lib/material-line";
 import { getVerifiedPhone, setVerifiedPhone } from "@/lib/ab-testing";
 
+type VerificationContext = "quote" | "download" | "share";
+
 interface PhoneVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onVerified: (phone: string) => void;
   autoClose?: boolean; // If false, won't auto-close after verification (for multi-step flows)
+  context?: VerificationContext; // Affects success message
 }
 
 type Step = "phone" | "code" | "success";
+
+const SUCCESS_MESSAGES: Record<VerificationContext, string> = {
+  quote: "You can request your quote now.",
+  download: "We are preparing your download.",
+  share: "We are preparing the image to be shared.",
+};
 
 export default function PhoneVerificationModal({
   isOpen,
   onClose,
   onVerified,
   autoClose = true,
+  context = "quote",
 }: PhoneVerificationModalProps) {
   const materialLine = useMaterialLine();
   const [step, setStep] = useState<Step>("phone");
@@ -352,8 +362,8 @@ export default function PhoneVerificationModal({
               </button>
 
               <p className="mt-4 text-xs text-[var(--color-text-muted)]">
-                By continuing, you agree to receive SMS messages. Standard rates
-                may apply.
+                By clicking submit, you give us permission to call and contact
+                you. Standard message rates may apply.
               </p>
             </div>
           )}
@@ -470,8 +480,7 @@ export default function PhoneVerificationModal({
                 Verified!
               </h2>
               <p className="text-[var(--color-text-secondary)]">
-                Your phone number has been verified. You can now continue with
-                your quote request.
+                {SUCCESS_MESSAGES[context]}
               </p>
             </div>
           )}

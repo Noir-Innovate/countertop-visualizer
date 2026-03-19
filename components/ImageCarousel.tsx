@@ -27,6 +27,7 @@ interface ImageCarouselProps {
   onImageClick: (imageUrl: string, alt: string, imageIndex: number) => void;
   onGetQuote?: (imageId: string, imageName: string, imageUrl: string) => void;
   onDownload?: (imageId: string, imageName: string, imageUrl: string) => void;
+  onShare?: (imageId: string, imageName: string, imageUrl: string) => void;
 }
 
 export default function ImageCarousel({
@@ -38,6 +39,7 @@ export default function ImageCarousel({
   onImageClick,
   onGetQuote,
   onDownload,
+  onShare,
 }: ImageCarouselProps) {
   const materialLine = useMaterialLine();
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -121,90 +123,10 @@ export default function ImageCarousel({
   const currentResult = allResults.find((r) => r.slabId === currentImage.id);
   const isLoading = currentImage.isLoading || currentResult?.isLoading;
 
-  const handleShare = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-
-      // Track share event
-      trackEvent("countertop_shared", {
-        slabId: currentImage.id,
-        slabName: currentImage.name,
-        isOriginal: currentImage.isOriginal || false,
-        materialLineId: materialLine?.id,
-        materialLineName: materialLine?.name,
-        materialLineSlug: materialLine?.slug,
-        organizationId: materialLine?.organizationId,
-      });
-
-      try {
-        let file: File | null = null;
-
-        // Handle data URLs (base64) or regular URLs
-        if (currentImage.imageUrl.startsWith("data:")) {
-          // Convert data URL to blob
-          const response = await fetch(currentImage.imageUrl);
-          const blob = await response.blob();
-          file = new File(
-            [blob],
-            `${currentImage.name.replace(/\s+/g, "-")}.png`,
-            { type: "image/png" },
-          );
-        } else {
-          // Regular URL - fetch and convert to blob
-          try {
-            const response = await fetch(currentImage.imageUrl);
-            const blob = await response.blob();
-            file = new File(
-              [blob],
-              `${currentImage.name.replace(/\s+/g, "-")}.png`,
-              { type: blob.type || "image/png" },
-            );
-          } catch (fetchError) {
-            // If fetch fails, fall back to URL sharing
-            console.warn("Could not fetch image for sharing:", fetchError);
-          }
-        }
-
-        // Use Web Share API if available
-        if (
-          file &&
-          navigator.share &&
-          navigator.canShare &&
-          navigator.canShare({ files: [file] })
-        ) {
-          await navigator.share({
-            title: `Check out this ${currentImage.name} countertop`,
-            text: `I found this beautiful ${currentImage.name} countertop design!`,
-            files: [file],
-          });
-        } else if (navigator.share) {
-          // Fallback: share without file (some browsers don't support file sharing)
-          await navigator.share({
-            title: `Check out this ${currentImage.name} countertop`,
-            text: `I found this beautiful ${currentImage.name} countertop design!`,
-            url: currentImage.imageUrl,
-          });
-        } else {
-          // Fallback: copy image URL to clipboard
-          await navigator.clipboard.writeText(currentImage.imageUrl);
-          alert("Image link copied to clipboard!");
-        }
-      } catch (error) {
-        // User cancelled or error occurred
-        if (error instanceof Error && error.name !== "AbortError") {
-          console.error("Error sharing:", error);
-          // Fallback: copy URL to clipboard
-          try {
-            await navigator.clipboard.writeText(currentImage.imageUrl);
-            alert("Image link copied to clipboard!");
-          } catch (clipboardError) {
-            console.error("Error copying to clipboard:", clipboardError);
-          }
-        }
-      }
-    },
-    [currentImage, materialLine],
-  );
+  const handleShareClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onShare?.(currentImage.id, currentImage.name, currentImage.imageUrl);
+  };
 
   return (
     <div className="relative">
@@ -280,7 +202,7 @@ export default function ImageCarousel({
         {/* Action Buttons - Below image on mobile, overlay on desktop (only for generated images, not loading) */}
         {!currentImage.isOriginal &&
           !isLoading &&
-          (onGetQuote || onDownload) && (
+          (onGetQuote || onDownload || onShare) && (
             <div className="absolute bottom-4 left-4 md:flex hidden gap-2 z-10">
               {onDownload && (
                 <button
@@ -310,25 +232,27 @@ export default function ImageCarousel({
                   <span className="hidden md:inline">Download</span>
                 </button>
               )}
-              <button
-                onClick={handleShare}
-                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              {onShare && (
+                <button
+                  onClick={handleShareClick}
+                  className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                  />
-                </svg>
-                <span className="hidden md:inline">Share</span>
-              </button>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                    />
+                  </svg>
+                  <span className="hidden md:inline">Share</span>
+                </button>
+              )}
               {onGetQuote && (
                 <button
                   onClick={(e) => {
@@ -490,81 +414,85 @@ export default function ImageCarousel({
       )}
 
       {/* Action Buttons - Below image on mobile (only for generated images, not loading) */}
-      {!currentImage.isOriginal && !isLoading && (onGetQuote || onDownload) && (
-        <div className="flex md:hidden gap-2 mt-4 justify-center px-6">
-          {onDownload && (
-            <button
-              onClick={() =>
-                onDownload(
-                  currentImage.id,
-                  currentImage.name,
-                  currentImage.imageUrl,
-                )
-              }
-              className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+      {!currentImage.isOriginal &&
+        !isLoading &&
+        (onGetQuote || onDownload || onShare) && (
+          <div className="flex md:hidden gap-2 mt-4 justify-center px-6">
+            {onDownload && (
+              <button
+                onClick={() =>
+                  onDownload(
+                    currentImage.id,
+                    currentImage.name,
+                    currentImage.imageUrl,
+                  )
+                }
+                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-            </button>
-          )}
-          <button
-            onClick={handleShare}
-            className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-              />
-            </svg>
-          </button>
-          {onGetQuote && (
-            <button
-              onClick={() =>
-                onGetQuote(
-                  currentImage.id,
-                  currentImage.name,
-                  currentImage.imageUrl,
-                )
-              }
-              className="px-4 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5"
-            >
-              Get The Price
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+              </button>
+            )}
+            {onShare && (
+              <button
+                onClick={handleShareClick}
+                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M14 5l7 7m0 0l-7 7m7-7H3"
-                />
-              </svg>
-            </button>
-          )}
-        </div>
-      )}
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                  />
+                </svg>
+              </button>
+            )}
+            {onGetQuote && (
+              <button
+                onClick={() =>
+                  onGetQuote(
+                    currentImage.id,
+                    currentImage.name,
+                    currentImage.imageUrl,
+                  )
+                }
+                className="px-4 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5"
+              >
+                Get The Price
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14 5l7 7m0 0l-7 7m7-7H3"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
 
       {/* Counter */}
       {images.length > 1 && (

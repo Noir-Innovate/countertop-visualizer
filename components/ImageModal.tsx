@@ -17,6 +17,7 @@ interface ImageModalProps {
   onClose: () => void;
   onGetQuote?: (imageId: string, imageName: string, imageUrl: string) => void;
   onDownload?: (imageId: string, imageName: string, imageUrl: string) => void;
+  onShare?: (imageId: string, imageName: string, imageUrl: string) => void;
 }
 
 export default function ImageModal({
@@ -26,6 +27,7 @@ export default function ImageModal({
   onClose,
   onGetQuote,
   onDownload,
+  onShare,
 }: ImageModalProps) {
   const currentImage = images[currentIndex];
 
@@ -160,7 +162,7 @@ export default function ImageModal({
         </div>
 
         {/* Action Buttons - Only for generated images */}
-        {!currentImage.isOriginal && (onGetQuote || onDownload) && (
+        {!currentImage.isOriginal && (onGetQuote || onDownload || onShare) && (
           <div className="flex gap-3 justify-center">
             {onDownload && (
               <button
@@ -188,6 +190,34 @@ export default function ImageModal({
                   />
                 </svg>
                 Download
+              </button>
+            )}
+            {onShare && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShare(
+                    currentImage.id,
+                    currentImage.name,
+                    currentImage.imageUrl,
+                  );
+                }}
+                className="px-6 py-3 bg-white hover:bg-white/95 text-[var(--color-text)] font-semibold rounded-lg shadow-lg transition-all flex items-center gap-2"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                  />
+                </svg>
+                Share
               </button>
             )}
             {onGetQuote && (

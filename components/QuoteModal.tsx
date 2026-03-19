@@ -312,6 +312,7 @@ export default function QuoteModal({
         onClose={onClose}
         onVerified={handleVerified}
         autoClose={false}
+        context="quote"
       />
     );
   }

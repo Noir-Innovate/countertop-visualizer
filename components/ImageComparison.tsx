@@ -29,6 +29,7 @@ interface ImageComparisonProps {
   onImageClick: (imageUrl: string, alt: string, imageIndex: number) => void;
   onGetQuote?: (imageId: string, imageName: string, imageUrl: string) => void;
   onDownload?: (imageId: string, imageName: string, imageUrl: string) => void;
+  onShare?: (imageId: string, imageName: string, imageUrl: string) => void;
 }
 
 export default function ImageComparison({
@@ -42,6 +43,7 @@ export default function ImageComparison({
   onImageClick,
   onGetQuote,
   onDownload,
+  onShare,
 }: ImageComparisonProps) {
   if (images.length < 2) return null;
 
@@ -111,85 +113,6 @@ export default function ImageComparison({
       onRightIndexChange(index);
     },
     [onRightIndexChange],
-  );
-
-  const handleShare = useCallback(
-    async (image: ComparisonImage) => {
-      // Track share event
-      trackEvent("countertop_shared", {
-        slabId: image.id,
-        slabName: image.name,
-        isOriginal: image.isOriginal || false,
-        materialLineId: materialLine?.id,
-        materialLineName: materialLine?.name,
-        materialLineSlug: materialLine?.slug,
-        organizationId: materialLine?.organizationId,
-      });
-
-      try {
-        let file: File | null = null;
-
-        // Handle data URLs (base64) or regular URLs
-        if (image.imageUrl.startsWith("data:")) {
-          // Convert data URL to blob
-          const response = await fetch(image.imageUrl);
-          const blob = await response.blob();
-          file = new File([blob], `${image.name.replace(/\s+/g, "-")}.png`, {
-            type: "image/png",
-          });
-        } else {
-          // Regular URL - fetch and convert to blob
-          try {
-            const response = await fetch(image.imageUrl);
-            const blob = await response.blob();
-            file = new File([blob], `${image.name.replace(/\s+/g, "-")}.png`, {
-              type: blob.type || "image/png",
-            });
-          } catch (fetchError) {
-            // If fetch fails, fall back to URL sharing
-            console.warn("Could not fetch image for sharing:", fetchError);
-          }
-        }
-
-        // Use Web Share API if available
-        if (
-          file &&
-          navigator.share &&
-          navigator.canShare &&
-          navigator.canShare({ files: [file] })
-        ) {
-          await navigator.share({
-            title: `Check out this ${image.name} countertop`,
-            text: `I found this beautiful ${image.name} countertop design!`,
-            files: [file],
-          });
-        } else if (navigator.share) {
-          // Fallback: share without file (some browsers don't support file sharing)
-          await navigator.share({
-            title: `Check out this ${image.name} countertop`,
-            text: `I found this beautiful ${image.name} countertop design!`,
-            url: image.imageUrl,
-          });
-        } else {
-          // Fallback: copy image URL to clipboard
-          await navigator.clipboard.writeText(image.imageUrl);
-          alert("Image link copied to clipboard!");
-        }
-      } catch (error) {
-        // User cancelled or error occurred
-        if (error instanceof Error && error.name !== "AbortError") {
-          console.error("Error sharing:", error);
-          // Fallback: copy URL to clipboard
-          try {
-            await navigator.clipboard.writeText(image.imageUrl);
-            alert("Image link copied to clipboard!");
-          } catch (clipboardError) {
-            console.error("Error copying to clipboard:", clipboardError);
-          }
-        }
-      }
-    },
-    [materialLine],
   );
 
   // Handle mouse/touch events for dragging
@@ -428,7 +351,7 @@ export default function ImageComparison({
           {/* Action Buttons - only for non-original, not loading */}
           {!leftImage.isOriginal &&
             !leftIsLoading &&
-            (onGetQuote || onDownload) && (
+            (onGetQuote || onDownload || onShare) && (
               <div className="flex gap-2">
                 {onDownload && (
                   <button
@@ -457,25 +380,29 @@ export default function ImageComparison({
                     <span className="hidden md:inline ml-1">Download</span>
                   </button>
                 )}
-                <button
-                  onClick={() => handleShare(leftImage)}
-                  className="flex-shrink-0 px-2 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center border border-[var(--color-border)]"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {onShare && (
+                  <button
+                    onClick={() =>
+                      onShare(leftImage.id, leftImage.name, leftImage.imageUrl)
+                    }
+                    className="flex-shrink-0 px-2 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center border border-[var(--color-border)]"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                    />
-                  </svg>
-                  <span className="hidden md:inline ml-1">Share</span>
-                </button>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                      />
+                    </svg>
+                    <span className="hidden md:inline ml-1">Share</span>
+                  </button>
+                )}
                 {onGetQuote && (
                   <button
                     onClick={() =>
@@ -525,7 +452,7 @@ export default function ImageComparison({
           {/* Action Buttons - only for non-original, not loading */}
           {!rightImage.isOriginal &&
             !rightIsLoading &&
-            (onGetQuote || onDownload) && (
+            (onGetQuote || onDownload || onShare) && (
               <div className="flex gap-2">
                 {onDownload && (
                   <button
@@ -554,25 +481,33 @@ export default function ImageComparison({
                     <span className="hidden md:inline ml-1">Download</span>
                   </button>
                 )}
-                <button
-                  onClick={() => handleShare(rightImage)}
-                  className="flex-shrink-0 px-2 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center border border-[var(--color-border)]"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {onShare && (
+                  <button
+                    onClick={() =>
+                      onShare(
+                        rightImage.id,
+                        rightImage.name,
+                        rightImage.imageUrl,
+                      )
+                    }
+                    className="flex-shrink-0 px-2 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center border border-[var(--color-border)]"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                    />
-                  </svg>
-                  <span className="hidden md:inline ml-1">Share</span>
-                </button>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                      />
+                    </svg>
+                    <span className="hidden md:inline ml-1">Share</span>
+                  </button>
+                )}
                 {onGetQuote && (
                   <button
                     onClick={() =>

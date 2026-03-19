@@ -1,14 +1,51 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import ImageModal from "./ImageModal";
 import ImageCarousel from "./ImageCarousel";
 import ImageComparison from "./ImageComparison";
 import QuoteModal from "./QuoteModal";
+import PhoneVerificationModal from "./PhoneVerificationModal";
 import { trackEvent } from "@/lib/posthog";
 import { useMaterialLine } from "@/lib/material-line";
+import { getStoredAttribution } from "@/lib/attribution";
+import { upload } from "@vercel/blob/client";
 import type { GenerationResult } from "@/lib/types";
 import type { Slab } from "@/lib/types";
+
+const SUBMITTED_LEADS_KEY = "download_share_submitted_leads";
+
+function getSubmittedLeadImageIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(SUBMITTED_LEADS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markLeadSubmitted(imageId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const set = getSubmittedLeadImageIds();
+    set.add(imageId);
+    sessionStorage.setItem(SUBMITTED_LEADS_KEY, JSON.stringify([...set]));
+  } catch {
+    // ignore
+  }
+}
+
+type PendingAction = {
+  type: "download" | "share";
+  imageId: string;
+  imageName: string;
+  imageUrl: string;
+  imageData: string;
+  uiSource: "carousel" | "compare" | "modal";
+};
 
 interface ResultDisplayProps {
   generationResults: GenerationResult[];
@@ -20,6 +57,7 @@ interface ResultDisplayProps {
   abVariant: string;
   prefillEmail?: string;
   onVerificationUpdate?: (phone: string) => void;
+  v2SessionId?: string | null;
 }
 
 type ViewMode = "carousel" | "compare";
@@ -34,6 +72,7 @@ export default function ResultDisplay({
   abVariant,
   prefillEmail,
   onVerificationUpdate,
+  v2SessionId,
 }: ResultDisplayProps) {
   const materialLine = useMaterialLine();
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
@@ -49,7 +88,23 @@ export default function ResultDisplay({
     slabName: string | null;
     imageUrl: string | null;
   }>({ slabId: null, slabName: null, imageUrl: null });
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
+  const [downloadShareError, setDownloadShareError] = useState<string | null>(
+    null,
+  );
+  const [downloadShareFeedbackType, setDownloadShareFeedbackType] = useState<
+    "error" | "success" | null
+  >(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preparingMessage, setPreparingMessage] = useState("");
+  const submittedLeadIdsRef = useRef<Set<string>>(new Set());
   const sawItTrackedRef = useRef(false);
+
+  useEffect(() => {
+    submittedLeadIdsRef.current = getSubmittedLeadImageIds();
+  }, []);
 
   // Merge all results including loading states
   const allResults = useMemo(() => {
@@ -169,22 +224,353 @@ export default function ResultDisplay({
     });
   };
 
+  const executeShare = useCallback(
+    async (imageUrl: string, imageName: string) => {
+      try {
+        let file: File | null = null;
+
+        if (imageUrl.startsWith("data:")) {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          file = new File([blob], `${imageName.replace(/\s+/g, "-")}.png`, {
+            type: "image/png",
+          });
+        } else {
+          try {
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            file = new File([blob], `${imageName.replace(/\s+/g, "-")}.png`, {
+              type: blob.type || "image/png",
+            });
+          } catch {
+            console.warn("Could not fetch image for sharing");
+          }
+        }
+
+        if (
+          file &&
+          navigator.share &&
+          navigator.canShare &&
+          navigator.canShare({ files: [file] })
+        ) {
+          await navigator.share({
+            title: `Check out this ${imageName} countertop`,
+            text: `I found this beautiful ${imageName} countertop design!`,
+            files: [file],
+          });
+        } else if (navigator.share) {
+          await navigator.share({
+            title: `Check out this ${imageName} countertop`,
+            text: `I found this beautiful ${imageName} countertop design!`,
+            url: imageUrl,
+          });
+        } else {
+          const shareText = `Check out this ${imageName} countertop design!`;
+          try {
+            await navigator.clipboard.writeText(shareText);
+            setDownloadShareError("Link copied to clipboard!");
+            setDownloadShareFeedbackType("success");
+            setTimeout(() => {
+              setDownloadShareError(null);
+              setDownloadShareFeedbackType(null);
+            }, 2500);
+          } catch {
+            setDownloadShareError(
+              "Share not available. Try downloading the image instead.",
+            );
+            setDownloadShareFeedbackType("error");
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Error sharing:", error);
+          try {
+            const shareText = `Check out this ${imageName} countertop design!`;
+            await navigator.clipboard.writeText(shareText);
+            setDownloadShareError("Link copied to clipboard!");
+            setDownloadShareFeedbackType("success");
+            setTimeout(() => {
+              setDownloadShareError(null);
+              setDownloadShareFeedbackType(null);
+            }, 2500);
+          } catch {
+            setDownloadShareError(
+              "Share failed. Try downloading the image instead.",
+            );
+            setDownloadShareFeedbackType("error");
+          }
+        }
+      }
+    },
+    [],
+  );
+
+  const submitLeadAndExecute = useCallback(
+    async (phone: string, action: PendingAction) => {
+      setDownloadShareError(null);
+      setDownloadShareFeedbackType(null);
+      setIsPreparing(true);
+      setPreparingMessage(
+        action.type === "download"
+          ? "Preparing your download..."
+          : "Preparing the image to be shared...",
+      );
+      try {
+        const attribution = getStoredAttribution();
+
+        // Same image upload flow as QuoteModal: compress and upload to Vercel Blob first,
+        // then send blob URLs to API (avoids 10MB request body limit from base64)
+        const compressImage = async (dataUrl: string): Promise<Blob> => {
+          return new Promise((resolve, reject) => {
+            const img = document.createElement("img");
+            img.onload = () => {
+              if (img.width <= 1920) {
+                fetch(dataUrl)
+                  .then((res) => res.blob())
+                  .then(resolve)
+                  .catch(reject);
+                return;
+              }
+              const canvas = document.createElement("canvas");
+              const ctx = canvas.getContext("2d");
+              if (!ctx) {
+                reject(new Error("Failed to get canvas context"));
+                return;
+              }
+              const newWidth = 1920;
+              const newHeight = (img.height * newWidth) / img.width;
+              canvas.width = newWidth;
+              canvas.height = newHeight;
+              ctx.drawImage(img, 0, 0, newWidth, newHeight);
+              canvas.toBlob(
+                (blob) =>
+                  blob
+                    ? resolve(blob)
+                    : reject(new Error("Failed to compress image")),
+                "image/jpeg",
+                0.8,
+              );
+            };
+            img.onerror = () => reject(new Error("Failed to load image"));
+            img.src = dataUrl;
+          });
+        };
+
+        const uploadImageToBlob = async (dataUrl: string): Promise<string> => {
+          const blob = await compressImage(dataUrl);
+          const file = new File([blob], "image.jpg", { type: "image/jpeg" });
+          const result = await upload(file.name, file, {
+            access: "public",
+            handleUploadUrl: "/api/blob-upload",
+          });
+          return result.url;
+        };
+
+        let selectedImageBlobUrl: string | null = null;
+        let originalImageBlobUrl: string | null = null;
+
+        if (action.imageUrl.startsWith("data:image")) {
+          selectedImageBlobUrl = await uploadImageToBlob(action.imageUrl);
+        }
+
+        if (originalImage?.startsWith("data:image")) {
+          originalImageBlobUrl = await uploadImageToBlob(originalImage);
+        } else if (originalImage?.startsWith("http")) {
+          originalImageBlobUrl = originalImage;
+        }
+
+        const response = await fetch("/api/submit-download-lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone,
+            source: action.type,
+            selectedSlabId: action.imageId,
+            selectedSlabName: action.imageName,
+            selectedImageBlobUrl,
+            originalImageBlobUrl,
+            materialLineId: materialLine?.id || null,
+            organizationId: materialLine?.organizationId || null,
+            v2SessionId: v2SessionId || null,
+            ...(attribution && {
+              utm_source: attribution.utm_source,
+              utm_medium: attribution.utm_medium,
+              utm_campaign: attribution.utm_campaign,
+              utm_term: attribution.utm_term,
+              utm_content: attribution.utm_content,
+              referrer: attribution.referrer,
+              tags:
+                Object.keys(attribution.tags ?? {}).length > 0
+                  ? attribution.tags
+                  : undefined,
+            }),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setDownloadShareError(
+            data.error || "Failed to submit. Please try again.",
+          );
+          return;
+        }
+
+        if (action.type === "download") {
+          trackDownload(action.imageId, action.imageName, action.uiSource);
+          const link = document.createElement("a");
+          link.href = `data:image/png;base64,${action.imageData}`;
+          link.download = `countertop-${action.imageName
+            .toLowerCase()
+            .replace(/\s+/g, "-")}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          trackEvent("countertop_shared", {
+            slabId: action.imageId,
+            slabName: action.imageName,
+            isOriginal: false,
+            materialLineId: materialLine?.id,
+            materialLineName: materialLine?.name,
+            materialLineSlug: materialLine?.slug,
+            organizationId: materialLine?.organizationId,
+          });
+          await executeShare(action.imageUrl, action.imageName);
+        }
+
+        markLeadSubmitted(action.imageId);
+        submittedLeadIdsRef.current.add(action.imageId);
+        setPendingAction(null);
+        onVerificationUpdate?.(phone);
+      } catch (err) {
+        setDownloadShareError(
+          err instanceof Error
+            ? err.message
+            : "Failed to save. Please try again.",
+        );
+        setDownloadShareFeedbackType("error");
+      } finally {
+        setIsPreparing(false);
+        setPreparingMessage("");
+      }
+    },
+    [
+      originalImage,
+      materialLine,
+      v2SessionId,
+      executeShare,
+      onVerificationUpdate,
+    ],
+  );
+
+  const handleVerifiedForPendingAction = useCallback(
+    (phone: string) => {
+      if (pendingAction) {
+        submitLeadAndExecute(phone, pendingAction);
+      }
+    },
+    [pendingAction, submitLeadAndExecute],
+  );
+
+  const doImmediateDownload = useCallback(
+    (
+      imageData: string,
+      imageName: string,
+      imageId: string,
+      uiSource: "carousel" | "compare" | "modal",
+    ) => {
+      trackDownload(imageId, imageName, uiSource);
+      const link = document.createElement("a");
+      link.href = `data:image/png;base64,${imageData}`;
+      link.download = `countertop-${imageName
+        .toLowerCase()
+        .replace(/\s+/g, "-")}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+    [],
+  );
+
+  const gateAndExecute = useCallback(
+    (
+      type: "download" | "share",
+      imageId: string,
+      imageName: string,
+      imageUrl: string,
+      imageData: string,
+      uiSource: "carousel" | "compare" | "modal",
+    ) => {
+      const alreadySubmitted = submittedLeadIdsRef.current.has(imageId);
+
+      if (alreadySubmitted) {
+        if (type === "download") {
+          doImmediateDownload(imageData, imageName, imageId, uiSource);
+        } else {
+          trackEvent("countertop_shared", {
+            slabId: imageId,
+            slabName: imageName,
+            isOriginal: false,
+            materialLineId: materialLine?.id,
+            materialLineName: materialLine?.name,
+            materialLineSlug: materialLine?.slug,
+            organizationId: materialLine?.organizationId,
+          });
+          executeShare(imageUrl, imageName);
+        }
+        return;
+      }
+
+      const action: PendingAction = {
+        type,
+        imageId,
+        imageName,
+        imageUrl,
+        imageData,
+        uiSource,
+      };
+
+      if (verifiedPhone) {
+        submitLeadAndExecute(verifiedPhone, action);
+      } else {
+        setPendingAction(action);
+      }
+    },
+    [verifiedPhone, submitLeadAndExecute, doImmediateDownload, executeShare],
+  );
+
   const handleDownload = (
     imageId: string,
     imageData: string,
     slabName: string,
     source: "carousel" | "compare" | "modal",
   ) => {
-    trackDownload(imageId, slabName, source);
+    const imageUrl = `data:image/png;base64,${imageData}`;
+    gateAndExecute("download", imageId, slabName, imageUrl, imageData, source);
+  };
 
-    const link = document.createElement("a");
-    link.href = `data:image/png;base64,${imageData}`;
-    link.download = `countertop-${slabName
-      .toLowerCase()
-      .replace(/\s+/g, "-")}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleShare = (
+    imageId: string,
+    imageName: string,
+    imageUrl: string,
+    source: "carousel" | "compare" | "modal",
+  ) => {
+    const result = allResults.find((r) => r.slabId === imageId);
+    let imageData = result?.imageData;
+    if (!imageData && imageUrl.startsWith("data:image")) {
+      const base64 = imageUrl.split(",")[1];
+      if (base64) imageData = base64;
+    }
+    if (!imageData) {
+      setDownloadShareError("Image not ready. Please wait for it to load.");
+      setDownloadShareFeedbackType("error");
+      return;
+    }
+    const dataUrl = imageUrl.startsWith("data:")
+      ? imageUrl
+      : `data:image/png;base64,${imageData}`;
+    gateAndExecute("share", imageId, imageName, dataUrl, imageData, source);
   };
 
   const openModal = (imageUrl: string, alt: string, imageIndex: number) => {
@@ -318,7 +704,6 @@ export default function ResultDisplay({
               }}
               onDownload={(imageId, imageName, imageUrl) => {
                 if (imageId !== "original") {
-                  // Find the result to get base64 data
                   const result = allResults.find((r) => r.slabId === imageId);
                   if (result?.imageData) {
                     handleDownload(
@@ -328,6 +713,11 @@ export default function ResultDisplay({
                       "carousel",
                     );
                   }
+                }
+              }}
+              onShare={(imageId, imageName, imageUrl) => {
+                if (imageId !== "original") {
+                  handleShare(imageId, imageName, imageUrl, "carousel");
                 }
               }}
             />
@@ -353,7 +743,6 @@ export default function ResultDisplay({
               }}
               onDownload={(imageId, imageName, imageUrl) => {
                 if (imageId !== "original") {
-                  // Find the result to get base64 data
                   const result = allResults.find((r) => r.slabId === imageId);
                   if (result?.imageData) {
                     handleDownload(
@@ -365,10 +754,100 @@ export default function ResultDisplay({
                   }
                 }
               }}
+              onShare={(imageId, imageName, imageUrl) => {
+                if (imageId !== "original") {
+                  handleShare(imageId, imageName, imageUrl, "compare");
+                }
+              }}
             />
           </div>
         )}
       </div>
+
+      {/* Phone verification for download/share */}
+      {pendingAction && (
+        <PhoneVerificationModal
+          isOpen={true}
+          onClose={() => {
+            setPendingAction(null);
+            setDownloadShareError(null);
+          }}
+          onVerified={handleVerifiedForPendingAction}
+          autoClose={false}
+          context={pendingAction.type}
+        />
+      )}
+
+      {/* Preparing modal */}
+      {isPreparing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center animate-scale-in">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--color-accent)]/10 flex items-center justify-center">
+              <svg
+                className="animate-spin h-8 w-8 text-[var(--color-accent)]"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+            </div>
+            <p className="text-lg font-semibold text-[var(--color-text)]">
+              {preparingMessage}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {downloadShareError && (
+        <div
+          className={`fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm p-4 rounded-lg shadow-lg z-50 animate-fade-in ${
+            downloadShareFeedbackType === "success"
+              ? "bg-green-50 border border-green-200"
+              : "bg-red-50 border border-red-200"
+          }`}
+        >
+          <p
+            className={`text-sm ${
+              downloadShareFeedbackType === "success"
+                ? "text-green-700"
+                : "text-red-700"
+            }`}
+          >
+            {downloadShareError}
+          </p>
+          <button
+            onClick={() => {
+              setDownloadShareError(null);
+              setDownloadShareFeedbackType(null);
+            }}
+            className={`mt-2 text-sm font-medium hover:underline ${
+              downloadShareFeedbackType === "success"
+                ? "text-green-600"
+                : "text-red-600"
+            }`}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Quote Modal */}
       {showLeadForm && (
@@ -384,6 +863,7 @@ export default function ResultDisplay({
           prefillEmail={prefillEmail}
           onSubmitSuccess={() => setShowLeadForm(false)}
           onVerificationUpdate={onVerificationUpdate}
+          v2SessionId={v2SessionId}
         />
       )}
 
@@ -402,11 +882,15 @@ export default function ResultDisplay({
           }}
           onDownload={(imageId, imageName, imageUrl) => {
             if (imageId !== "original") {
-              // Find the result to get base64 data
               const result = allResults.find((r) => r.slabId === imageId);
               if (result?.imageData) {
                 handleDownload(imageId, result.imageData, imageName, "modal");
               }
+            }
+          }}
+          onShare={(imageId, imageName, imageUrl) => {
+            if (imageId !== "original") {
+              handleShare(imageId, imageName, imageUrl, "modal");
             }
           }}
         />
