@@ -352,7 +352,7 @@ export default function MaterialLineAnalyticsClient({
   const step1Total = (imageUploaded.count ?? 0) + (imageSelected.count ?? 0);
   const conversionRate =
     step1Total > 0
-      ? (((quoteSubmitted.count ?? 0) / step1Total) * 100).toFixed(1)
+      ? (((totalLeads.count ?? 0) / step1Total) * 100).toFixed(1)
       : "0.0";
 
   // Step 1
@@ -503,18 +503,12 @@ export default function MaterialLineAnalyticsClient({
         <h2 className="text-lg font-semibold text-slate-900 mb-4">
           General Analytics
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <GeneralCard
-            label="Page Views"
-            count={pageViews.count}
-            loading={pageViews.loading}
-            sublabel="Total visits to the visualizer"
-          />
-          <GeneralCard
-            label="Total Conversions"
-            count={quoteSubmitted.count}
-            loading={quoteSubmitted.loading}
-            sublabel="Quote requests"
+            label="Image Uploaded or Selected"
+            count={step1Total}
+            loading={imageUploaded.loading || imageSelected.loading}
+            sublabel="People who uploaded an image or selected an example"
           />
           <GeneralCard
             label="Total Leads"
@@ -527,15 +521,14 @@ export default function MaterialLineAnalyticsClient({
               Overall Conversion Rate
             </p>
             <p className="text-3xl font-bold text-slate-900">
-              {pageViews.loading ||
-              quoteSubmitted.loading ||
+              {totalLeads.loading ||
               imageUploaded.loading ||
               imageSelected.loading
                 ? "—"
                 : `${conversionRate}%`}
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              From image selection to quote
+              From image selection to lead
             </p>
           </div>
         </div>
