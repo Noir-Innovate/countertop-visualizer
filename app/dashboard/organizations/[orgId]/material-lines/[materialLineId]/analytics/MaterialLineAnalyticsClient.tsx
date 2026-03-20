@@ -3,16 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import {
-  useAdminEventCount,
-  type AdminEventCountFilters,
-} from "./useAdminEventCount";
-import { useAdminLeadCount } from "./useAdminLeadCount";
-
-interface OrgOption {
-  id: string;
-  name: string;
-  material_lines: Array<{ id: string; name: string; slug: string }>;
-}
+  useEventCount,
+  type EventCountUtmFilters,
+} from "./components/useEventCount";
+import { useLeadCount } from "./components/useLeadCount";
 
 interface TrackingLinkOption {
   id: string;
@@ -20,13 +14,25 @@ interface TrackingLinkOption {
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
-  material_line_id: string;
-  organization_id: string;
-  material_line_name: string;
-  organization_name: string;
 }
 
-function AdminTimeframeSelector({
+interface InitialSearchParams {
+  days?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  trackingLinkId?: string;
+}
+
+interface MaterialLineAnalyticsClientProps {
+  materialLineId: string;
+  orgId: string;
+  orgName: string;
+  materialLineName: string;
+  initialSearchParams?: InitialSearchParams | null;
+}
+
+function TimeframeSelector({
   currentDays,
   onDaysChange,
 }: {
@@ -53,7 +59,7 @@ function AdminTimeframeSelector({
   );
 }
 
-function AdminUtmFilters({
+function UtmFilters({
   utm,
   onApply,
   onClear,
@@ -183,18 +189,45 @@ function GeneralCard({
   );
 }
 
-export default function AdminAnalyticsClient() {
+export default function MaterialLineAnalyticsClient({
+  materialLineId,
+  orgName,
+  materialLineName,
+  initialSearchParams,
+}: MaterialLineAnalyticsClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const days = parseInt(searchParams.get("days") || "30", 10);
-  const organizationId = searchParams.get("organizationId") || undefined;
-  const materialLineId = searchParams.get("materialLineId") || undefined;
-  const trackingLinkId = searchParams.get("trackingLinkId") || undefined;
-  const utm_source = searchParams.get("utm_source") ?? undefined;
-  const utm_medium = searchParams.get("utm_medium") ?? undefined;
-  const utm_campaign = searchParams.get("utm_campaign") ?? undefined;
+  // Use server-provided params for initial load (avoids useSearchParams being stale on client nav)
+  const days = parseInt(
+    initialSearchParams?.days ?? searchParams.get("days") ?? "30",
+    10,
+  );
+  const trackingLinkId =
+    initialSearchParams?.trackingLinkId ??
+    searchParams.get("trackingLinkId") ??
+    undefined;
+  const utm_source =
+    initialSearchParams?.utm_source ??
+    searchParams.get("utm_source") ??
+    undefined;
+  const utm_medium =
+    initialSearchParams?.utm_medium ??
+    searchParams.get("utm_medium") ??
+    undefined;
+  const utm_campaign =
+    initialSearchParams?.utm_campaign ??
+    searchParams.get("utm_campaign") ??
+    undefined;
 
-  const [organizations, setOrganizations] = useState<OrgOption[]>([]);
+  const utm: EventCountUtmFilters | null =
+    utm_source || utm_medium || utm_campaign
+      ? {
+          utm_source: utm_source ?? null,
+          utm_medium: utm_medium ?? null,
+          utm_campaign: utm_campaign ?? null,
+        }
+      : null;
+
   const [trackingLinks, setTrackingLinks] = useState<TrackingLinkOption[]>([]);
   const [events, setEvents] = useState<
     Array<{
@@ -205,61 +238,41 @@ export default function AdminAnalyticsClient() {
     }>
   >([]);
   const [eventsLoading, setEventsLoading] = useState(false);
-
-  const filters: AdminEventCountFilters = {
-    days,
-    organizationId: organizationId || null,
-    materialLineId: materialLineId || null,
-    utm_source: utm_source ?? null,
-    utm_medium: utm_medium ?? null,
-    utm_campaign: utm_campaign ?? null,
-  };
-
-  const leadCountFilters = {
-    days,
-    organizationId: organizationId || null,
-    materialLineId: materialLineId || null,
-  };
-  const totalLeads = useAdminLeadCount(leadCountFilters);
+  const [eventsError, setEventsError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/organizations")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setOrganizations(data?.organizations ?? []))
-      .catch(() => setOrganizations([]));
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/admin/tracking-links")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setTrackingLinks(data?.trackingLinks ?? []))
+    fetch(`/api/material-lines/${materialLineId}/tracking-links`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setTrackingLinks(Array.isArray(data) ? data : []))
       .catch(() => setTrackingLinks([]));
-  }, []);
+  }, [materialLineId]);
 
   useEffect(() => {
     setEventsLoading(true);
+    setEventsError(null);
     const params = new URLSearchParams();
     params.set("eventName", "page_view");
+    params.set("materialLineId", materialLineId);
     params.set("days", days.toString());
     params.set("limit", "50");
-    if (organizationId) params.set("organizationId", organizationId);
-    if (materialLineId) params.set("materialLineId", materialLineId);
     if (utm_source) params.set("utm_source", utm_source);
     if (utm_medium) params.set("utm_medium", utm_medium);
     if (utm_campaign) params.set("utm_campaign", utm_campaign);
-    fetch(`/api/admin/analytics/events?${params.toString()}`)
-      .then((r) => (r.ok ? r.json() : { events: [] }))
+    fetch(`/api/analytics/events?${params.toString()}`)
+      .then((r) => {
+        if (!r.ok) {
+          setEventsError(`${r.status} ${r.statusText}`);
+          return { events: [] };
+        }
+        return r.json();
+      })
       .then((data) => setEvents(data.events ?? []))
-      .catch(() => setEvents([]))
+      .catch((err) => {
+        setEventsError(err instanceof Error ? err.message : "Request failed");
+        setEvents([]);
+      })
       .finally(() => setEventsLoading(false));
-  }, [
-    days,
-    organizationId,
-    materialLineId,
-    utm_source,
-    utm_medium,
-    utm_campaign,
-  ]);
+  }, [materialLineId, days, utm_source, utm_medium, utm_campaign]);
 
   const updateParams = useCallback(
     (updates: Record<string, string | number | undefined>) => {
@@ -281,8 +294,6 @@ export default function AdminAnalyticsClient() {
           utm_source: undefined,
           utm_medium: undefined,
           utm_campaign: undefined,
-          organizationId: undefined,
-          materialLineId: undefined,
         });
         return;
       }
@@ -293,22 +304,51 @@ export default function AdminAnalyticsClient() {
         utm_source: link.utm_source ?? undefined,
         utm_medium: link.utm_medium ?? undefined,
         utm_campaign: link.utm_campaign ?? undefined,
-        organizationId: link.organization_id || undefined,
-        materialLineId: link.material_line_id || undefined,
       });
     },
     [trackingLinks, updateParams],
   );
 
-  const materialLinesForSelect = organizationId
-    ? (organizations.find((o) => o.id === organizationId)?.material_lines ?? [])
-    : organizations.flatMap((o) => o.material_lines);
-
   // General
-  const pageViews = useAdminEventCount("page_view", filters);
-  const quoteSubmitted = useAdminEventCount("quote_submitted", filters);
-  const imageUploaded = useAdminEventCount("image_uploaded", filters);
-  const imageSelected = useAdminEventCount("image_selected", filters);
+  const pageViews = useEventCount(
+    "page_view",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const quoteSubmitted = useEventCount(
+    "quote_submitted",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const imageUploaded = useEventCount(
+    "image_uploaded",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const imageSelected = useEventCount(
+    "image_selected",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+
+  const totalLeads = useLeadCount(materialLineId, days);
+
+  // Surface API errors (e.g. 403 access denied) so user knows why data is blank
+  const apiError =
+    pageViews.error ||
+    quoteSubmitted.error ||
+    imageUploaded.error ||
+    totalLeads.error ||
+    eventsError;
+
   const step1Total = (imageUploaded.count ?? 0) + (imageSelected.count ?? 0);
   const conversionRate =
     step1Total > 0
@@ -316,79 +356,118 @@ export default function AdminAnalyticsClient() {
       : "0.0";
 
   // Step 1
-  const slabSelected = useAdminEventCount("slab_selected", filters);
-  const generationStarted = useAdminEventCount("generation_started", filters);
-  const backPressed = useAdminEventCount("back_pressed", filters);
-  // Step 3
-  const sawIt = useAdminEventCount("saw_it", filters);
-  const viewModeChanged = useAdminEventCount("view_mode_changed", filters);
-  const materialViewed = useAdminEventCount("material_viewed", filters);
-  const countertopShared = useAdminEventCount("countertop_shared", filters);
-  const countertopDownloaded = useAdminEventCount(
-    "countertop_downloaded",
-    filters,
+  const slabSelected = useEventCount(
+    "slab_selected",
+    materialLineId,
+    days,
+    false,
+    utm,
   );
-  const freeResourceAccepted = useAdminEventCount(
-    "free_resource_submitted",
-    filters,
+  const generationStarted = useEventCount(
+    "generation_started",
+    materialLineId,
+    days,
+    false,
+    utm,
   );
-  const freeResourceRejected = useAdminEventCount(
-    "free_resource_skipped",
-    filters,
-  );
-  const leadFormSubmitted = useAdminEventCount("lead_form_submitted", filters);
-  const verificationSuccessful = useAdminEventCount(
-    "verification_successful",
-    filters,
+  const backPressed = useEventCount(
+    "back_pressed",
+    materialLineId,
+    days,
+    false,
+    utm,
   );
 
-  const orgName = (id: string) =>
-    organizations.find((o) => o.id === id)?.name ?? id.slice(0, 8);
-  const lineName = (id: string) => {
-    for (const o of organizations) {
-      const line = o.material_lines.find((l) => l.id === id);
-      if (line) return line.name;
-    }
-    return id.slice(0, 8);
-  };
+  // Step 3
+  const sawIt = useEventCount("saw_it", materialLineId, days, false, utm);
+  const viewModeChanged = useEventCount(
+    "view_mode_changed",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const materialViewed = useEventCount(
+    "material_viewed",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const countertopShared = useEventCount(
+    "countertop_shared",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const countertopDownloaded = useEventCount(
+    "countertop_downloaded",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const freeResourceAccepted = useEventCount(
+    "free_resource_submitted",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const freeResourceRejected = useEventCount(
+    "free_resource_skipped",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const leadFormSubmitted = useEventCount(
+    "lead_form_submitted",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
+  const verificationSuccessful = useEventCount(
+    "verification_successful",
+    materialLineId,
+    days,
+    false,
+    utm,
+  );
 
   const hasTrackingLinkSelected = !!trackingLinkId;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Admin Analytics</h1>
-        <p className="text-slate-600 mt-1">
-          All events across organizations. Use filters to segment.
-        </p>
-      </div>
-
+    <>
       <div className="mb-6 p-4 bg-white rounded-xl border border-slate-200 space-y-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-500">Timeframe:</span>
-            <AdminTimeframeSelector
+            <TimeframeSelector
               currentDays={days}
               onDaysChange={(d) => updateParams({ days: d })}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-500">Tracking link:</label>
-            <select
-              value={trackingLinkId ?? ""}
-              onChange={(e) => handleTrackingLinkSelect(e.target.value)}
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[220px]"
-            >
-              <option value="">None (manual UTM)</option>
-              {trackingLinks.map((link) => (
-                <option key={link.id} value={link.id}>
-                  {link.name} · {link.material_line_name} ·{" "}
-                  {link.organization_name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <AdminUtmFilters
+          {trackingLinks.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-500">Tracking link:</label>
+              <select
+                value={trackingLinkId ?? ""}
+                onChange={(e) => handleTrackingLinkSelect(e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[220px]"
+              >
+                <option value="">None (manual UTM)</option>
+                {trackingLinks.map((link) => (
+                  <option key={link.id} value={link.id}>
+                    {link.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <UtmFilters
             utm={{ utm_source, utm_medium, utm_campaign }}
             onApply={(v) =>
               updateParams({
@@ -409,50 +488,15 @@ export default function AdminAnalyticsClient() {
             disabled={hasTrackingLinkSelected}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-500">Organization:</label>
-            <select
-              value={organizationId ?? ""}
-              onChange={(e) =>
-                updateParams({
-                  organizationId: e.target.value || undefined,
-                  materialLineId: undefined,
-                  trackingLinkId: undefined,
-                })
-              }
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[180px]"
-            >
-              <option value="">All</option>
-              {organizations.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-500">Material line:</label>
-            <select
-              value={materialLineId ?? ""}
-              onChange={(e) =>
-                updateParams({
-                  materialLineId: e.target.value || undefined,
-                  trackingLinkId: undefined,
-                })
-              }
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[180px]"
-            >
-              <option value="">All</option>
-              {materialLinesForSelect.map((ml) => (
-                <option key={ml.id} value={ml.id}>
-                  {ml.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
       </div>
+
+      {apiError && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+          <strong>Analytics API error:</strong> {apiError}. Counts may show 0.
+          Check that you have access to this material line and that events are
+          being tracked with the correct material_line_id.
+        </div>
+      )}
 
       {/* General Analytics */}
       <div className="mb-8">
@@ -683,16 +727,8 @@ export default function AdminAnalyticsClient() {
                         ? new Date(ev.timestamp).toLocaleString()
                         : "—"}
                     </td>
-                    <td className="p-3">
-                      {"organization_id" in ev && ev.organization_id
-                        ? orgName(ev.organization_id)
-                        : "—"}
-                    </td>
-                    <td className="p-3">
-                      {"material_line_id" in ev && ev.material_line_id
-                        ? lineName(ev.material_line_id)
-                        : "—"}
-                    </td>
+                    <td className="p-3">{orgName}</td>
+                    <td className="p-3">{materialLineName}</td>
                     <td className="p-3 text-slate-600 max-w-xs truncate">
                       {ev.properties && typeof ev.properties === "object"
                         ? JSON.stringify(ev.properties).slice(0, 80) +
@@ -706,6 +742,6 @@ export default function AdminAnalyticsClient() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

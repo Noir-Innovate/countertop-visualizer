@@ -152,6 +152,7 @@ export default function PhoneVerificationModal({
     setError(null);
     trackEvent("verification_code_requested", {
       phone: digits,
+      verificationKind: context,
       materialLineId: materialLine?.id,
       organizationId: materialLine?.organizationId,
     });
@@ -189,6 +190,7 @@ export default function PhoneVerificationModal({
     setIsLoading(true);
     setError(null);
     trackEvent("verification_code_submitted", {
+      verificationKind: context,
       materialLineId: materialLine?.id,
       organizationId: materialLine?.organizationId,
     });
@@ -211,6 +213,7 @@ export default function PhoneVerificationModal({
       }
 
       trackEvent("verification_successful", {
+        verificationKind: context,
         materialLineId: materialLine?.id,
         organizationId: materialLine?.organizationId,
       });
@@ -230,6 +233,7 @@ export default function PhoneVerificationModal({
       }, 1500);
     } catch (err) {
       trackEvent("verification_failed", {
+        verificationKind: context,
         materialLineId: materialLine?.id,
         organizationId: materialLine?.organizationId,
       });

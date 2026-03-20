@@ -1,4 +1,0 @@
-{"location":"takeoff/page.tsx:handleGenerate","message":"handleGenerate called","data":{"hasKitchenImage":true,"kitchenImageLen":5941199},"timestamp":1771947830232,"hypothesisId":"H1"}
-{"location":"takeoff/page.tsx:after compress","message":"after compressImage","data":{"compressedLen":1832119},"timestamp":1771947830433,"hypothesisId":"H2"}
-{"location":"takeoff/page.tsx:before fetch","message":"about to fetch /api/takeoff","data":{},"timestamp":1771947830434,"hypothesisId":"H3"}
-{"location":"api/takeoff/route.ts:POST","message":"POST /api/takeoff received","data":{},"timestamp":1771947830655,"hypothesisId":"H4"}

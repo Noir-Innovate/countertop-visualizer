@@ -64,13 +64,8 @@ export function useEventCount(
   forceRefresh = false,
   utm?: EventCountUtmFilters | null,
 ) {
-  const [count, setCount] = useState<number | null>(() => {
-    if (!forceRefresh) {
-      return getCachedCount(eventName, materialLineId, days, utm);
-    }
-    return null;
-  });
-  const [loading, setLoading] = useState(count === null);
+  const [count, setCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchingRef = useRef(false);
 

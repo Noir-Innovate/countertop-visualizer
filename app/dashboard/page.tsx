@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getSupabaseEventCounts } from "@/lib/analytics-server";
 import DashboardContent from "./components/DashboardContent";
 
 export const dynamic = "force-dynamic";
@@ -96,34 +95,5 @@ export default async function DashboardPage() {
         .filter((org) => org.id) ?? [];
   }
 
-  const allMaterialLineIds = organizations.flatMap(
-    (org) => org.material_lines?.map((ml) => ml.id) || [],
-  );
-
-  let totalPageViews = 0;
-  let totalQuoteRequests = 0;
-
-  if (allMaterialLineIds.length > 0) {
-    const [pageViews, quoteRequests] = await getSupabaseEventCounts([
-      {
-        eventName: "page_view",
-        materialLineIds: allMaterialLineIds,
-      },
-      {
-        eventName: "quote_submitted",
-        materialLineIds: allMaterialLineIds,
-      },
-    ]);
-
-    totalPageViews = pageViews;
-    totalQuoteRequests = quoteRequests;
-  }
-
-  return (
-    <DashboardContent
-      organizations={organizations}
-      totalPageViews={totalPageViews}
-      totalQuoteRequests={totalQuoteRequests}
-    />
-  );
+  return <DashboardContent organizations={organizations} />;
 }
