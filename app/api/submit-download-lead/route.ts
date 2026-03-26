@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
           if (notification.sms_enabled && userPhone) {
             try {
               const messenger = new NoirMessenger();
-              const baseMessage = `New Countertop Visualizer Lead!\n\nType: Download/Share\nPhone: ${leadInfo.phone}\nSelected: ${leadInfo.selectedSlab}\n\nCall them immediately!`;
+              const baseMessage = `New Countertop Visualizer Lead!\n\nType: Download/Share\nName: ${leadName || "Not provided"}\nPhone: ${leadInfo.phone}\nSelected: ${leadInfo.selectedSlab}\n\nCall them immediately!`;
               await messenger.sendMessage(
                 userPhone,
                 baseMessage,
