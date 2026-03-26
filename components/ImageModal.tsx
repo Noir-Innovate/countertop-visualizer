@@ -174,7 +174,7 @@ export default function ImageModal({
                     currentImage.imageUrl,
                   );
                 }}
-                className="px-6 py-3 bg-white hover:bg-white/95 text-[var(--color-text)] font-semibold rounded-lg shadow-lg transition-all flex items-center gap-2"
+                className="cursor-pointer px-6 py-3 bg-white text-[var(--color-text)] font-semibold rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-accent)]/40"
               >
                 <svg
                   className="w-5 h-5"
@@ -202,7 +202,7 @@ export default function ImageModal({
                     currentImage.imageUrl,
                   );
                 }}
-                className="px-6 py-3 bg-white hover:bg-white/95 text-[var(--color-text)] font-semibold rounded-lg shadow-lg transition-all flex items-center gap-2"
+                className="cursor-pointer px-6 py-3 bg-white text-[var(--color-text)] font-semibold rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-accent)]/40"
               >
                 <svg
                   className="w-5 h-5"

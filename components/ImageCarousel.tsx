@@ -214,7 +214,7 @@ export default function ImageCarousel({
                       currentImage.imageUrl,
                     );
                   }}
-                  className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+                  className="cursor-pointer px-3 py-2 bg-white text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md flex items-center gap-1.5 border border-[var(--color-border)] hover:border-[var(--color-accent)]/40"
                 >
                   <svg
                     className="w-4 h-4"
@@ -235,7 +235,7 @@ export default function ImageCarousel({
               {onShare && (
                 <button
                   onClick={handleShareClick}
-                  className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+                  className="cursor-pointer px-3 py-2 bg-white text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md flex items-center gap-1.5 border border-[var(--color-border)] hover:border-[var(--color-accent)]/40"
                 >
                   <svg
                     className="w-4 h-4"
@@ -427,7 +427,7 @@ export default function ImageCarousel({
                     currentImage.imageUrl,
                   )
                 }
-                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+                className="cursor-pointer px-3 py-2 bg-white text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md flex items-center gap-1.5 border border-[var(--color-border)] hover:border-[var(--color-accent)]/40"
               >
                 <svg
                   className="w-4 h-4"
@@ -447,7 +447,7 @@ export default function ImageCarousel({
             {onShare && (
               <button
                 onClick={handleShareClick}
-                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+                className="cursor-pointer px-3 py-2 bg-white text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md flex items-center gap-1.5 border border-[var(--color-border)] hover:border-[var(--color-accent)]/40"
               >
                 <svg
                   className="w-4 h-4"

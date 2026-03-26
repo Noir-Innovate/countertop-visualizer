@@ -40,26 +40,33 @@ export default function PhoneVerificationModal({
 
   const codeInputsRef = useRef<(HTMLInputElement | null)[]>([]);
   const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  /** Avoid duplicate onVerified when the effect re-runs (Strict Mode, or onVerified identity change). */
+  const fastPathHandledForOpenRef = useRef(false);
 
   // Check if phone is already verified when modal opens
   useEffect(() => {
-    if (isOpen) {
-      const verifiedPhone = getVerifiedPhone();
-      if (verifiedPhone) {
-        // Phone is already verified, notify parent and close
-        onVerified(verifiedPhone);
-        if (autoClose) {
-          onClose();
-        }
-        return;
-      }
-      // Reset state for new verification
-      setStep("phone");
-      setName("");
-      setPhone("");
-      setCode(["", "", "", "", "", ""]);
-      setError(null);
+    if (!isOpen) {
+      fastPathHandledForOpenRef.current = false;
+      return;
     }
+
+    const verifiedPhone = getVerifiedPhone();
+    if (verifiedPhone) {
+      if (fastPathHandledForOpenRef.current) return;
+      fastPathHandledForOpenRef.current = true;
+      onVerified(verifiedPhone);
+      if (autoClose) {
+        onClose();
+      }
+      return;
+    }
+
+    // Reset state for new verification
+    setStep("phone");
+    setName("");
+    setPhone("");
+    setCode(["", "", "", "", "", ""]);
+    setError(null);
   }, [isOpen, onVerified, onClose, autoClose]);
 
   // Format phone number as user types
