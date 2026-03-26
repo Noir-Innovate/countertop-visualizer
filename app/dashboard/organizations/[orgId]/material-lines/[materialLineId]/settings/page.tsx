@@ -405,6 +405,22 @@ export default function MaterialLineSettingsPage({ params }: Props) {
               </button>
             </div>
           </form>
+
+          <div className="mt-8 pt-8 border-t border-dashed border-red-200">
+            <h3 className="text-lg font-medium text-red-900 mb-2">
+              Danger zone
+            </h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Permanently delete this material line and related dashboard data.
+              You will be asked to type the internal name to confirm.
+            </p>
+            <Link
+              href={`${materialLineBasePath}/delete`}
+              className="inline-flex items-center justify-center px-4 py-2 border border-red-300 text-red-700 font-medium rounded-lg hover:bg-red-50 transition-colors"
+            >
+              Delete material line…
+            </Link>
+          </div>
         </div>
       </div>
     </>
