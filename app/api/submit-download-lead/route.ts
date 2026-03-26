@@ -8,6 +8,7 @@ import { NoirMessenger } from "@/lib/noir-sms";
 
 interface DownloadLeadData {
   phone: string;
+  name?: string;
   source: "download" | "share";
   selectedSlabId?: string;
   selectedSlabName?: string;
@@ -170,11 +171,13 @@ export async function POST(request: NextRequest) {
         ? data.tags
         : null;
 
+    const leadName = data.name?.trim() || null;
+
     const { data: lead, error: insertError } = await supabase
       .from("leads")
       .insert({
         session_id: sessionId,
-        name: null,
+        name: leadName,
         email: null,
         address: null,
         phone: data.phone.trim(),
@@ -294,7 +297,7 @@ export async function POST(request: NextRequest) {
 
       if (!notificationsError && notifications && notifications.length > 0) {
         const leadInfo = {
-          name: "Download/Share lead",
+          name: leadName || "Download/Share lead",
           email: "Phone only",
           phone: data.phone.trim(),
           address: "—",

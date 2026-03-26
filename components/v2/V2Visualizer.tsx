@@ -16,6 +16,7 @@ import type {
   MaterialColor,
 } from "@/lib/v2/materials";
 import type { VersionEntry, BacksplashHeightId } from "@/lib/v2/types";
+import { downloadPngFromBase64, shareImageFromDataUrl } from "@/lib/image-actions";
 import { trackEvent } from "@/lib/posthog";
 
 interface V2VisualizerProps {
@@ -47,6 +48,10 @@ export default function V2Visualizer({
   const [generatingCategory, setGeneratingCategory] = useState<string>("");
   const [kitchenImagePath, setKitchenImagePath] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [shareFeedbackType, setShareFeedbackType] = useState<
+    "success" | "error" | null
+  >(null);
 
   const isLocalDev =
     typeof window !== "undefined" &&
@@ -351,11 +356,7 @@ export default function V2Visualizer({
           ? "None"
           : heightId === "4in"
             ? '4" Standard'
-            : heightId === "mid"
-              ? "Mid-Height"
-              : heightId === "full"
-                ? "Full Height"
-                : "Full Wall";
+            : "Full Height";
 
       const label =
         heightId === "none"
@@ -476,6 +477,95 @@ export default function V2Visualizer({
     setCurrentImage(kitchenImage);
   }, [kitchenImage]);
 
+  const activeVersion =
+    currentVersionIndex >= 0 && currentVersionIndex < versions.length
+      ? versions[currentVersionIndex]
+      : null;
+
+  useEffect(() => {
+    setShareFeedback(null);
+    setShareFeedbackType(null);
+  }, [currentVersionIndex]);
+
+  const handleV2Download = useCallback(() => {
+    if (
+      currentVersionIndex < 0 ||
+      currentVersionIndex >= versions.length ||
+      isGenerating
+    ) {
+      return;
+    }
+    const v = versions[currentVersionIndex];
+    trackEvent("v2_download_clicked", {
+      versionId: v.id,
+      materialName: v.materialName,
+      materialCategory: v.materialCategory,
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
+    });
+    const did = downloadPngFromBase64(v.imageData);
+    if (did) {
+      trackEvent("v2_image_downloaded", {
+        versionId: v.id,
+        materialName: v.materialName,
+        materialCategory: v.materialCategory,
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
+    }
+  }, [currentVersionIndex, versions, isGenerating, materialLine]);
+
+  const handleV2Share = useCallback(async () => {
+    if (
+      currentVersionIndex < 0 ||
+      currentVersionIndex >= versions.length ||
+      isGenerating
+    ) {
+      return;
+    }
+    const v = versions[currentVersionIndex];
+    setShareFeedback(null);
+    setShareFeedbackType(null);
+    trackEvent("v2_share_clicked", {
+      versionId: v.id,
+      materialName: v.materialName,
+      materialCategory: v.materialCategory,
+      materialLineId: materialLine?.id,
+      organizationId: materialLine?.organizationId,
+    });
+    const dataUrl = `data:image/png;base64,${v.imageData}`;
+    const result = await shareImageFromDataUrl(dataUrl);
+    if (result.kind === "aborted") return;
+    if (result.kind === "clipboard_success") {
+      setShareFeedback(result.message);
+      setShareFeedbackType("success");
+      setTimeout(() => {
+        setShareFeedback(null);
+        setShareFeedbackType(null);
+      }, 2500);
+      trackEvent("v2_image_shared", {
+        versionId: v.id,
+        materialName: v.materialName,
+        materialCategory: v.materialCategory,
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+        shareMethod: "clipboard",
+      });
+    } else if (result.kind === "error") {
+      setShareFeedback(result.message);
+      setShareFeedbackType("error");
+    } else if (result.kind === "shared") {
+      trackEvent("v2_image_shared", {
+        versionId: v.id,
+        materialName: v.materialName,
+        materialCategory: v.materialCategory,
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+        shareMethod: "native",
+      });
+    }
+  }, [currentVersionIndex, versions, isGenerating, materialLine]);
+
   const activeGroup = materialsGrouped.find(
     (g) => g.category === activeCategory,
   );
@@ -489,6 +579,11 @@ export default function V2Visualizer({
         isGenerating={isGenerating}
         generatingCategory={generatingCategory}
         onChangePhoto={onChangePhoto}
+        showDownloadShare={!!activeVersion}
+        onDownload={handleV2Download}
+        onShare={handleV2Share}
+        shareFeedback={shareFeedback}
+        shareFeedbackType={shareFeedbackType}
       />
 
       <V2VersionHistory

@@ -10,7 +10,7 @@ type VerificationContext = "quote" | "download" | "share";
 interface PhoneVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onVerified: (phone: string) => void;
+  onVerified: (phone: string, name?: string) => void;
   autoClose?: boolean; // If false, won't auto-close after verification (for multi-step flows)
   context?: VerificationContext; // Affects success message
 }
@@ -32,6 +32,7 @@ export default function PhoneVerificationModal({
 }: PhoneVerificationModalProps) {
   const materialLine = useMaterialLine();
   const [step, setStep] = useState<Step>("phone");
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +55,7 @@ export default function PhoneVerificationModal({
       }
       // Reset state for new verification
       setStep("phone");
+      setName("");
       setPhone("");
       setCode(["", "", "", "", "", ""]);
       setError(null);
@@ -141,7 +143,13 @@ export default function PhoneVerificationModal({
     }
   };
 
+  const asksForName = context === "download" || context === "share";
+
   const handleSendCode = async () => {
+    if (asksForName && !name.trim()) {
+      setError("Please enter your name");
+      return;
+    }
     const digits = phone.replace(/\D/g, "");
     if (digits.length !== 10) {
       setError("Please enter a valid 10-digit phone number");
@@ -226,7 +234,10 @@ export default function PhoneVerificationModal({
 
       // After a brief delay, notify parent and optionally close
       setTimeout(() => {
-        onVerified(verifiedPhoneNumber);
+        onVerified(
+          verifiedPhoneNumber,
+          asksForName ? name.trim() : undefined,
+        );
         if (autoClose) {
           onClose();
         }
@@ -305,6 +316,25 @@ export default function PhoneVerificationModal({
                 We'll send you a verification code to confirm your phone number
               </p>
 
+              {asksForName && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-[var(--color-text)] text-left mb-2">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="Your name"
+                    className="input w-full"
+                    autoComplete="name"
+                  />
+                </div>
+              )}
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-[var(--color-text)] text-left mb-2">
                   Phone Number
@@ -337,7 +367,11 @@ export default function PhoneVerificationModal({
 
               <button
                 onClick={handleSendCode}
-                disabled={isLoading || phone.replace(/\D/g, "").length !== 10}
+                disabled={
+                  isLoading ||
+                  phone.replace(/\D/g, "").length !== 10 ||
+                  (asksForName && !name.trim())
+                }
                 className="w-full btn btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (

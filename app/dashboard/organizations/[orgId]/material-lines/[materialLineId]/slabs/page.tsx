@@ -255,6 +255,13 @@ export default function MaterialsPage({ params }: Props) {
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
+    if (activeCategory === "Cabinets") {
+      toast.error(
+        "Cabinet finishes use paint colors only—edit them in Cabinet Colors below, not image uploads.",
+      );
+      return;
+    }
+
     // Validate files first
     const validFiles: File[] = [];
     const errors: string[] = [];
@@ -308,6 +315,18 @@ export default function MaterialsPage({ params }: Props) {
 
   const handleFileUpload = async () => {
     if (pendingFiles.length === 0) return;
+
+    if (
+      pendingFiles.some((f) => f.material_category === "Cabinets") ||
+      activeCategory === "Cabinets"
+    ) {
+      toast.error(
+        "Cabinet finishes use paint colors only—use Cabinet Colors, not uploaded images.",
+      );
+      setShowUploadModal(false);
+      setPendingFiles([]);
+      return;
+    }
 
     setUploading(true);
     setErrors([]);
@@ -366,6 +385,13 @@ export default function MaterialsPage({ params }: Props) {
       // Get the maximum order value for this material line + category
       const uploadCategory =
         pendingFiles[0]?.material_category || activeCategory;
+      if (uploadCategory === "Cabinets") {
+        setErrors([
+          "Cabinet finishes use paint colors only—use Cabinet Colors on the Cabinets tab.",
+        ]);
+        setUploading(false);
+        return;
+      }
       const { data: maxOrderData } = await supabase
         .from("materials")
         .select("order")
@@ -727,6 +753,13 @@ export default function MaterialsPage({ params }: Props) {
     {} as Record<string, number>,
   );
 
+  const cabinetColorCount =
+    materialLine?.category_colors?.["Cabinets"]?.length ?? 0;
+
+  const MATERIAL_CATEGORIES_FOR_UPLOAD = MATERIAL_CATEGORIES.filter(
+    (c) => c !== "Cabinets",
+  );
+
   const handleReorderMaterials = async (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -930,6 +963,13 @@ export default function MaterialsPage({ params }: Props) {
     e.stopPropagation();
     setDragActive(false);
 
+    if (activeCategory === "Cabinets") {
+      toast.error(
+        "Cabinet finishes use paint colors only—edit Cabinet Colors above.",
+      );
+      return;
+    }
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFileSelect(e.dataTransfer.files);
     }
@@ -989,7 +1029,30 @@ export default function MaterialsPage({ params }: Props) {
                 <h1 className="text-3xl font-bold text-slate-900">
                   Material Inventory
                 </h1>
-                {!loading && (
+                {!loading && activeCategory === "Cabinets" && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                    <svg
+                      className="w-5 h-5 text-blue-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4l2 2h6a2 2 0 012 2v3M7 21h10a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v7z"
+                      />
+                    </svg>
+                    <span className="text-blue-700 font-semibold">
+                      {cabinetColorCount}{" "}
+                      {cabinetColorCount === 1
+                        ? "cabinet color"
+                        : "cabinet colors"}
+                    </span>
+                  </div>
+                )}
+                {!loading && activeCategory !== "Cabinets" && (
                   <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
                     <svg
                       className="w-5 h-5 text-blue-600"
@@ -1030,34 +1093,38 @@ export default function MaterialsPage({ params }: Props) {
                 )}
               </p>
             </div>
-            <label
-              htmlFor="file-upload"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
+            {activeCategory !== "Cabinets" && (
+              <>
+                <label
+                  htmlFor="file-upload"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Upload Materials
+                </label>
+                <input
+                  id="file-upload"
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/tiff,image/tif"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                  disabled={uploading}
                 />
-              </svg>
-              Upload Materials
-            </label>
-            <input
-              id="file-upload"
-              type="file"
-              multiple
-              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/tiff,image/tif"
-              onChange={handleFileInputChange}
-              className="hidden"
-              disabled={uploading}
-            />
+              </>
+            )}
           </div>
         </div>
 
@@ -1074,7 +1141,8 @@ export default function MaterialsPage({ params }: Props) {
               }`}
             >
               {cat}
-              {categoryCountMap[cat] > 0 && (
+              {(cat === "Cabinets" ? cabinetColorCount : categoryCountMap[cat]) >
+                0 && (
                 <span
                   className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
                     activeCategory === cat
@@ -1082,7 +1150,9 @@ export default function MaterialsPage({ params }: Props) {
                       : "bg-slate-200 text-slate-500"
                   }`}
                 >
-                  {categoryCountMap[cat]}
+                  {cat === "Cabinets"
+                    ? cabinetColorCount
+                    : categoryCountMap[cat]}
                 </span>
               )}
             </button>
@@ -1111,7 +1181,7 @@ export default function MaterialsPage({ params }: Props) {
           </div>
         )}
 
-        {uploading && (
+        {activeCategory !== "Cabinets" && uploading && (
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-blue-700 text-sm flex items-center gap-2">
               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
@@ -1136,7 +1206,7 @@ export default function MaterialsPage({ params }: Props) {
         )}
 
         {/* Drag and Drop Zone - Only show if no materials exist */}
-        {materials.length === 0 && (
+        {activeCategory !== "Cabinets" && materials.length === 0 && (
           <div
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -1172,62 +1242,63 @@ export default function MaterialsPage({ params }: Props) {
           </div>
         )}
 
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-          </div>
-        ) : filteredMaterials.length > 0 ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleReorderMaterials}
-          >
-            <SortableContext items={filteredMaterials.map((m) => m.id)}>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {filteredMaterials.map((material) => (
-                  <SortableMaterialCard
-                    key={material.id}
-                    material={material}
-                    isReordering={isReordering}
-                    onEdit={() => setEditingMaterial(material)}
-                    onDelete={() => setDeletingMaterial(material)}
-                    getImageUrl={getImageUrl}
-                    generateTitleFromFilename={generateTitleFromFilename}
-                    isLocalDev={isLocalDev}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
+        {activeCategory !== "Cabinets" &&
+          (loading ? (
+            <div className="flex justify-center items-center py-20">
+              <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
             </div>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
-              No Materials Found
-            </h2>
-            <p className="text-slate-600 mb-4">
-              Upload material images to get started. Images will be stored in:
-              <br />
-              <code className="px-2 py-1 bg-slate-100 rounded text-sm mt-2 inline-block">
-                public-assets/{materialLine?.supabase_folder}/
-              </code>
-            </p>
-          </div>
-        )}
+          ) : filteredMaterials.length > 0 ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleReorderMaterials}
+            >
+              <SortableContext items={filteredMaterials.map((m) => m.id)}>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {filteredMaterials.map((material) => (
+                    <SortableMaterialCard
+                      key={material.id}
+                      material={material}
+                      isReordering={isReordering}
+                      onEdit={() => setEditingMaterial(material)}
+                      onDelete={() => setDeletingMaterial(material)}
+                      getImageUrl={getImageUrl}
+                      generateTitleFromFilename={generateTitleFromFilename}
+                      isLocalDev={isLocalDev}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                No Materials Found
+              </h2>
+              <p className="text-slate-600 mb-4">
+                Upload material images to get started. Images will be stored in:
+                <br />
+                <code className="px-2 py-1 bg-slate-100 rounded text-sm mt-2 inline-block">
+                  public-assets/{materialLine?.supabase_folder}/
+                </code>
+              </p>
+            </div>
+          ))}
 
         {/* Upload Modal */}
         {showUploadModal && (
@@ -1287,7 +1358,7 @@ export default function MaterialsPage({ params }: Props) {
                           }}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          {MATERIAL_CATEGORIES.map((cat) => (
+                          {MATERIAL_CATEGORIES_FOR_UPLOAD.map((cat) => (
                             <option key={cat} value={cat}>
                               {cat}
                             </option>

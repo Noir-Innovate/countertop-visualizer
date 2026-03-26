@@ -46,17 +46,6 @@ const HEIGHT_ICONS: Record<string, React.ReactNode> = {
       <path strokeLinecap="round" strokeWidth={1.5} d="M3 15V5M21 15V5" />
     </svg>
   ),
-  mid: (
-    <svg
-      className="w-6 h-6"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <rect x="3" y="11" width="18" height="8" rx="0.5" strokeWidth={1.5} />
-      <path strokeLinecap="round" strokeWidth={1.5} d="M3 10V5M21 10V5" />
-    </svg>
-  ),
   full: (
     <svg
       className="w-6 h-6"
@@ -66,16 +55,6 @@ const HEIGHT_ICONS: Record<string, React.ReactNode> = {
     >
       <rect x="3" y="7" width="18" height="12" rx="0.5" strokeWidth={1.5} />
       <path strokeLinecap="round" strokeWidth={1.5} d="M3 6V4M21 6V4" />
-    </svg>
-  ),
-  full_wall: (
-    <svg
-      className="w-6 h-6"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <rect x="3" y="4" width="18" height="16" rx="0.5" strokeWidth={1.5} />
     </svg>
   ),
 };

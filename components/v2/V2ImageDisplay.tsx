@@ -5,6 +5,11 @@ interface V2ImageDisplayProps {
   isGenerating: boolean;
   generatingCategory?: string;
   onChangePhoto: () => void;
+  showDownloadShare?: boolean;
+  onDownload?: () => void;
+  onShare?: () => void;
+  shareFeedback?: string | null;
+  shareFeedbackType?: "success" | "error" | null;
 }
 
 export default function V2ImageDisplay({
@@ -12,6 +17,11 @@ export default function V2ImageDisplay({
   isGenerating,
   generatingCategory,
   onChangePhoto,
+  showDownloadShare = false,
+  onDownload,
+  onShare,
+  shareFeedback,
+  shareFeedbackType,
 }: V2ImageDisplayProps) {
   if (!currentImage) return null;
 
@@ -19,6 +29,9 @@ export default function V2ImageDisplay({
   const imgSrc = isBase64
     ? currentImage
     : `data:image/png;base64,${currentImage}`;
+
+  const showActions =
+    showDownloadShare && !isGenerating && (onDownload || onShare);
 
   return (
     <div className="relative w-full max-w-4xl mx-auto">
@@ -47,13 +60,128 @@ export default function V2ImageDisplay({
           </div>
         )}
 
+        {showActions && (
+          <div className="absolute bottom-4 left-4 hidden md:flex gap-2 z-10">
+            {onDownload && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDownload();
+                }}
+                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                <span className="hidden md:inline">Download</span>
+              </button>
+            )}
+            {onShare && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShare();
+                }}
+                className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                  />
+                </svg>
+                <span className="hidden md:inline">Share</span>
+              </button>
+            )}
+          </div>
+        )}
+
         <button
+          type="button"
           onClick={onChangePhoto}
           className="absolute top-3 right-3 px-3 py-1.5 text-sm font-medium bg-white/90 hover:bg-white text-slate-800 rounded-lg shadow-md transition-colors"
         >
           Change Photo
         </button>
       </div>
+
+      {showActions && (
+        <div className="flex md:hidden gap-2 mt-4 justify-center px-2">
+          {onDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+            </button>
+          )}
+          {onShare && (
+            <button
+              type="button"
+              onClick={onShare}
+              className="px-3 py-2 bg-white hover:bg-white/95 text-[var(--color-text)] text-sm font-semibold rounded-lg shadow-lg transition-all flex items-center gap-1.5 border border-[var(--color-border)]"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
+      {shareFeedback && (
+        <p
+          className={`mt-2 text-center text-sm px-2 ${
+            shareFeedbackType === "success"
+              ? "text-green-700"
+              : "text-red-600"
+          }`}
+        >
+          {shareFeedback}
+        </p>
+      )}
     </div>
   );
 }

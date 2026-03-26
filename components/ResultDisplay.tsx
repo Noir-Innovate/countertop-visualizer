@@ -9,6 +9,7 @@ import PhoneVerificationModal from "./PhoneVerificationModal";
 import { trackEvent } from "@/lib/posthog";
 import { useMaterialLine } from "@/lib/material-line";
 import { getStoredAttribution } from "@/lib/attribution";
+import { downloadPngFromBase64, shareImageFromDataUrl } from "@/lib/image-actions";
 import { upload } from "@vercel/blob/client";
 import type { GenerationResult } from "@/lib/types";
 import type { Slab } from "@/lib/types";
@@ -226,89 +227,24 @@ export default function ResultDisplay({
     });
   };
 
-  const executeShare = useCallback(
-    async (imageUrl: string, imageName: string) => {
-      try {
-        let file: File | null = null;
-
-        if (imageUrl.startsWith("data:")) {
-          const response = await fetch(imageUrl);
-          const blob = await response.blob();
-          file = new File([blob], `${imageName.replace(/\s+/g, "-")}.png`, {
-            type: "image/png",
-          });
-        } else {
-          try {
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            file = new File([blob], `${imageName.replace(/\s+/g, "-")}.png`, {
-              type: blob.type || "image/png",
-            });
-          } catch {
-            console.warn("Could not fetch image for sharing");
-          }
-        }
-
-        if (
-          file &&
-          navigator.share &&
-          navigator.canShare &&
-          navigator.canShare({ files: [file] })
-        ) {
-          await navigator.share({
-            title: `Check out this ${imageName} countertop`,
-            text: `I found this beautiful ${imageName} countertop design!`,
-            files: [file],
-          });
-        } else if (navigator.share) {
-          await navigator.share({
-            title: `Check out this ${imageName} countertop`,
-            text: `I found this beautiful ${imageName} countertop design!`,
-            url: imageUrl,
-          });
-        } else {
-          const shareText = `Check out this ${imageName} countertop design!`;
-          try {
-            await navigator.clipboard.writeText(shareText);
-            setDownloadShareError("Link copied to clipboard!");
-            setDownloadShareFeedbackType("success");
-            setTimeout(() => {
-              setDownloadShareError(null);
-              setDownloadShareFeedbackType(null);
-            }, 2500);
-          } catch {
-            setDownloadShareError(
-              "Share not available. Try downloading the image instead.",
-            );
-            setDownloadShareFeedbackType("error");
-          }
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name !== "AbortError") {
-          console.error("Error sharing:", error);
-          try {
-            const shareText = `Check out this ${imageName} countertop design!`;
-            await navigator.clipboard.writeText(shareText);
-            setDownloadShareError("Link copied to clipboard!");
-            setDownloadShareFeedbackType("success");
-            setTimeout(() => {
-              setDownloadShareError(null);
-              setDownloadShareFeedbackType(null);
-            }, 2500);
-          } catch {
-            setDownloadShareError(
-              "Share failed. Try downloading the image instead.",
-            );
-            setDownloadShareFeedbackType("error");
-          }
-        }
-      }
-    },
-    [],
-  );
+  const executeShare = useCallback(async (imageUrl: string, imageName: string) => {
+    const result = await shareImageFromDataUrl(imageUrl, imageName);
+    if (result.kind === "aborted") return;
+    if (result.kind === "clipboard_success") {
+      setDownloadShareError(result.message);
+      setDownloadShareFeedbackType("success");
+      setTimeout(() => {
+        setDownloadShareError(null);
+        setDownloadShareFeedbackType(null);
+      }, 2500);
+    } else if (result.kind === "error") {
+      setDownloadShareError(result.message);
+      setDownloadShareFeedbackType("error");
+    }
+  }, []);
 
   const submitLeadAndExecute = useCallback(
-    async (phone: string, action: PendingAction) => {
+    async (phone: string, action: PendingAction, leadName?: string) => {
       setDownloadShareError(null);
       setDownloadShareFeedbackType(null);
       setIsPreparing(true);
@@ -386,6 +322,7 @@ export default function ResultDisplay({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             phone,
+            ...(leadName?.trim() && { name: leadName.trim() }),
             source: action.type,
             selectedSlabId: action.imageId,
             selectedSlabName: action.imageName,
@@ -419,25 +356,14 @@ export default function ResultDisplay({
         }
 
         if (action.type === "download") {
-          if (!isDownloadInProgressRef.current) {
-            isDownloadInProgressRef.current = true;
+          const did = downloadPngFromBase64(action.imageData, action.imageName);
+          if (did) {
             trackDownload(
               action.imageId,
               action.imageName,
               action.uiSource,
               "download",
             );
-            const link = document.createElement("a");
-            link.href = `data:image/png;base64,${action.imageData}`;
-            link.download = `countertop-${action.imageName
-              .toLowerCase()
-              .replace(/\s+/g, "-")}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(() => {
-              isDownloadInProgressRef.current = false;
-            }, 500);
           }
         } else {
           trackEvent("countertop_shared", {
@@ -479,15 +405,13 @@ export default function ResultDisplay({
   );
 
   const handleVerifiedForPendingAction = useCallback(
-    (phone: string) => {
+    (phone: string, name?: string) => {
       if (pendingAction) {
-        submitLeadAndExecute(phone, pendingAction);
+        submitLeadAndExecute(phone, pendingAction, name);
       }
     },
     [pendingAction, submitLeadAndExecute],
   );
-
-  const isDownloadInProgressRef = useRef(false);
 
   const doImmediateDownload = useCallback(
     (
@@ -496,22 +420,10 @@ export default function ResultDisplay({
       imageId: string,
       uiSource: "carousel" | "compare" | "modal",
     ) => {
-      if (isDownloadInProgressRef.current) return;
-      isDownloadInProgressRef.current = true;
-
-      trackDownload(imageId, imageName, uiSource, "download");
-      const link = document.createElement("a");
-      link.href = `data:image/png;base64,${imageData}`;
-      link.download = `countertop-${imageName
-        .toLowerCase()
-        .replace(/\s+/g, "-")}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setTimeout(() => {
-        isDownloadInProgressRef.current = false;
-      }, 500);
+      const did = downloadPngFromBase64(imageData, imageName);
+      if (did) {
+        trackDownload(imageId, imageName, uiSource, "download");
+      }
     },
     [],
   );
