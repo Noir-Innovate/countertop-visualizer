@@ -2,19 +2,20 @@
 
 import { useCallback, useState } from "react";
 import Image from "next/image";
-import { useMaterialLine } from "@/lib/material-line";
 import { EXAMPLE_KITCHENS, type ExampleKitchen } from "@/lib/types";
 
 interface V2KitchenUploadProps {
   onKitchenSelect: (base64Image: string) => void;
   customKitchens?: ExampleKitchen[];
+  /** When false, only example/custom kitchens (no file upload). Default true. */
+  allowUpload?: boolean;
 }
 
 export default function V2KitchenUpload({
   onKitchenSelect,
   customKitchens = [],
+  allowUpload = true,
 }: V2KitchenUploadProps) {
-  const materialLine = useMaterialLine();
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingExampleId, setLoadingExampleId] = useState<string | null>(null);
@@ -74,10 +75,13 @@ export default function V2KitchenUpload({
           Kitchen Visualizer
         </h1>
         <p className="text-[var(--color-text-secondary)]">
-          Upload a photo of your kitchen to get started
+          {allowUpload
+            ? "Upload a photo of your kitchen to get started"
+            : "Choose a kitchen to get started"}
         </p>
       </div>
 
+      {allowUpload ? (
       <div>
         <label
           onDragOver={(e) => {
@@ -155,9 +159,11 @@ export default function V2KitchenUpload({
           </div>
         </label>
       </div>
+      ) : null}
 
       {allKitchens.length > 0 && (
         <>
+          {allowUpload ? (
           <div className="flex items-center gap-4">
             <div className="flex-1 h-px bg-[var(--color-border)]" />
             <span className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
@@ -165,6 +171,7 @@ export default function V2KitchenUpload({
             </span>
             <div className="flex-1 h-px bg-[var(--color-border)]" />
           </div>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {allKitchens.map((kitchen) => (
               <button

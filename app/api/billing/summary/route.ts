@@ -8,6 +8,10 @@ import {
   DEFAULT_LEAD_PRICE_CENTS,
 } from "@/lib/billing";
 import { getCurrentMonthPeriod } from "@/lib/lead-invoicing";
+import {
+  dedupeBillingUsageRowsForInvoice,
+  type BillingUsageRowWithLead,
+} from "@/lib/lead-billing-identity";
 
 function normalizeInternalPlanStatus(status: string | null | undefined) {
   if (!status) return "inactive";
@@ -99,7 +103,9 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
       db
         .from("organization_billing_usage")
-        .select("billed_amount_cents, occurred_at")
+        .select(
+          "id, lead_id, billed_amount_cents, occurred_at, leads(email, phone)",
+        )
         .eq("organization_id", organizationId)
         .eq("excluded_from_billing", false)
         .is("invoiced_at", null)
@@ -126,10 +132,12 @@ export async function GET(request: NextRequest) {
     if (latestSubscriptionResponse.error)
       throw latestSubscriptionResponse.error;
 
-    const monthUsageRows = monthUsageResponse.data || [];
-    const monthLeadCount = monthUsageRows.length;
-    const monthLeadTotalCents = monthUsageRows.reduce(
-      (sum, row) => sum + (row.billed_amount_cents || 0),
+    const monthUsageRows = (monthUsageResponse.data ||
+      []) as unknown as BillingUsageRowWithLead[];
+    const dedupedMonthUsage = dedupeBillingUsageRowsForInvoice(monthUsageRows);
+    const monthLeadCount = dedupedMonthUsage.length;
+    const monthLeadTotalCents = dedupedMonthUsage.reduce(
+      (sum, row) => sum + (row.billedAmountCents || 0),
       0,
     );
     const { endIso: leadPeriodEndIso } = getCurrentMonthPeriod(new Date());

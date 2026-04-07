@@ -3,7 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import { trackEvent } from "@/lib/posthog";
 import { useMaterialLine } from "@/lib/material-line";
-import { getVerifiedPhone, setVerifiedPhone } from "@/lib/ab-testing";
+import {
+  getVerifiedLeadName,
+  getVerifiedPhone,
+  setVerifiedLeadName,
+  setVerifiedPhone,
+} from "@/lib/ab-testing";
 
 type VerificationContext = "quote" | "download" | "share";
 
@@ -54,7 +59,7 @@ export default function PhoneVerificationModal({
     if (verifiedPhone) {
       if (fastPathHandledForOpenRef.current) return;
       fastPathHandledForOpenRef.current = true;
-      onVerified(verifiedPhone);
+      onVerified(verifiedPhone, getVerifiedLeadName() ?? undefined);
       if (autoClose) {
         onClose();
       }
@@ -235,7 +240,14 @@ export default function PhoneVerificationModal({
 
       // Save verified phone to localStorage
       const verifiedPhoneNumber = `+1${digits}`;
+      // Prevent the open-modal effect from taking the "already verified" fast path on the
+      // next run (e.g. when `onVerified` identity changes): that would duplicate the
+      // `onVerified` call from the setTimeout below.
+      fastPathHandledForOpenRef.current = true;
       setVerifiedPhone(verifiedPhoneNumber);
+      if (asksForName && name.trim()) {
+        setVerifiedLeadName(name.trim());
+      }
 
       setStep("success");
 

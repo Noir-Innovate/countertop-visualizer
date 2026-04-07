@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import TrackingLinksClient from "./TrackingLinksClient";
 import { getOrgAccess } from "@/lib/admin-auth";
+import { getPublicVisualizerUrl } from "@/lib/material-line-path";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -30,7 +31,9 @@ export default async function TrackingLinksPage({ params }: Props) {
 
   const { data: materialLine } = await db
     .from("material_lines")
-    .select("id, name, slug, custom_domain, custom_domain_verified")
+    .select(
+      "id, name, slug, custom_domain, custom_domain_verified, line_kind",
+    )
     .eq("id", materialLineId)
     .eq("organization_id", orgId)
     .single();
@@ -47,10 +50,13 @@ export default async function TrackingLinksPage({ params }: Props) {
 
   const appDomain =
     process.env.NEXT_PUBLIC_APP_DOMAIN || "countertopvisualizer.com";
-  const baseUrl =
-    materialLine.custom_domain && materialLine.custom_domain_verified
-      ? `https://${materialLine.custom_domain}`
-      : `https://${materialLine.slug}.${appDomain}`;
+  const baseUrl = getPublicVisualizerUrl(
+    materialLine.line_kind,
+    materialLine.slug,
+    materialLine.custom_domain,
+    materialLine.custom_domain_verified,
+    appDomain,
+  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">

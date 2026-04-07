@@ -30,6 +30,7 @@ interface MaterialLineConfig {
   free_resource_cta_label: string | null;
   free_resource_file_url: string | null;
   free_resource_file_name: string | null;
+  line_kind: "internal" | "external";
 }
 
 interface MaterialLineWithKitchens extends MaterialLineConfig {
@@ -202,6 +203,28 @@ export async function proxy(request: NextRequest) {
     );
 
     if (materialLine) {
+      const normalizedPath =
+        pathname.replace(/\/$/, "") === "" ? "/" : pathname.replace(/\/$/, "");
+
+      if (!pathname.startsWith("/api")) {
+        if (
+          materialLine.line_kind === "internal" &&
+          normalizedPath === "/"
+        ) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/internal";
+          return NextResponse.redirect(url);
+        }
+        if (
+          materialLine.line_kind === "external" &&
+          normalizedPath === "/internal"
+        ) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/";
+          return NextResponse.redirect(url);
+        }
+      }
+
       // Inject material line context into response headers
       supabaseResponse.headers.set("x-material-line-id", materialLine.id);
       supabaseResponse.headers.set(
@@ -263,6 +286,10 @@ export async function proxy(request: NextRequest) {
       supabaseResponse.headers.set(
         "x-material-line-free-resource-file-name",
         encodeURIComponent(materialLine.free_resource_file_name || ""),
+      );
+      supabaseResponse.headers.set(
+        "x-material-line-line-kind",
+        materialLine.line_kind,
       );
     } else if (!pathname.startsWith("/api")) {
       // If no material line found and not an API route, could redirect to error page

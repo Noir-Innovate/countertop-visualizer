@@ -5,6 +5,7 @@ import {
   type LeadBillingServiceDeps,
 } from "@/lib/lead-billing-service";
 
+/** `loadUninvoicedUsageRows` should return one row per billable identity (deduped by email/phone in production). */
 function buildDeps(
   overrides?: Partial<LeadBillingServiceDeps>,
 ): LeadBillingServiceDeps {

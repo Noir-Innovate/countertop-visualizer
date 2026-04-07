@@ -78,6 +78,10 @@ export async function getMaterialLineFromHeaders(): Promise<MaterialLineConfig> 
     freeResourceFileName: decodeHeaderValue(
       "x-material-line-free-resource-file-name",
     ),
+    lineKind:
+      headersList.get("x-material-line-line-kind") === "internal"
+        ? "internal"
+        : "external",
   };
 }
 

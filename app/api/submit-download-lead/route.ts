@@ -237,6 +237,7 @@ export async function POST(request: NextRequest) {
           lead_id: lead?.id,
           selectedSlab: data.selectedSlabName,
           source,
+          has_name: !!leadName,
         },
         utm_source: data.utm_source ?? null,
         utm_medium: data.utm_medium ?? null,

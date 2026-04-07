@@ -1,12 +1,17 @@
 "use client";
 
 import { createContext, useContext, ReactNode } from "react";
+import type { MaterialLineKind } from "./material-line-path";
+
+export type { MaterialLineKind };
 
 export interface MaterialLineConfig {
   id: string;
   organizationId: string;
   slug: string;
   name: string;
+  /** Present when resolved from subdomain/custom domain middleware */
+  lineKind?: MaterialLineKind;
   logoUrl: string | null;
   primaryColor: string;
   backgroundColor: string;
@@ -69,4 +74,5 @@ export const DEFAULT_MATERIAL_LINE_CONFIG: MaterialLineConfig = {
   freeResourceCtaLabel: null,
   freeResourceFileUrl: null,
   freeResourceFileName: null,
+  lineKind: "external",
 };

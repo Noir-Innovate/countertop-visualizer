@@ -4,7 +4,15 @@ import { createClient as createAuthedClient } from "@/lib/supabase/server";
 import { getStripeServerClient } from "@/lib/stripe";
 import { getPreviousMonthPeriod } from "@/lib/lead-invoicing";
 import { runLeadUsageBillingService } from "@/lib/lead-billing-service";
+import { fetchDedupedUninvoicedUsageForInvoicePeriod } from "@/lib/invoice-lead-usage-loader";
 
+/**
+ * Lead usage invoicing (Stripe). Vercel Cron is configured in `vercel.json` to
+ * call GET `/api/billing/invoice-lead-usage` monthly; this file's GET handler
+ * delegates to POST, so cron and manual POST use the same code path. Uninvoiced
+ * rows are loaded via `fetchDedupedUninvoicedUsageForInvoicePeriod` (one billable
+ * line per unique phone/email per period).
+ */
 function getHeaderSecret(request: NextRequest) {
   return request.headers.get("x-cron-secret");
 }
@@ -94,30 +102,24 @@ export async function POST(request: NextRequest) {
           }
           const { data, error } = await query;
           if (error) throw new Error(error.message);
-          return (data || []).map((row: any) => ({
-            organizationId: row.organization_id,
-            stripeCustomerId: row.stripe_customer_id,
-          }));
+          return (data || []).map(
+            (row: { organization_id: string; stripe_customer_id: string }) => ({
+              organizationId: row.organization_id,
+              stripeCustomerId: row.stripe_customer_id,
+            }),
+          );
         },
         loadUninvoicedUsageRows: async (
           organizationId,
           periodStartIso,
           periodEndIso,
-        ) => {
-          const { data, error } = await supabase
-            .from("organization_billing_usage")
-            .select("id, billed_amount_cents")
-            .eq("organization_id", organizationId)
-            .is("invoiced_at", null)
-            .eq("excluded_from_billing", false)
-            .gte("occurred_at", periodStartIso)
-            .lt("occurred_at", periodEndIso);
-          if (error) throw new Error(error.message);
-          return (data || []).map((row: any) => ({
-            id: row.id,
-            billedAmountCents: row.billed_amount_cents || 0,
-          }));
-        },
+        ) =>
+          fetchDedupedUninvoicedUsageForInvoicePeriod(
+            supabase,
+            organizationId,
+            periodStartIso,
+            periodEndIso,
+          ),
         createStripeInvoiceItem: async ({
           customerId,
           invoiceId,

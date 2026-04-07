@@ -70,11 +70,22 @@ export default function V2Visualizer({
           materialLine.supabaseFolder,
         );
         setMaterialsGrouped(grouped);
-        const firstWithContent = grouped.find(
-          (g) => g.count > 0 || g.colors.length > 0,
+        const hasContent = (g: MaterialsByCategory) =>
+          g.count > 0 || g.colors.length > 0;
+        const firstWithContent = grouped.find(hasContent);
+        const preferCountertops =
+          materialLine?.lineKind === "internal";
+        const countertopsEntry = grouped.find(
+          (g) => g.category === "Countertops",
         );
-        if (firstWithContent) {
-          setActiveCategory(firstWithContent.category);
+        const countertopsAvailable =
+          countertopsEntry && hasContent(countertopsEntry);
+        const chosen =
+          preferCountertops && countertopsAvailable
+            ? countertopsEntry
+            : firstWithContent;
+        if (chosen) {
+          setActiveCategory(chosen.category);
         }
       } catch (err) {
         console.error("Failed to load materials:", err);
@@ -82,7 +93,7 @@ export default function V2Visualizer({
       setMaterialsLoading(false);
     };
     load();
-  }, [materialLine?.supabaseFolder]);
+  }, [materialLine?.supabaseFolder, materialLine?.lineKind]);
 
   useEffect(() => {
     const uploadKitchen = async () => {

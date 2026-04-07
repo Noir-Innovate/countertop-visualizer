@@ -73,4 +73,22 @@ export function setVerifiedPhone(phone: string): void {
   }
 }
 
+const VERIFIED_LEAD_NAME_KEY = 'verified_lead_name'
+
+/** Name collected during download/share verification; reused for later slab submissions. */
+export function getVerifiedLeadName(): string | null {
+  if (typeof window === 'undefined') return null
+  const v = localStorage.getItem(VERIFIED_LEAD_NAME_KEY)
+  return v?.trim() ? v.trim() : null
+}
+
+export function setVerifiedLeadName(name: string | null): void {
+  if (typeof window === 'undefined') return
+  if (name?.trim()) {
+    localStorage.setItem(VERIFIED_LEAD_NAME_KEY, name.trim())
+  } else {
+    localStorage.removeItem(VERIFIED_LEAD_NAME_KEY)
+  }
+}
+
 

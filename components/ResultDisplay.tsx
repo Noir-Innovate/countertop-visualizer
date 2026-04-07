@@ -7,6 +7,8 @@ import ImageComparison from "./ImageComparison";
 import QuoteModal from "./QuoteModal";
 import PhoneVerificationModal from "./PhoneVerificationModal";
 import { trackEvent } from "@/lib/posthog";
+import { trackToSupabase } from "@/lib/analytics";
+import { getVerifiedLeadName } from "@/lib/ab-testing";
 import { useMaterialLine } from "@/lib/material-line";
 import { getStoredAttribution } from "@/lib/attribution";
 import { downloadPngFromBase64, shareImageFromDataUrl } from "@/lib/image-actions";
@@ -317,12 +319,15 @@ export default function ResultDisplay({
           originalImageBlobUrl = originalImage;
         }
 
+        const effectiveName =
+          leadName?.trim() || getVerifiedLeadName()?.trim() || "";
+
         const response = await fetch("/api/submit-download-lead", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             phone,
-            ...(leadName?.trim() && { name: leadName.trim() }),
+            ...(effectiveName && { name: effectiveName }),
             source: action.type,
             selectedSlabId: action.imageId,
             selectedSlabName: action.imageName,
@@ -440,36 +445,30 @@ export default function ResultDisplay({
       const alreadySubmitted = submittedLeadIdsRef.current.has(imageId);
       const verifiedAlready = !!verifiedPhone;
 
+      const funnelBase = {
+        slabId: imageId,
+        slabName: imageName,
+        source: uiSource,
+        verifiedAlready,
+        alreadySubmitted,
+        materialLineId: materialLine?.id,
+        materialLineName: materialLine?.name,
+        materialLineSlug: materialLine?.slug,
+        organizationId: materialLine?.organizationId,
+      };
+
       if (type === "download") {
-        trackEvent("download_clicked", {
-          slabId: imageId,
-          slabName: imageName,
-          source: uiSource,
-          verifiedAlready,
-          alreadySubmitted,
-          materialLineId: materialLine?.id,
-          materialLineName: materialLine?.name,
-          materialLineSlug: materialLine?.slug,
-          organizationId: materialLine?.organizationId,
-        });
+        trackToSupabase("download_clicked", funnelBase);
       } else {
-        trackEvent("share_clicked", {
-          slabId: imageId,
-          slabName: imageName,
-          source: uiSource,
-          verifiedAlready,
-          alreadySubmitted,
-          materialLineId: materialLine?.id,
-          materialLineName: materialLine?.name,
-          materialLineSlug: materialLine?.slug,
-          organizationId: materialLine?.organizationId,
-        });
+        trackToSupabase("share_clicked", funnelBase);
       }
 
       if (alreadySubmitted) {
         if (type === "download") {
+          trackToSupabase("download_same_image_repeat", funnelBase);
           doImmediateDownload(imageData, imageName, imageId, uiSource);
         } else {
+          trackToSupabase("share_same_image_repeat", funnelBase);
           trackEvent("countertop_shared", {
             slabId: imageId,
             slabName: imageName,

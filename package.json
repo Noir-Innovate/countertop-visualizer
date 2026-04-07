@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:billing": "node --import tsx --test tests/billing-usage.test.ts tests/lead-invoicing.test.ts tests/lead-billing-service.test.ts",
+    "test:billing": "node --import tsx --test tests/billing-usage.test.ts tests/lead-invoicing.test.ts tests/lead-billing-service.test.ts tests/lead-billing-identity.test.ts tests/invoice-lead-usage-loader.test.ts",
     "migrate:posthog": "tsx scripts/migrate-posthog-to-supabase.ts",
     "takeoff:test": "tsx scripts/takeoff-testbed.ts"
   },

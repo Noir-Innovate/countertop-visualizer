@@ -5,7 +5,10 @@ import Link from "next/link";
 import NotificationButton from "./components/NotificationButton";
 import NotificationList from "./components/NotificationList";
 import DuplicateLineButton from "./components/DuplicateLineButton";
-import { getMaterialLineBasePath } from "@/lib/material-line-path";
+import {
+  getMaterialLineBasePath,
+  getPublicVisualizerUrl,
+} from "@/lib/material-line-path";
 import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
@@ -74,10 +77,13 @@ export default async function MaterialLinePage({ params }: Props) {
 
   const appDomain =
     process.env.NEXT_PUBLIC_APP_DOMAIN || "countertopvisualizer.com";
-  const visualizerUrl =
-    materialLine.custom_domain && materialLine.custom_domain_verified
-      ? `https://${materialLine.custom_domain}`
-      : `https://${materialLine.slug}.${appDomain}`;
+  const visualizerUrl = getPublicVisualizerUrl(
+    materialLine.line_kind,
+    materialLine.slug,
+    materialLine.custom_domain,
+    materialLine.custom_domain_verified,
+    appDomain,
+  );
   const materialLineBasePath = getMaterialLineBasePath(
     orgId,
     materialLineId,

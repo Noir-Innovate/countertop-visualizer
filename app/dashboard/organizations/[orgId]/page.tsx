@@ -3,7 +3,10 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseEventCounts } from "@/lib/analytics-server";
-import { getMaterialLineBasePath } from "@/lib/material-line-path";
+import {
+  getMaterialLineBasePath,
+  getPublicVisualizerUrl,
+} from "@/lib/material-line-path";
 import { getOrgAccess } from "@/lib/admin-auth";
 
 interface Props {
@@ -77,6 +80,9 @@ export default async function OrganizationPage({ params }: Props) {
 
   const conversionRate =
     pageViews > 0 ? ((quoteRequests / pageViews) * 100).toFixed(1) : "0.0";
+
+  const appDomain =
+    process.env.NEXT_PUBLIC_APP_DOMAIN || "countertopvisualizer.com";
 
   // Format role for display (e.g., "sales_person" -> "Sales Person")
   const formatRole = (role: string) => {
@@ -238,13 +244,13 @@ export default async function OrganizationPage({ params }: Props) {
                     </span>
                   </div>
                   <p className="text-sm text-slate-500">
-                    {materialLine.custom_domain &&
-                    materialLine.custom_domain_verified
-                      ? materialLine.custom_domain
-                      : `${materialLine.slug}.${
-                          process.env.NEXT_PUBLIC_APP_DOMAIN ||
-                          "countertopvisualizer.com"
-                        }`}
+                    {getPublicVisualizerUrl(
+                      materialLine.line_kind,
+                      materialLine.slug,
+                      materialLine.custom_domain,
+                      materialLine.custom_domain_verified,
+                      appDomain,
+                    ).replace(/^https:\/\//, "")}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
