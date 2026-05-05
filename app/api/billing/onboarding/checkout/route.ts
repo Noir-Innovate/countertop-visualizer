@@ -7,11 +7,13 @@ interface OnboardingCheckoutBody {
   organizationId: string;
   lineKind: "external" | "internal";
   agreedToLeadBilling?: boolean;
+  name?: string;
+  slug?: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId, lineKind, agreedToLeadBilling } =
+    const { organizationId, lineKind, agreedToLeadBilling, name, slug } =
       (await request.json()) as OnboardingCheckoutBody;
 
     if (!organizationId || !lineKind) {
@@ -120,17 +122,21 @@ export async function POST(request: NextRequest) {
 
       const trialDays = parseInt(process.env.STRIPE_TRIAL_DAYS ?? "7", 10);
 
+      const draftMetadata: Record<string, string> = {
+        organizationId,
+        lineKind,
+        purpose: "first_material_line",
+      };
+      if (name) draftMetadata.draftName = name.slice(0, 500);
+      if (slug) draftMetadata.draftSlug = slug.slice(0, 500);
+
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
         customer: stripeCustomerId,
         line_items: [{ price: internalPlanPriceId, quantity: 1 }],
-        metadata: { organizationId, lineKind, purpose: "first_material_line" },
+        metadata: draftMetadata,
         subscription_data: {
-          metadata: {
-            organizationId,
-            lineKind,
-            purpose: "first_material_line",
-          },
+          metadata: draftMetadata,
           trial_period_days: trialDays,
         },
         payment_method_collection: "always",
@@ -164,16 +170,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ required: false });
     }
 
+    const setupMetadata: Record<string, string> = {
+      organizationId,
+      lineKind,
+      purpose: "lead_billing_setup",
+      agreedToLeadBilling: "true",
+    };
+    if (name) setupMetadata.draftName = name.slice(0, 500);
+    if (slug) setupMetadata.draftSlug = slug.slice(0, 500);
+
     const setupSession = await stripe.checkout.sessions.create({
       mode: "setup",
       customer: stripeCustomerId,
       payment_method_types: ["card"],
-      metadata: {
-        organizationId,
-        lineKind,
-        purpose: "lead_billing_setup",
-        agreedToLeadBilling: "true",
-      },
+      metadata: setupMetadata,
       success_url: successUrl,
       cancel_url: cancelUrl,
     });

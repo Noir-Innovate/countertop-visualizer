@@ -57,11 +57,11 @@ export async function GET(request: NextRequest) {
   try {
     const organizationId = request.nextUrl.searchParams.get("organizationId");
     const sessionId = request.nextUrl.searchParams.get("sessionId");
-    const lineKind = request.nextUrl.searchParams.get("lineKind");
+    let lineKind = request.nextUrl.searchParams.get("lineKind");
 
-    if (!organizationId || !sessionId || !lineKind) {
+    if (!organizationId || !sessionId) {
       return NextResponse.json(
-        { error: "organizationId, sessionId, and lineKind are required" },
+        { error: "organizationId and sessionId are required" },
         { status: 400 },
       );
     }
@@ -93,6 +93,16 @@ export async function GET(request: NextRequest) {
       expand: ["setup_intent", "subscription"],
     });
 
+    if (!lineKind) {
+      lineKind = (session.metadata?.lineKind as string | undefined) || null;
+    }
+    if (!lineKind) {
+      return NextResponse.json(
+        { error: "lineKind is required" },
+        { status: 400 },
+      );
+    }
+
     if (session.status !== "complete") {
       return NextResponse.json(
         { error: "Checkout session is not complete" },
@@ -116,6 +126,19 @@ export async function GET(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const draftName = (session.metadata?.draftName as string | undefined) || null;
+    const draftSlug = (session.metadata?.draftSlug as string | undefined) || null;
+    const draft =
+      draftName && draftSlug
+        ? {
+            orgId: organizationId,
+            name: draftName,
+            slug: draftSlug,
+            lineKind: lineKind as "external" | "internal",
+            agreedToLeadBilling: lineKind === "external",
+          }
+        : null;
 
     if (lineKind === "external") {
       await ensureCustomerDefaultPaymentMethod(
@@ -146,7 +169,7 @@ export async function GET(request: NextRequest) {
         billing_method_added_at: new Date().toISOString(),
       });
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, draft, lineKind });
     }
 
     if (lineKind === "internal") {
@@ -197,7 +220,7 @@ export async function GET(request: NextRequest) {
         { onConflict: "stripe_subscription_id" },
       );
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, draft, lineKind });
     }
 
     return NextResponse.json({ error: "Invalid line kind" }, { status: 400 });

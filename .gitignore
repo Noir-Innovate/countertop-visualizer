@@ -43,3 +43,19 @@ next-env.d.ts
 
 # scripts
 takeoff-test-output
+
+# local agent/AI tooling — these are absolute-path symlinks created by k2so
+# and dangle on any other machine (including Vercel)
+.goosehints
+AGENT.md
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+SKILL.md
+.aider.conf.yml
+.k2so/
+.claude/
+.cursor/
+.opencode/
+.pi/
+.github/

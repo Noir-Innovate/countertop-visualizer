@@ -95,6 +95,8 @@ export default function NewMaterialLinePage({ params }: Props) {
             organizationId: orgId,
             lineKind: draft.lineKind,
             agreedToLeadBilling: draft.agreedToLeadBilling,
+            name: draft.name,
+            slug: draft.slug,
           }),
         },
       );
@@ -187,26 +189,43 @@ export default function NewMaterialLinePage({ params }: Props) {
       setError(null);
       try {
         const rawDraft = sessionStorage.getItem(draftStorageKey);
-        if (!rawDraft) {
-          throw new Error(
-            "Missing pending material line draft after checkout.",
-          );
-        }
+        const sessionDraft = rawDraft
+          ? (JSON.parse(rawDraft) as PendingMaterialLineDraft)
+          : null;
 
-        const draft = JSON.parse(rawDraft) as PendingMaterialLineDraft;
-        if (draft.orgId !== orgId) {
-          throw new Error(
-            "Billing checkout draft does not match organization.",
-          );
-        }
-
+        const lineKindParam = sessionDraft?.lineKind
+          ? `&lineKind=${sessionDraft.lineKind}`
+          : "";
         const confirmResponse = await fetch(
-          `/api/billing/onboarding/confirm?organizationId=${orgId}&sessionId=${sessionId}&lineKind=${draft.lineKind}`,
+          `/api/billing/onboarding/confirm?organizationId=${orgId}&sessionId=${sessionId}${lineKindParam}`,
         );
         const confirmBody = await confirmResponse.json();
         if (!confirmResponse.ok) {
           throw new Error(
             confirmBody.error || "Failed to confirm billing checkout session",
+          );
+        }
+
+        const draft: PendingMaterialLineDraft | null = confirmBody.draft
+          ? {
+              orgId: confirmBody.draft.orgId,
+              name: confirmBody.draft.name,
+              slug: confirmBody.draft.slug,
+              lineKind: confirmBody.draft.lineKind,
+              agreedToLeadBilling: Boolean(
+                confirmBody.draft.agreedToLeadBilling,
+              ),
+            }
+          : sessionDraft;
+
+        if (!draft) {
+          throw new Error(
+            "Missing pending material line draft after checkout.",
+          );
+        }
+        if (draft.orgId !== orgId) {
+          throw new Error(
+            "Billing checkout draft does not match organization.",
           );
         }
 
