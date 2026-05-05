@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { resolveSlabImage } from "@/lib/slab-image";
 
 interface RequestBody {
   kitchenImage: string;
-  slabImage: string;
+  slabImage?: string;
+  slabImageUrl?: string;
   slabId: string;
   slabName: string;
   slabDescription: string;
@@ -15,13 +17,15 @@ export async function POST(request: NextRequest) {
     console.log("Parsing request body...");
 
     const body: RequestBody = await request.json();
-    const { kitchenImage, slabImage, slabName, slabDescription } = body;
+    const { kitchenImage, slabImage, slabImageUrl, slabName, slabDescription } =
+      body;
 
     console.log("Request data:", {
       hasKitchenImage: !!kitchenImage,
       kitchenImageSize: kitchenImage?.length || 0,
       hasSlabImage: !!slabImage,
       slabImageSize: slabImage?.length || 0,
+      hasSlabImageUrl: !!slabImageUrl,
       slabName,
       slabDescription,
     });
@@ -34,12 +38,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!slabImage) {
-      console.error("Missing slab image");
-      return NextResponse.json(
-        { error: "Slab image is required" },
-        { status: 400 },
-      );
+    const slab = await resolveSlabImage(slabImage, slabImageUrl);
+    if ("error" in slab) {
+      console.error("Slab image error:", slab.error);
+      return NextResponse.json({ error: slab.error }, { status: 400 });
     }
 
     // Get API key from environment variable
@@ -65,18 +67,14 @@ export async function POST(request: NextRequest) {
       ? kitchenImage.split(",")[1]
       : kitchenImage;
 
-    const base64SlabImage = slabImage.includes(",")
-      ? slabImage.split(",")[1]
-      : slabImage;
+    const base64SlabImage = slab.data;
 
     // Determine mime type from data URL or default to image/jpeg
     const kitchenMimeType = kitchenImage.includes(",")
       ? kitchenImage.split(",")[0].split(":")[1].split(";")[0]
       : "image/jpeg";
 
-    const slabMimeType = slabImage.includes(",")
-      ? slabImage.split(",")[0].split(":")[1].split(";")[0]
-      : "image/jpeg";
+    const slabMimeType = slab.mimeType;
 
     console.log("Image details:", {
       kitchenMimeType,

@@ -12,9 +12,6 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
         api_host:
           process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://app.posthog.com",
         capture_pageview: false, // We'll manually track pageviews
-        loaded: (posthog) => {
-          if (process.env.NODE_ENV === "development") posthog.debug();
-        },
       });
     }
   }, []);

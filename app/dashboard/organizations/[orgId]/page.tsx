@@ -8,6 +8,10 @@ import {
   getPublicVisualizerUrl,
 } from "@/lib/material-line-path";
 import { getOrgAccess } from "@/lib/admin-auth";
+import {
+  getOnboardingNextStep,
+  onboardingStepUrl,
+} from "@/lib/onboarding-state";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -27,6 +31,13 @@ export default async function OrganizationPage({ params }: Props) {
   const access = await getOrgAccess(orgId);
   if (!access?.allowed) {
     notFound();
+  }
+
+  if (["owner", "admin"].includes(access.role)) {
+    const onboarding = await getOnboardingNextStep(orgId);
+    if (onboarding.step !== "done") {
+      redirect(onboardingStepUrl(orgId, onboarding));
+    }
   }
 
   // Super admins use service client to bypass RLS; members use anon client
@@ -157,7 +168,7 @@ export default async function OrganizationPage({ params }: Props) {
                 </svg>
                 Billing
               </Link>
-              <Link
+<Link
                 href={`/dashboard/organizations/${orgId}/material-lines/new`}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
               >

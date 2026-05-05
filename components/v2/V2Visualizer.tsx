@@ -8,6 +8,7 @@ import V2CategoryTabs from "./V2CategoryTabs";
 import V2MaterialGrid from "./V2MaterialGrid";
 import V2ColorSwatches from "./V2ColorSwatches";
 import V2BacksplashSelector from "./V2BacksplashSelector";
+import V2EditOverlay, { type EditGeneratePayload } from "./V2EditOverlay";
 import { useMaterialLine } from "@/lib/material-line";
 import { getAllMaterialsGrouped } from "@/lib/v2/materials";
 import type {
@@ -52,6 +53,7 @@ export default function V2Visualizer({
   const [shareFeedbackType, setShareFeedbackType] = useState<
     "success" | "error" | null
   >(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const isLocalDev =
     typeof window !== "undefined" &&
@@ -472,6 +474,176 @@ export default function V2Visualizer({
     ],
   );
 
+  const runEdit = useCallback(
+    async (payload: EditGeneratePayload) => {
+      if (isGenerating) return;
+
+      const activeVersion =
+        currentVersionIndex >= 0 && currentVersionIndex < versions.length
+          ? versions[currentVersionIndex]
+          : null;
+
+      let materialContextCategory: string | null = null;
+      let materialImageUrl: string | null = null;
+      let colorName: string | null = null;
+      let colorHex: string | null = null;
+      let backsplashHeightId: BacksplashHeightId | null = null;
+      const backsplashMatchCountertop = false;
+      let materialId: string | null = null;
+      let isColorOnly = false;
+
+      if (payload.mode === "material" && activeVersion) {
+        materialContextCategory = activeVersion.materialCategory;
+        materialId = activeVersion.materialId || null;
+        colorName = activeVersion.colorName || null;
+        colorHex = activeVersion.colorHex || null;
+
+        if (activeVersion.backsplashHeight) {
+          backsplashHeightId =
+            activeVersion.backsplashHeight as BacksplashHeightId;
+        }
+
+        if (materialId) {
+          for (const group of materialsGrouped) {
+            const found = group.materials.find((m) => m.id === materialId);
+            if (found) {
+              materialImageUrl = found.imageUrl;
+              break;
+            }
+          }
+        }
+
+        if (
+          activeVersion.materialCategory === "Cabinets" &&
+          !materialId &&
+          colorName
+        ) {
+          isColorOnly = true;
+        }
+      }
+
+      setIsGenerating(true);
+      setGeneratingCategory(
+        payload.mode === "material" && materialContextCategory
+          ? materialContextCategory
+          : "Edit",
+      );
+      setError(null);
+
+      trackEvent("v2_edit_started", {
+        mode: payload.mode,
+        hasDrawing: payload.hasDrawing,
+        textLength: payload.userText.length,
+        sourceVersionId: activeVersion?.id || "original",
+        materialLineId: materialLine?.id,
+        organizationId: materialLine?.organizationId,
+      });
+
+      try {
+        const compressedAnnotated = await compressImage(payload.annotatedImage);
+
+        let compressedMaterial: string | null = null;
+        if (materialImageUrl) {
+          const matResponse = await fetch(materialImageUrl);
+          const matBlob = await matResponse.blob();
+          const matBase64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(matBlob);
+          });
+          compressedMaterial = await compressImage(matBase64);
+        }
+
+        const response = await fetch("/api/v2/edit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            annotatedImage: compressedAnnotated,
+            hasDrawing: payload.hasDrawing,
+            userPrompt: payload.userText,
+            mode: payload.mode,
+            materialImage: compressedMaterial,
+            materialCategory: materialContextCategory,
+            colorName,
+            colorHex,
+            colorOnly: isColorOnly,
+            backsplashHeightId,
+            backsplashMatchCountertop,
+            sessionId,
+            materialLineId: materialLine?.id || null,
+            materialId,
+            kitchenImagePath,
+            generationOrder: versions.length + 1,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to edit image");
+        }
+
+        const data = await response.json();
+
+        const labelBase = payload.userText.trim()
+          ? `"${payload.userText.trim().slice(0, 40)}${payload.userText.trim().length > 40 ? "…" : ""}"`
+          : "Region edit";
+        const versionLabel =
+          payload.mode === "material" && materialContextCategory
+            ? `Refined ${materialContextCategory} — ${labelBase}`
+            : `Edit — ${labelBase}`;
+
+        const newVersion: VersionEntry = {
+          id: data.generationId || `${Date.now()}`,
+          imageData: data.imageData,
+          materialCategory:
+            payload.mode === "material" && materialContextCategory
+              ? materialContextCategory
+              : "Edit",
+          materialName: versionLabel,
+          materialId: materialId || undefined,
+          colorName: colorName || undefined,
+          colorHex: colorHex || undefined,
+          backsplashHeight: backsplashHeightId || undefined,
+          storagePath: data.storagePath,
+          generationOrder: versions.length + 1,
+          timestamp: Date.now(),
+        };
+
+        setVersions((prev) => [...prev, newVersion]);
+        setCurrentVersionIndex(versions.length);
+        setCurrentImage(`data:image/png;base64,${data.imageData}`);
+        setIsEditing(false);
+
+        trackEvent("v2_edit_completed", {
+          mode: payload.mode,
+          hasDrawing: payload.hasDrawing,
+          materialLineId: materialLine?.id,
+          organizationId: materialLine?.organizationId,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "An error occurred";
+        setError(msg);
+        trackEvent("v2_edit_error", {
+          error: msg,
+          materialLineId: materialLine?.id,
+        });
+      } finally {
+        setIsGenerating(false);
+        setGeneratingCategory("");
+      }
+    },
+    [
+      isGenerating,
+      currentVersionIndex,
+      versions,
+      materialsGrouped,
+      sessionId,
+      materialLine,
+      kitchenImagePath,
+      compressImage,
+    ],
+  );
+
   const handleSelectVersion = useCallback(
     (index: number) => {
       if (index >= 0 && index < versions.length) {
@@ -583,27 +755,48 @@ export default function V2Visualizer({
   const activeMaterials = activeGroup?.materials || [];
   const activeCategoryColors = activeGroup?.colors || [];
 
+  const editMaterialContextLabel = activeVersion
+    ? activeVersion.materialName
+    : null;
+  const canUseMaterialMode = !!activeVersion;
+
   return (
     <div className="animate-fade-in pb-8">
-      <V2ImageDisplay
-        currentImage={currentImage}
-        isGenerating={isGenerating}
-        generatingCategory={generatingCategory}
-        onChangePhoto={onChangePhoto}
-        showDownloadShare={!!activeVersion}
-        onDownload={handleV2Download}
-        onShare={handleV2Share}
-        shareFeedback={shareFeedback}
-        shareFeedbackType={shareFeedbackType}
-      />
+      {isEditing ? (
+        <V2EditOverlay
+          imageSrc={currentImage}
+          canUseMaterialMode={canUseMaterialMode}
+          materialContextLabel={editMaterialContextLabel}
+          isGenerating={isGenerating}
+          generatingCategory={generatingCategory}
+          onCancel={() => setIsEditing(false)}
+          onGenerate={runEdit}
+        />
+      ) : (
+        <>
+          <V2ImageDisplay
+            currentImage={currentImage}
+            isGenerating={isGenerating}
+            generatingCategory={generatingCategory}
+            onChangePhoto={onChangePhoto}
+            showDownloadShare={!!activeVersion}
+            onDownload={handleV2Download}
+            onShare={handleV2Share}
+            shareFeedback={shareFeedback}
+            shareFeedbackType={shareFeedbackType}
+            onEnterEdit={() => setIsEditing(true)}
+            showEditButton={!!currentImage}
+          />
 
-      <V2VersionHistory
-        versions={versions}
-        currentIndex={currentVersionIndex}
-        originalImage={kitchenImage}
-        onSelectVersion={handleSelectVersion}
-        onSelectOriginal={handleSelectOriginal}
-      />
+          <V2VersionHistory
+            versions={versions}
+            currentIndex={currentVersionIndex}
+            originalImage={kitchenImage}
+            onSelectVersion={handleSelectVersion}
+            onSelectOriginal={handleSelectOriginal}
+          />
+        </>
+      )}
 
       {error && (
         <div className="w-full max-w-4xl mx-auto mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">

@@ -77,6 +77,16 @@ export default function InternalVisualizerPage() {
   return (
     <div className="min-h-screen gradient-hero pb-4">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {materialLine?.logoUrl && (
+          <div className="flex justify-center mb-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={materialLine.logoUrl}
+              alt={materialLine.name}
+              className="h-16 md:h-20 w-auto object-contain"
+            />
+          </div>
+        )}
         {!kitchenImage ? (
           <V2KitchenUpload
             onKitchenSelect={handleKitchenSelect}

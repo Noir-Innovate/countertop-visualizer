@@ -1,13 +1,15 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 const nextConfig: NextConfig = {
   images: {
-    // Allow data URLs for base64 images
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-    // Unoptimized for base64 data URLs
-    unoptimized: false,
+    // In dev, skip the Image Optimization pipeline entirely so any localhost
+    // origin (any port, any path) renders without remotePatterns whitelisting.
+    unoptimized: isDev,
     remotePatterns: [
       {
         protocol: "https",
@@ -22,13 +24,11 @@ const nextConfig: NextConfig = {
       {
         protocol: "http",
         hostname: "127.0.0.1",
-        port: "54321",
         pathname: "/storage/v1/object/public/**",
       },
       {
         protocol: "http",
         hostname: "localhost",
-        port: "54321",
         pathname: "/storage/v1/object/public/**",
       },
     ],

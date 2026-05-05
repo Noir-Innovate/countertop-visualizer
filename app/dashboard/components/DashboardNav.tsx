@@ -57,7 +57,7 @@ export default function DashboardNav({
   };
 
   const handleProfileClick = () => {
-    router.push("/dashboard/profile");
+    router.push("/dashboard/account/profile");
     setShowUserMenu(false);
   };
 
@@ -183,7 +183,7 @@ export default function DashboardNav({
                 onClick={handleProfileClick}
                 className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
-                Profile Settings
+                Account
               </button>
               <button
                 onClick={handleSignOut}

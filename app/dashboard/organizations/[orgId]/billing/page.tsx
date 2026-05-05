@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
 
@@ -52,6 +52,8 @@ function formatDate(value: string | null) {
 export default function OrganizationBillingPage({ params }: Props) {
   const { orgId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isOnboarding = searchParams.get("onboarding") === "1";
   const [orgName, setOrgName] = useState("Organization");
   const [loading, setLoading] = useState(true);
   const [savingPrice, setSavingPrice] = useState(false);
@@ -264,6 +266,26 @@ export default function OrganizationBillingPage({ params }: Props) {
             Manage lead pricing and internal line billing for this organization.
           </p>
         </div>
+
+        {isOnboarding && showStartOrReactivate && !loading && (
+          <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-emerald-50 border border-blue-200 rounded-xl">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Start your 7-day free trial
+            </h2>
+            <p className="text-sm text-slate-700 mt-1">
+              Add a payment method to unlock the visualizer. You won&apos;t be
+              charged for 7 days — cancel anytime from this page.
+            </p>
+            <button
+              type="button"
+              onClick={startInternalPlanCheckout}
+              disabled={loadingCheckout}
+              className="mt-4 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loadingCheckout ? "Redirecting..." : "Start free trial"}
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">

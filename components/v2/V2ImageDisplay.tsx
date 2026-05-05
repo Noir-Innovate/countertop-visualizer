@@ -10,6 +10,8 @@ interface V2ImageDisplayProps {
   onShare?: () => void;
   shareFeedback?: string | null;
   shareFeedbackType?: "success" | "error" | null;
+  onEnterEdit?: () => void;
+  showEditButton?: boolean;
 }
 
 export default function V2ImageDisplay({
@@ -22,6 +24,8 @@ export default function V2ImageDisplay({
   onShare,
   shareFeedback,
   shareFeedbackType,
+  onEnterEdit,
+  showEditButton = false,
 }: V2ImageDisplayProps) {
   if (!currentImage) return null;
 
@@ -115,13 +119,37 @@ export default function V2ImageDisplay({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={onChangePhoto}
-          className="absolute top-3 right-3 px-3 py-1.5 text-sm font-medium bg-white/90 hover:bg-white text-slate-800 rounded-lg shadow-md transition-colors"
-        >
-          Change Photo
-        </button>
+        <div className="absolute top-3 right-3 flex gap-2">
+          {showEditButton && onEnterEdit && !isGenerating && (
+            <button
+              type="button"
+              onClick={onEnterEdit}
+              className="px-3 py-1.5 text-sm font-medium bg-white/90 hover:bg-white text-slate-800 rounded-lg shadow-md transition-colors flex items-center gap-1.5"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+              Edit
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onChangePhoto}
+            className="px-3 py-1.5 text-sm font-medium bg-white/90 hover:bg-white text-slate-800 rounded-lg shadow-md transition-colors"
+          >
+            Change Photo
+          </button>
+        </div>
       </div>
 
       {showActions && (

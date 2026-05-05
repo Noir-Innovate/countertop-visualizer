@@ -39,6 +39,12 @@ export default async function AdminLayout({
               Analytics
             </Link>
             <Link
+              href="/admin/referrals"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Referrals
+            </Link>
+            <Link
               href="/dashboard"
               className="text-sm text-slate-600 hover:text-slate-900"
             >

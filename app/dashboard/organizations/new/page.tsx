@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getStoredAttribution } from "@/lib/attribution";
 
 export default function NewOrganizationPage() {
   const router = useRouter();
@@ -47,6 +48,8 @@ export default function NewOrganizationPage() {
       // Generate slug if not provided
       const orgSlug = slug || generateSlug(name);
 
+      const referralCode = getStoredAttribution()?.tags?.ref;
+
       // Call API endpoint that uses service role to create org and member
       const response = await fetch("/api/organizations/create", {
         method: "POST",
@@ -56,6 +59,7 @@ export default function NewOrganizationPage() {
         body: JSON.stringify({
           name,
           slug: orgSlug,
+          referralCode,
         }),
       });
 
@@ -67,8 +71,10 @@ export default function NewOrganizationPage() {
         return;
       }
 
-      // Redirect to the new organization
-      router.push(`/dashboard/organizations/${data.organization.id}`);
+      // Redirect to the next onboarding step (or org dashboard if done).
+      router.push(
+        data.nextUrl || `/dashboard/organizations/${data.organization.id}`,
+      );
       router.refresh();
     } catch (err) {
       setError("An unexpected error occurred");

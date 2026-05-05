@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import DashboardContent from "./components/DashboardContent";
+import { getUserOnboardingEntry } from "@/lib/onboarding-state";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,13 @@ export default async function DashboardPage() {
     .select("is_super_admin")
     .eq("id", user.id)
     .single();
+
+  if (!profile?.is_super_admin) {
+    const entry = await getUserOnboardingEntry(user.id);
+    if (entry) {
+      redirect(entry.url);
+    }
+  }
 
   if (profile?.is_super_admin) {
     // Super admins see all organizations and material lines

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { captureAndPersistAttribution } from "@/lib/attribution";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -15,6 +16,22 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [referrerName, setReferrerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    captureAndPersistAttribution();
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get("ref");
+    if (!refCode) return;
+    fetch(`/api/referrals/validate?code=${encodeURIComponent(refCode)}`)
+      .then((r) => r.json())
+      .then((body) => {
+        if (body?.valid && body.referrerName) {
+          setReferrerName(body.referrerName);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +126,14 @@ export default function SignupPage() {
               Start visualizing countertops for your customers
             </p>
           </div>
+
+          {referrerName && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <p className="text-emerald-800 text-sm">
+                You were invited by <strong>{referrerName}</strong>.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">

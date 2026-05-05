@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getMaterialLineBasePath } from "@/lib/material-line-path";
+import { DEFAULT_CATEGORY_COLORS } from "@/lib/cabinet-colors";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -145,6 +146,7 @@ export default function NewMaterialLinePage({ params }: Props) {
         slug: draft.slug,
         supabase_folder: folderPath,
         line_kind: draft.lineKind,
+        category_colors: DEFAULT_CATEGORY_COLORS,
       })
       .select()
       .single();

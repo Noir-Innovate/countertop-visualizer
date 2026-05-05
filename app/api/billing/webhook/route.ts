@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getStripeServerClient } from "@/lib/stripe";
+import {
+  activateReferralForOrg,
+  recordCommissionForInvoice,
+} from "@/lib/referrals";
 
 function normalizeInternalPlanStatus(status: string | null | undefined) {
   if (!status) return "inactive";
@@ -236,8 +240,34 @@ export async function POST(request: NextRequest) {
               organizationId,
               subscription,
             );
+
+            // Referral commission accrual (only on invoice.paid, skip
+            // lead-usage invoices since those are billed by us not the plan).
+            if (event.type === "invoice.paid" && !isLeadUsageInvoice) {
+              const amountPaid =
+                typeof invoice.amount_paid === "number"
+                  ? invoice.amount_paid
+                  : 0;
+              try {
+                await recordCommissionForInvoice({
+                  refereeOrgId: organizationId,
+                  stripeInvoiceId: invoice.id,
+                  invoiceAmountCents: amountPaid,
+                });
+                await activateReferralForOrg(organizationId);
+              } catch (err) {
+                console.error("Referral commission accrual failed:", err);
+              }
+            }
           }
         }
+        break;
+      }
+      case "customer.subscription.trial_will_end": {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log(
+          `[stripe] trial_will_end for subscription ${subscription.id}, ends ${unixToIso(subscription.trial_end)}`,
+        );
         break;
       }
       default:

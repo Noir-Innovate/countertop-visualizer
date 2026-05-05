@@ -97,6 +97,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const trialDays = parseInt(process.env.STRIPE_TRIAL_DAYS ?? "7", 10);
+
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: stripeCustomerId,
@@ -113,8 +115,10 @@ export async function POST(request: NextRequest) {
         metadata: {
           organizationId,
         },
+        trial_period_days: trialDays,
       },
-      success_url: `${appUrl}/dashboard/organizations/${organizationId}/billing?checkout=success`,
+      payment_method_collection: "always",
+      success_url: `${appUrl}/onboarding/${organizationId}/website?checkout=success`,
       cancel_url: `${appUrl}/dashboard/organizations/${organizationId}/billing?checkout=cancel`,
       allow_promotion_codes: true,
     });

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { attributeReferral } from "@/lib/referrals";
+import {
+  getOnboardingNextStep,
+  onboardingStepUrl,
+} from "@/lib/onboarding-state";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +22,11 @@ export async function POST(request: NextRequest) {
 
     // Get the request body
     const body = await request.json();
-    const { name, slug } = body;
+    const { name, slug, referralCode } = body as {
+      name?: string;
+      slug?: string;
+      referralCode?: string;
+    };
 
     if (!name || !slug) {
       return NextResponse.json(
@@ -92,7 +101,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ organization: org }, { status: 201 });
+    if (referralCode && user.email) {
+      try {
+        const result = await attributeReferral({
+          refereeOrgId: org.id,
+          refereeProfileId: user.id,
+          refereeEmail: user.email,
+          code: referralCode,
+        });
+        if ("error" in result) {
+          console.warn("Referral attribution skipped:", result.error);
+        }
+      } catch (err) {
+        console.error("Referral attribution failed:", err);
+      }
+    }
+
+    const onboardingState = await getOnboardingNextStep(org.id);
+    const nextUrl = onboardingStepUrl(org.id, onboardingState);
+
+    return NextResponse.json(
+      { organization: org, nextUrl },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
