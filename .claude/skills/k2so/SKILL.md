@@ -1,1 +1,0 @@
-/Users/sterlinglong/NonCloud/PAZA/Projects/upwork/countertop-visualizer/.k2so/skills/k2so/SKILL.md
