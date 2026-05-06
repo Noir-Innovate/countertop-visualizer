@@ -298,10 +298,6 @@ export default function WhitelabelHome() {
       reader.readAsDataURL(blob);
     });
 
-  const isMobileViewport = () =>
-    typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 768px)").matches;
-
   const MAX_UNCOMPRESSED_BYTES = 6 * 1024 * 1024;
 
   const compressImage = async (
@@ -309,7 +305,6 @@ export default function WhitelabelHome() {
   ): Promise<{ data: string; debug: CompressDebug }> => {
     const response = await fetch(base64Image);
     const blob = await response.blob();
-    const mobile = isMobileViewport();
     const debug: CompressDebug = {
       originalBlobBytes: blob.size,
       originalBlobType: blob.type,
@@ -325,11 +320,11 @@ export default function WhitelabelHome() {
 
     try {
       const options = {
-        maxSizeMB: mobile ? 4 : 25,
-        maxWidthOrHeight: mobile ? 1600 : 2560,
+        maxSizeMB: 25,
+        maxWidthOrHeight: 2560,
         useWebWorker: true,
         fileType: "image/jpeg" as const,
-        initialQuality: mobile ? 0.82 : 0.9,
+        initialQuality: 0.9,
       };
 
       const compressedBlob = await imageCompression(blob as File, options);
