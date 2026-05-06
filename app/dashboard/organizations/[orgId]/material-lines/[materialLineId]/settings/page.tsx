@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -43,6 +43,11 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [emailSenderName, setEmailSenderName] = useState("");
   const [emailReplyTo, setEmailReplyTo] = useState("");
+  const [orgSlug, setOrgSlug] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const materialLineBasePath = getMaterialLineBasePath(
     orgId,
     materialLineId,
@@ -52,11 +57,18 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   useEffect(() => {
     const fetchMaterialLine = async () => {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("material_lines")
-        .select("*")
-        .eq("id", materialLineId)
-        .single();
+      const [{ data }, { data: org }] = await Promise.all([
+        supabase
+          .from("material_lines")
+          .select("*")
+          .eq("id", materialLineId)
+          .single(),
+        supabase
+          .from("organizations")
+          .select("slug")
+          .eq("id", orgId)
+          .single(),
+      ]);
 
       if (data) {
         setMaterialLine(data);
@@ -68,11 +80,45 @@ export default function MaterialLineSettingsPage({ params }: Props) {
         setEmailSenderName(data.email_sender_name || "");
         setEmailReplyTo(data.email_reply_to || "");
       }
+      if (org?.slug) setOrgSlug(org.slug);
       setLoading(false);
     };
 
     fetchMaterialLine();
-  }, [materialLineId]);
+  }, [materialLineId, orgId]);
+
+  async function handleLogoUpload(file: File) {
+    if (!orgSlug) {
+      setUploadError("Organization slug unavailable; cannot upload yet.");
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const supabase = createClient();
+      const ext = (file.name.split(".").pop() ?? "png").toLowerCase();
+      const path = `${orgSlug}/material-line-logos/${materialLineId}/logo-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("public-assets")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: (file.type || "").split(";")[0].trim() || undefined,
+        });
+      if (uploadErr) throw new Error(uploadErr.message);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("public-assets").getPublicUrl(path);
+      setLogoUrl(publicUrl);
+      toast.success("Logo uploaded. Don't forget to save.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      setUploadError(msg);
+      toast.error(msg);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,11 +277,77 @@ export default function MaterialLineSettingsPage({ params }: Props) {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Logo
+              </label>
+
+              <div
+                onClick={() =>
+                  !uploading && logoFileInputRef.current?.click()
+                }
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (!uploading) setDragActive(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setDragActive(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragActive(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (!uploading && file) handleLogoUpload(file);
+                }}
+                className={`cursor-pointer border-2 border-dashed rounded-lg px-6 py-8 text-center transition-colors ${
+                  dragActive
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100"
+                } ${uploading ? "opacity-60 cursor-wait" : ""}`}
+              >
+                <svg
+                  className="mx-auto w-8 h-8 text-slate-400 mb-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 7.5m0 0L7.5 12M12 7.5V21"
+                  />
+                </svg>
+                <p className="text-sm font-medium text-slate-900">
+                  {uploading
+                    ? "Uploading…"
+                    : "Drop a logo here or click to browse"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  PNG, JPG, WEBP, or SVG · recommended 200x80px
+                </p>
+                <input
+                  ref={logoFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleLogoUpload(file);
+                    e.target.value = "";
+                  }}
+                  className="hidden"
+                />
+              </div>
+              {uploadError && (
+                <p className="text-sm text-red-600 mt-2">{uploadError}</p>
+              )}
+
               <label
                 htmlFor="logoUrl"
-                className="block text-sm font-medium text-slate-700 mb-1"
+                className="block text-xs font-medium text-slate-500 mt-4 mb-1"
               >
-                Logo URL
+                Or paste a logo URL
               </label>
               <input
                 id="logoUrl"
@@ -245,18 +357,22 @@ export default function MaterialLineSettingsPage({ params }: Props) {
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 placeholder="https://example.com/logo.png"
               />
-              <p className="mt-1 text-sm text-slate-500">
-                URL to your logo image. Recommended size: 200x80px
-              </p>
+
               {logoUrl && (
-                <div className="mt-3 p-4 bg-slate-50 rounded-lg">
-                  <p className="text-xs text-slate-500 mb-2">Preview:</p>
+                <div className="mt-3 p-4 bg-slate-50 rounded-lg flex items-center gap-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={logoUrl}
                     alt="Logo preview"
                     className="h-12 object-contain"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setLogoUrl("")}
+                    className="ml-auto text-sm text-slate-500 hover:text-slate-700"
+                  >
+                    Remove
+                  </button>
                 </div>
               )}
             </div>

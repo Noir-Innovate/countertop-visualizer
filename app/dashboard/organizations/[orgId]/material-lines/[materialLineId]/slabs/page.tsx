@@ -78,12 +78,7 @@ export default function MaterialsPage({ params }: Props) {
   const [isReordering, setIsReordering] = useState(false);
   const [activeCategory, setActiveCategory] = useState("Countertops");
 
-  const MATERIAL_CATEGORIES = [
-    "Cabinets",
-    "Countertops",
-    "Backsplash",
-    "Flooring",
-  ];
+  const MATERIAL_CATEGORIES = ["Cabinets", "Countertops"];
 
   // Drag and drop sensors
   const sensors = useSensors(
