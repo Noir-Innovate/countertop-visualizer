@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
 import { useMaterialLine } from "@/lib/material-line";
 import type { Slab } from "@/lib/types";
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Image from "next/image";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
 import { useMaterialLine } from "@/lib/material-line";
 import { EXAMPLE_KITCHENS, type ExampleKitchen } from "@/lib/types";
 

@@ -7,9 +7,8 @@ import SlabSelector from "@/components/SlabSelector";
 import ResultDisplay from "@/components/ResultDisplay";
 import StepHeader from "@/components/StepHeader";
 import KitchenSelector from "@/components/KitchenSelector";
-import ThemeDebug from "@/components/ThemeDebug";
 import FreeResourceModal from "@/components/FreeResourceModal";
-import { trackEvent, trackABEvent } from "@/lib/posthog";
+import { trackEvent, trackABEvent } from "@/lib/track";
 import {
   getABVariant,
   getVerifiedPhone,
@@ -25,6 +24,17 @@ import {
 import { useMaterialLine } from "@/lib/material-line";
 import { getSlabsForMaterialLine } from "@/lib/slabs";
 import { captureAndPersistAttribution } from "@/lib/attribution";
+
+interface CompressDebug {
+  originalBlobBytes: number;
+  originalBlobType: string;
+  compressedBlobBytes: number;
+  compressedBlobType: string;
+  compressionFellBack: boolean;
+  compressionError?: string;
+  viewport: { width: number; height: number };
+  userAgent: string;
+}
 
 export default function WhitelabelHome() {
   const materialLine = useMaterialLine();
@@ -294,10 +304,24 @@ export default function WhitelabelHome() {
 
   const MAX_UNCOMPRESSED_BYTES = 6 * 1024 * 1024;
 
-  const compressImage = async (base64Image: string): Promise<string> => {
+  const compressImage = async (
+    base64Image: string,
+  ): Promise<{ data: string; debug: CompressDebug }> => {
     const response = await fetch(base64Image);
     const blob = await response.blob();
     const mobile = isMobileViewport();
+    const debug: CompressDebug = {
+      originalBlobBytes: blob.size,
+      originalBlobType: blob.type,
+      compressedBlobBytes: blob.size,
+      compressedBlobType: blob.type,
+      compressionFellBack: false,
+      viewport:
+        typeof window !== "undefined"
+          ? { width: window.innerWidth, height: window.innerHeight }
+          : { width: 0, height: 0 },
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+    };
 
     try {
       const options = {
@@ -309,12 +333,19 @@ export default function WhitelabelHome() {
       };
 
       const compressedBlob = await imageCompression(blob as File, options);
-      return await blobToDataUrl(compressedBlob);
+      debug.compressedBlobBytes = compressedBlob.size;
+      debug.compressedBlobType = compressedBlob.type;
+      console.log("[client-compress]", debug);
+      return { data: await blobToDataUrl(compressedBlob), debug };
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error("Compression error:", error);
+      debug.compressionFellBack = true;
+      debug.compressionError = message;
+      console.warn("[client-compress] FELL BACK to uncompressed", debug);
       trackEvent("generation_prep_failed", {
         stage: "compress",
-        message: error instanceof Error ? error.message : String(error),
+        message,
         materialLineId: materialLine?.id,
         organizationId: materialLine?.organizationId,
       });
@@ -323,7 +354,7 @@ export default function WhitelabelHome() {
           "This photo is too large for your device. Please retake or pick a smaller one.",
         );
       }
-      return base64Image;
+      return { data: base64Image, debug };
     }
   };
 
@@ -331,6 +362,7 @@ export default function WhitelabelHome() {
     async (
       slab: Slab,
       compressedKitchenImage: string,
+      kitchenDebug: CompressDebug,
     ): Promise<GenerationResult> => {
       try {
         // Slab image is fetched + decoded server-side to avoid mobile
@@ -344,6 +376,7 @@ export default function WhitelabelHome() {
             slabId: slab.id,
             slabName: slab.name,
             slabDescription: slab.description,
+            clientDebug: kitchenDebug,
           }),
         });
 
@@ -453,11 +486,12 @@ export default function WhitelabelHome() {
     setGenerationResults(initialResults);
 
     try {
-      const compressedKitchenImage = await compressImage(kitchenImage);
+      const { data: compressedKitchenImage, debug: kitchenDebug } =
+        await compressImage(kitchenImage);
 
       const results = await Promise.all(
         selectedSlabs.map((slab) =>
-          generateSingleImage(slab, compressedKitchenImage),
+          generateSingleImage(slab, compressedKitchenImage, kitchenDebug),
         ),
       );
 
@@ -849,7 +883,6 @@ export default function WhitelabelHome() {
         </footer>
       )}
 
-      <ThemeDebug />
     </div>
   );
 }

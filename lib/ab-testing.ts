@@ -1,11 +1,6 @@
 'use client'
 
-import { posthog } from './posthog'
-
 export type ABVariant = 'A' | 'B'
-
-// Feature flag name in PostHog
-const AB_TEST_FLAG = 'countertop-slab-access'
 
 // Get the AB variant for the current user
 export function getABVariant(): ABVariant {
@@ -19,20 +14,7 @@ export function getABVariant(): ABVariant {
     return storedVariant
   }
 
-  // Try to get from PostHog feature flag
-  const flagValue = posthog.getFeatureFlag(AB_TEST_FLAG)
-  
-  let variant: ABVariant
-  if (flagValue === 'full-access') {
-    variant = 'B'
-  } else if (flagValue === 'limited') {
-    variant = 'A'
-  } else {
-    // Random assignment if PostHog isn't available
-    variant = Math.random() < 0.5 ? 'A' : 'B'
-  }
-
-  // Store for consistency
+  const variant: ABVariant = Math.random() < 0.5 ? 'A' : 'B'
   localStorage.setItem('ab_variant', variant)
   return variant
 }
@@ -90,5 +72,3 @@ export function setVerifiedLeadName(name: string | null): void {
     localStorage.removeItem(VERIFIED_LEAD_NAME_KEY)
   }
 }
-
-

@@ -6,7 +6,7 @@ import ImageCarousel from "./ImageCarousel";
 import ImageComparison from "./ImageComparison";
 import QuoteModal from "./QuoteModal";
 import PhoneVerificationModal from "./PhoneVerificationModal";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
 import { trackToSupabase } from "@/lib/analytics";
 import { getVerifiedLeadName } from "@/lib/ab-testing";
 import { useMaterialLine } from "@/lib/material-line";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
 
 interface ImageUploadProps {
   onImageUpload: (base64Image: string) => void;

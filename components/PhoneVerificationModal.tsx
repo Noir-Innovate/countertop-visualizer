@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
 import { useMaterialLine } from "@/lib/material-line";
 import {
   getVerifiedLeadName,

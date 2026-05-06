@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { resolveSlabImage } from "@/lib/slab-image";
+import { inspectImage } from "@/lib/image-inspect";
+
+interface ClientDebug {
+  userAgent?: string;
+  viewport?: { width: number; height: number };
+  originalBlobBytes?: number;
+  originalBlobType?: string;
+  compressedBlobBytes?: number;
+  compressedBlobType?: string;
+  compressionFellBack?: boolean;
+}
 
 interface RequestBody {
   kitchenImage: string;
@@ -9,6 +20,7 @@ interface RequestBody {
   slabId: string;
   slabName: string;
   slabDescription: string;
+  clientDebug?: ClientDebug;
 }
 
 export async function POST(request: NextRequest) {
@@ -17,8 +29,14 @@ export async function POST(request: NextRequest) {
     console.log("Parsing request body...");
 
     const body: RequestBody = await request.json();
-    const { kitchenImage, slabImage, slabImageUrl, slabName, slabDescription } =
-      body;
+    const {
+      kitchenImage,
+      slabImage,
+      slabImageUrl,
+      slabName,
+      slabDescription,
+      clientDebug,
+    } = body;
 
     console.log("Request data:", {
       hasKitchenImage: !!kitchenImage,
@@ -29,6 +47,10 @@ export async function POST(request: NextRequest) {
       slabName,
       slabDescription,
     });
+
+    if (clientDebug) {
+      console.log("[client-debug]", JSON.stringify(clientDebug));
+    }
 
     if (!kitchenImage) {
       console.error("Missing kitchen image");
@@ -82,6 +104,48 @@ export async function POST(request: NextRequest) {
       slabMimeType,
       slabBase64Size: base64SlabImage.length,
     });
+
+    const kitchenInspection = inspectImage(base64KitchenImage);
+    const slabInspection = inspectImage(base64SlabImage);
+    console.log("[inspect] kitchen", {
+      bytes: kitchenInspection.byteLength,
+      base64: kitchenInspection.base64Length,
+      format: kitchenInspection.detectedFormat,
+      claimedMime: kitchenMimeType,
+      width: kitchenInspection.width,
+      height: kitchenInspection.height,
+      magicHex: kitchenInspection.magicHex,
+      fingerprint: kitchenInspection.fingerprint,
+    });
+    if (kitchenInspection.warnings.length > 0) {
+      console.warn(
+        "[inspect] kitchen WARNINGS:",
+        kitchenInspection.warnings.join(" | "),
+        { ua: clientDebug?.userAgent, debug: clientDebug },
+      );
+    }
+    if (kitchenInspection.detectedFormat === "unknown" && kitchenMimeType.includes("image/")) {
+      console.warn(
+        "[inspect] kitchen mime/format mismatch — client claimed",
+        kitchenMimeType,
+        "but bytes don't match any known image format",
+      );
+    }
+    console.log("[inspect] slab", {
+      bytes: slabInspection.byteLength,
+      base64: slabInspection.base64Length,
+      format: slabInspection.detectedFormat,
+      claimedMime: slabMimeType,
+      width: slabInspection.width,
+      height: slabInspection.height,
+      fingerprint: slabInspection.fingerprint,
+    });
+    if (slabInspection.warnings.length > 0) {
+      console.warn(
+        "[inspect] slab WARNINGS:",
+        slabInspection.warnings.join(" | "),
+      );
+    }
 
     // Create simple prompt array (following the example structure)
     console.log("Creating prompt...");

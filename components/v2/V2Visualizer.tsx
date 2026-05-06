@@ -18,7 +18,7 @@ import type {
 } from "@/lib/v2/materials";
 import type { VersionEntry, BacksplashHeightId } from "@/lib/v2/types";
 import { downloadPngFromBase64, shareImageFromDataUrl } from "@/lib/image-actions";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
 
 interface V2VisualizerProps {
   kitchenImage: string;

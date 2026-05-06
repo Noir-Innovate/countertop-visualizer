@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
 import PhoneVerificationModal from "@/components/PhoneVerificationModal";
 import { setVerifiedPhone, getVerifiedPhone } from "@/lib/ab-testing";
 import { useMaterialLine } from "@/lib/material-line";

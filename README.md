@@ -8,7 +8,6 @@ A Next.js application that lets users visualize different countertop materials i
 - **AB Testing**: Built-in AB testing to compare limited vs full countertop access variants
 - **Phone Verification**: SMS verification via GoHighLevel to unlock all countertop options
 - **Lead Capture**: Collect user information for follow-up with integrated GHL CRM
-- **Analytics**: PostHog integration for tracking user behavior and conversion funnels
 
 ## Tech Stack
 
@@ -17,7 +16,6 @@ A Next.js application that lets users visualize different countertop materials i
 - **Database**: Supabase (PostgreSQL)
 - **AI**: Google Gemini AI
 - **SMS**: Twilio
-- **Analytics**: PostHog
 
 ## Getting Started
 
@@ -28,7 +26,6 @@ A Next.js application that lets users visualize different countertop materials i
 - Google AI API key
 - Twilio account with a phone number
 - GoHighLevel account with API access (optional, for CRM)
-- PostHog account (optional, for analytics)
 
 ### Installation
 
@@ -67,10 +64,6 @@ A Next.js application that lets users visualize different countertop materials i
    GHL_API_KEY=your_ghl_api_key
    GHL_LOCATION_ID=your_ghl_location_id
 
-   # PostHog (optional)
-   NEXT_PUBLIC_POSTHOG_KEY=your_posthog_key
-   NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
-
    # Sales Team Phone Numbers (comma-separated)
    SALES_TEAM_PHONES=+1234567890,+0987654321
 
@@ -103,7 +96,7 @@ A Next.js application that lets users visualize different countertop materials i
 countertop-visualizer/
 ├── app/
 │   ├── page.tsx                 # Main app page
-│   ├── layout.tsx               # Root layout with PostHog provider
+│   ├── layout.tsx               # Root layout
 │   ├── providers.tsx            # Client-side providers
 │   ├── globals.css              # Tailwind styles
 │   └── api/
@@ -123,7 +116,7 @@ countertop-visualizer/
 ├── lib/
 │   ├── supabase.ts              # Supabase client
 │   ├── ghl.ts                   # GoHighLevel API helpers
-│   ├── posthog.ts               # PostHog client
+│   ├── track.ts                 # Analytics event tracking
 │   ├── ab-testing.ts            # AB test utilities
 │   └── types.ts                 # TypeScript types
 ├── public/
@@ -139,10 +132,7 @@ The app implements two variants:
 - **Variant A (Limited)**: Shows only 3 featured countertops. Users must verify their phone number to unlock all options.
 - **Variant B (Full Access)**: Shows all 19 countertops immediately without verification.
 
-PostHog feature flag: `countertop-slab-access`
-
-- `limited` → Variant A
-- `full-access` → Variant B
+Variants are randomly assigned client-side and persisted in `localStorage`.
 
 ## API Routes
 
@@ -240,15 +230,6 @@ Submits lead information.
    TWILIO_VERIFY_SERVICE_SID=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    TWILIO_PHONE_NUMBER=+1234567890  # For sales notifications
    ```
-
-## PostHog Setup (Optional)
-
-1. Create a PostHog account at [posthog.com](https://posthog.com)
-2. Get your project API key
-3. Create a feature flag named `countertop-slab-access` with variants:
-   - `limited` (50%)
-   - `full-access` (50%)
-4. Add the PostHog key to your environment variables
 
 ## License
 

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import Image from "next/image";
 import { EXAMPLE_KITCHENS, type ExampleKitchen } from "@/lib/types";
+import { compressKitchenImage } from "@/lib/compress-kitchen-image";
 
 interface V2KitchenUploadProps {
   onKitchenSelect: (base64Image: string) => void;
@@ -23,8 +24,16 @@ export default function V2KitchenUpload({
   const allKitchens =
     customKitchens.length > 0 ? customKitchens : EXAMPLE_KITCHENS;
 
+  const readAsDataUrl = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+      reader.readAsDataURL(blob);
+    });
+
   const processFile = useCallback(
-    (file: File) => {
+    async (file: File) => {
       if (!file.type.startsWith("image/")) {
         setError("Please upload an image file");
         return;
@@ -34,10 +43,15 @@ export default function V2KitchenUpload({
         return;
       }
       setError(null);
-      const reader = new FileReader();
-      reader.onloadend = () => onKitchenSelect(reader.result as string);
-      reader.onerror = () => setError("Failed to read image file");
-      reader.readAsDataURL(file);
+      try {
+        const dataUrl = await readAsDataUrl(file);
+        const compressed = await compressKitchenImage(dataUrl);
+        onKitchenSelect(compressed);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to read image file",
+        );
+      }
     },
     [onKitchenSelect],
   );
@@ -50,18 +64,14 @@ export default function V2KitchenUpload({
         const response = await fetch(kitchen.imageUrl);
         if (!response.ok) throw new Error("Failed to load example image");
         const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          onKitchenSelect(reader.result as string);
-          setLoadingExampleId(null);
-        };
-        reader.onerror = () => {
-          setError("Failed to load example image");
-          setLoadingExampleId(null);
-        };
-        reader.readAsDataURL(blob);
-      } catch {
-        setError("Failed to load example image.");
+        const dataUrl = await readAsDataUrl(blob);
+        const compressed = await compressKitchenImage(dataUrl);
+        onKitchenSelect(compressed);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load example image.",
+        );
+      } finally {
         setLoadingExampleId(null);
       }
     },

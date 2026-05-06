@@ -7,14 +7,15 @@ import V2Visualizer from "@/components/v2/V2Visualizer";
 import { useMaterialLine } from "@/lib/material-line";
 import type { ExampleKitchen } from "@/lib/types";
 import { captureAndPersistAttribution } from "@/lib/attribution";
-import { trackEvent } from "@/lib/posthog";
+import { trackEvent } from "@/lib/track";
+import { uuidv4 } from "@/lib/uuid";
 
 function getOrCreateSessionId(): string {
   if (typeof window === "undefined") return "";
   const key = "v2_session_id";
   let id = sessionStorage.getItem(key);
   if (!id) {
-    id = crypto.randomUUID();
+    id = uuidv4();
     sessionStorage.setItem(key, id);
   }
   return id;

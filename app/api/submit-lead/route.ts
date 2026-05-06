@@ -4,7 +4,6 @@ import {
   sendLeadNotificationEmail,
   sendUserQuoteConfirmationEmail,
 } from "@/lib/resend";
-import { PostHog } from "posthog-node";
 import { uploadLeadImage } from "@/lib/storage";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NoirMessenger } from "@/lib/noir-sms";
@@ -342,42 +341,7 @@ export async function POST(request: NextRequest) {
         (err) => console.error("[analytics] quote_submitted insert:", err),
       );
 
-    // Track analytics event with PostHog
-    if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-      const posthog = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-        host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
-      });
-
-      // Extract zip code from address (look for 5-digit zip or 5+4 format)
-      const zipMatch = data.address.match(/\b(\d{5})(?:-(\d{4}))?\b/);
-      const zip = zipMatch ? zipMatch[1] : null;
-
-      posthog.capture({
-        distinctId: sessionId || "anonymous",
-        event: "quote_submitted",
-        properties: {
-          name: data.name,
-          email: data.email,
-          selectedSlab: data.selectedSlabName,
-          address: data.address,
-          zip: zip,
-          materialLineId: materialLineId,
-          organizationId: organizationId,
-          utm_source: data.utm_source ?? undefined,
-          utm_medium: data.utm_medium ?? undefined,
-          utm_campaign: data.utm_campaign ?? undefined,
-          utm_term: data.utm_term ?? undefined,
-          utm_content: data.utm_content ?? undefined,
-          referrer: data.referrer ?? undefined,
-          ...(data.tags &&
-            Object.keys(data.tags).length > 0 && { tags: data.tags }),
-        },
-      });
-
-      await posthog.shutdown();
-    }
-
-    // Get material line name and email settings for notifications and user confirmation
+// Get material line name and email settings for notifications and user confirmation
     let materialLineName: string | undefined = undefined;
     let materialLineSenderName: string | undefined = undefined;
     let materialLineReplyTo: string | undefined = undefined;
