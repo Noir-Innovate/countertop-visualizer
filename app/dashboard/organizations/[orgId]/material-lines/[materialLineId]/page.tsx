@@ -53,15 +53,13 @@ export default async function MaterialLinePage({ params }: Props) {
     .eq("id", orgId)
     .single();
 
-  // Check if materials exist
-  const { data: materialFiles } = await db.storage
-    .from("public-assets")
-    .list(materialLine.supabase_folder);
-
-  const materialCount =
-    materialFiles?.filter((file) =>
-      file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i),
-    ).length || 0;
+  // Material count from DB (same source the visualizer reads). Avoids
+  // storage.list()'s 100-row default and any orphan files in the bucket.
+  const { count: materialCountRaw } = await db
+    .from("materials")
+    .select("*", { count: "exact", head: true })
+    .eq("material_line_id", materialLineId);
+  const materialCount = materialCountRaw ?? 0;
 
   // Check if kitchen images exist
   const { count: kitchenImageCount } = await db
