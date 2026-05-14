@@ -91,6 +91,23 @@ export async function loadMaterialInventory(
   };
 }
 
+/**
+ * Returns the exact number of `materials` rows for a line. Uses PostgREST's
+ * head+count so no rows are transferred — needed because storage.list() caps
+ * at 100 and drops non-image entries.
+ */
+export async function countMaterialsForLine(
+  supabase: Pick<SupabaseClient, "from">,
+  materialLineId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("materials")
+    .select("*", { count: "exact", head: true })
+    .eq("material_line_id", materialLineId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export function toInventoryMaterial(row: MaterialRow): InventoryMaterial {
   return {
     id: row.id,
