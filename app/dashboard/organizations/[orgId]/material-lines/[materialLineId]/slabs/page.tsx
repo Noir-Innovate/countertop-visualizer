@@ -158,10 +158,33 @@ export default function MaterialsPage({ params }: Props) {
         setOrgName(orgData.name);
       }
 
-      // List files from Supabase storage
-      const { data: files, error: storageError } = await supabase.storage
-        .from("public-assets")
-        .list(mlData.supabase_folder);
+      // List files from Supabase storage. storage.list() pages at 100 by
+      // default (1000 max), so loop until we've seen every file.
+      const STORAGE_PAGE_SIZE = 1000;
+      type StorageFile = Awaited<
+        ReturnType<ReturnType<typeof supabase.storage.from>["list"]>
+      >["data"] extends (infer T)[] | null
+        ? T
+        : never;
+      const files: StorageFile[] = [];
+      let storageError: { message: string } | null = null;
+      let offset = 0;
+      while (true) {
+        const { data: page, error } = await supabase.storage
+          .from("public-assets")
+          .list(mlData.supabase_folder, {
+            limit: STORAGE_PAGE_SIZE,
+            offset,
+          });
+        if (error) {
+          storageError = error;
+          break;
+        }
+        if (!page || page.length === 0) break;
+        files.push(...page);
+        if (page.length < STORAGE_PAGE_SIZE) break;
+        offset += STORAGE_PAGE_SIZE;
+      }
 
       if (storageError) {
         setErrors(["Failed to load materials: " + storageError.message]);
