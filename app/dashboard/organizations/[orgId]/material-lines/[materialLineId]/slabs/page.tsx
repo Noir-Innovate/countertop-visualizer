@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { loadMaterialInventory } from "@/lib/v2/material-inventory";
 import toast from "react-hot-toast";
 import {
   DndContext,
@@ -127,25 +128,16 @@ export default function MaterialsPage({ params }: Props) {
         return;
       }
 
-      // Fetch material line
-      const { data: mlData } = await supabase
-        .from("material_lines")
-        .select("name, supabase_folder, category_colors")
-        .eq("id", materialLineId)
-        .single();
+      const inventory = await loadMaterialInventory(supabase, materialLineId);
 
-      if (!mlData) {
+      if (!inventory) {
         setErrors(["Material line not found"]);
         setLoading(false);
         return;
       }
 
-      setMaterialLine({
-        name: mlData.name,
-        supabase_folder: mlData.supabase_folder,
-        category_colors:
-          (mlData.category_colors as Record<string, MaterialColor[]>) || null,
-      });
+      setMaterialLine(inventory.materialLine);
+      setMaterials(inventory.materials);
 
       // Fetch organization name
       const { data: orgData } = await supabase
@@ -156,111 +148,6 @@ export default function MaterialsPage({ params }: Props) {
 
       if (orgData) {
         setOrgName(orgData.name);
-      }
-
-      // List files from Supabase storage. storage.list() pages at 100 by
-      // default (1000 max), so loop until we've seen every file.
-      const STORAGE_PAGE_SIZE = 1000;
-      type StorageFile = Awaited<
-        ReturnType<ReturnType<typeof supabase.storage.from>["list"]>
-      >["data"] extends (infer T)[] | null
-        ? T
-        : never;
-      const files: StorageFile[] = [];
-      let storageError: { message: string } | null = null;
-      let offset = 0;
-      while (true) {
-        const { data: page, error } = await supabase.storage
-          .from("public-assets")
-          .list(mlData.supabase_folder, {
-            limit: STORAGE_PAGE_SIZE,
-            offset,
-          });
-        if (error) {
-          storageError = error;
-          break;
-        }
-        if (!page || page.length === 0) break;
-        files.push(...page);
-        if (page.length < STORAGE_PAGE_SIZE) break;
-        offset += STORAGE_PAGE_SIZE;
-      }
-
-      if (storageError) {
-        setErrors(["Failed to load materials: " + storageError.message]);
-        console.error("Storage error:", storageError);
-      } else {
-        const materialFiles =
-          files?.filter((file) =>
-            file.name.match(/\.(jpg|jpeg|png|webp|gif|tif|tiff)$/i),
-          ) || [];
-
-        // Fetch material metadata from database, ordered by order field
-        const { data: materialsData } = await supabase
-          .from("materials")
-          .select(
-            "id, filename, title, material_type, material_category, order, price_per_sqft, available_colors",
-          )
-          .eq("material_line_id", materialLineId)
-          .order("order", { ascending: true });
-
-        // Create a map of filename to metadata
-        const materialsMap = new Map<
-          string,
-          {
-            id: string;
-            title: string | null;
-            material_type: string | null;
-            material_category: string;
-            order: number;
-            price_per_sqft: number | null;
-            available_colors: MaterialColor[] | null;
-          }
-        >();
-        if (materialsData) {
-          materialsData.forEach((m) => {
-            materialsMap.set(m.filename, {
-              id: m.id,
-              title: m.title,
-              material_type: m.material_type,
-              material_category: m.material_category || "Countertops",
-              order: m.order,
-              price_per_sqft: m.price_per_sqft ?? null,
-              available_colors:
-                (m.available_colors as MaterialColor[] | null) ?? null,
-            });
-          });
-        }
-
-        // Combine storage files with database metadata
-        const materialsWithMetadata: MaterialFile[] = materialFiles
-          .map((file) => {
-            const meta = materialsMap.get(file.name);
-            return {
-              id: meta?.id || file.id || file.name,
-              name: file.name,
-              title: meta?.title || null,
-              material_type: meta?.material_type || null,
-              material_category: meta?.material_category || "Countertops",
-              order: meta?.order ?? 999999,
-              price_per_sqft: meta?.price_per_sqft ?? null,
-              available_colors: meta?.available_colors ?? null,
-            };
-          })
-          .sort((a, b) => {
-            if (a.order !== undefined && b.order !== undefined) {
-              return a.order - b.order;
-            }
-            return a.name.localeCompare(b.name);
-          });
-
-        setMaterials(materialsWithMetadata);
-        console.log(
-          "Loaded materials:",
-          materialsWithMetadata.length,
-          "from folder:",
-          mlData.supabase_folder,
-        );
       }
     } catch (err) {
       setErrors(["An unexpected error occurred"]);

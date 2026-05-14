@@ -11,7 +11,8 @@
     "test:onboarding": "node --import tsx --test tests/onboarding-flow.test.ts tests/onboarding-e2e.test.ts",
     "test:referrals": "node --import tsx --test tests/referrals.test.ts",
     "test:slab-image": "node --import tsx --test tests/slab-image.test.ts tests/generate-countertop-route.test.ts",
-    "test": "node --import tsx --test tests/billing-usage.test.ts tests/lead-invoicing.test.ts tests/lead-billing-service.test.ts tests/lead-billing-identity.test.ts tests/invoice-lead-usage-loader.test.ts tests/onboarding-flow.test.ts tests/onboarding-e2e.test.ts tests/referrals.test.ts tests/slab-image.test.ts tests/generate-countertop-route.test.ts",
+    "test:material-inventory": "node --import tsx --test tests/material-inventory.test.ts",
+    "test": "node --import tsx --test tests/billing-usage.test.ts tests/lead-invoicing.test.ts tests/lead-billing-service.test.ts tests/lead-billing-identity.test.ts tests/invoice-lead-usage-loader.test.ts tests/onboarding-flow.test.ts tests/onboarding-e2e.test.ts tests/referrals.test.ts tests/slab-image.test.ts tests/generate-countertop-route.test.ts tests/material-inventory.test.ts",
     "takeoff:test": "tsx scripts/takeoff-testbed.ts"
   },
   "dependencies": {
