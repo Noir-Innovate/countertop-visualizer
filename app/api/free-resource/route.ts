@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { sendFreeResourceEmail } from "@/lib/resend";
+import { pushFreeResourceToGhl } from "@/lib/integrations/push-lead-to-ghl";
 
 interface FreeResourceRequest {
   email: string;
@@ -134,6 +135,36 @@ export async function POST(request: NextRequest) {
         (err) =>
           console.error("[analytics] free_resource_email_sent insert:", err),
       );
+
+    // Awaited so it runs reliably in serverless. Errors never fail the request.
+    try {
+      const result = await pushFreeResourceToGhl({
+        supabase,
+        organizationId: materialLine.organization_id,
+        materialLineId: materialLine.id,
+        email: data.email,
+        resourceTitle,
+        resourceUrl: materialLine.free_resource_file_url,
+        utm: {
+          source: data.utm_source ?? null,
+          medium: data.utm_medium ?? null,
+          campaign: data.utm_campaign ?? null,
+          term: data.utm_term ?? null,
+          content: data.utm_content ?? null,
+          referrer: data.referrer ?? null,
+        },
+      });
+      if (!result.pushed) {
+        console.log("[ghl] free-resource skipped:", result.reason);
+      } else {
+        console.log(
+          "[ghl] free-resource pushed to contact:",
+          result.contactId,
+        );
+      }
+    } catch (err) {
+      console.error("[ghl] free-resource push failed:", err);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

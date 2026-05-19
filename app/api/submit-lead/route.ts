@@ -8,6 +8,7 @@ import { uploadLeadImage } from "@/lib/storage";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NoirMessenger } from "@/lib/noir-sms";
 import { trackLeadBillingUsage } from "@/lib/billing-usage";
+import { pushLeadToGhl } from "@/lib/integrations/push-lead-to-ghl";
 
 interface LeadData {
   name: string;
@@ -490,6 +491,22 @@ export async function POST(request: NextRequest) {
             }
           }
         }
+      }
+    }
+
+    // Push to GHL CRM if the material line + org integration are enabled.
+    // Awaited so it runs reliably in serverless (fire-and-forget gets killed
+    // after the response is sent on Vercel). Errors never fail the request.
+    if (lead?.id) {
+      try {
+        const result = await pushLeadToGhl({ supabase, leadId: lead.id });
+        if (!result.pushed) {
+          console.log("[ghl] skipped:", result.reason);
+        } else {
+          console.log("[ghl] pushed lead to contact:", result.contactId);
+        }
+      } catch (err) {
+        console.error("[ghl] push failed:", err);
       }
     }
 

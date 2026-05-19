@@ -111,6 +111,7 @@ export default function MaterialsPage({ params }: Props) {
     { value: "Soapstone", label: "Soapstone" },
     { value: "Porcelain", label: "Porcelain" },
     { value: "Solid Surface", label: "Solid Surface" },
+    { value: "Laminate", label: "Laminate" },
     { value: "Other", label: "Other" },
   ];
 

@@ -3,6 +3,7 @@ import { uploadLeadImage } from "@/lib/storage";
 import { uploadImage } from "@/app/api/submit-lead/route";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { trackLeadBillingUsage } from "@/lib/billing-usage";
+import { pushLeadToGhl } from "@/lib/integrations/push-lead-to-ghl";
 import { sendLeadNotificationEmail } from "@/lib/resend";
 import { NoirMessenger } from "@/lib/noir-sms";
 
@@ -221,6 +222,23 @@ export async function POST(request: NextRequest) {
 
       if (!trackedUsage.tracked) {
         console.error("Failed to write billing usage row:", trackedUsage.error);
+      }
+    }
+
+    // Awaited so it runs reliably in serverless. Errors never fail the request.
+    if (lead?.id) {
+      try {
+        const result = await pushLeadToGhl({ supabase, leadId: lead.id });
+        if (!result.pushed) {
+          console.log("[ghl] download-lead skipped:", result.reason);
+        } else {
+          console.log(
+            "[ghl] download-lead pushed to contact:",
+            result.contactId,
+          );
+        }
+      } catch (err) {
+        console.error("[ghl] download-lead push failed:", err);
       }
     }
 

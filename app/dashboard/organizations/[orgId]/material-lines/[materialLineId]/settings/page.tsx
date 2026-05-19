@@ -25,6 +25,7 @@ interface MaterialLine {
   supabase_folder: string;
   email_sender_name: string | null;
   email_reply_to: string | null;
+  ghl_push_enabled: boolean;
 }
 
 export default function MaterialLineSettingsPage({ params }: Props) {
@@ -44,6 +45,9 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   const [emailSenderName, setEmailSenderName] = useState("");
   const [emailReplyTo, setEmailReplyTo] = useState("");
   const [orgSlug, setOrgSlug] = useState<string | null>(null);
+  const [ghlEnabled, setGhlEnabled] = useState(false);
+  const [ghlAvailable, setGhlAvailable] = useState<boolean | null>(null);
+  const [ghlSaving, setGhlSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -79,6 +83,7 @@ export default function MaterialLineSettingsPage({ params }: Props) {
         setBackgroundColor(data.background_color);
         setEmailSenderName(data.email_sender_name || "");
         setEmailReplyTo(data.email_reply_to || "");
+        setGhlEnabled(!!data.ghl_push_enabled);
       }
       if (org?.slug) setOrgSlug(org.slug);
       setLoading(false);
@@ -86,6 +91,50 @@ export default function MaterialLineSettingsPage({ params }: Props) {
 
     fetchMaterialLine();
   }, [materialLineId, orgId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/integrations/ghl?orgId=${orgId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setGhlAvailable(!!data.integration && data.integration.enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setGhlAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId]);
+
+  async function handleGhlToggle(next: boolean) {
+    setGhlSaving(true);
+    const prev = ghlEnabled;
+    setGhlEnabled(next);
+    try {
+      const res = await fetch(
+        `/api/material-lines/${materialLineId}/ghl-toggle`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: next }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setGhlEnabled(prev);
+        toast.error(data.error || "Failed to update");
+        return;
+      }
+      toast.success(next ? "Leads will push to GHL" : "GHL push disabled");
+    } catch (e) {
+      setGhlEnabled(prev);
+      toast.error(e instanceof Error ? e.message : "Failed to update");
+    } finally {
+      setGhlSaving(false);
+    }
+  }
 
   async function handleLogoUpload(file: File) {
     if (!orgSlug) {
@@ -502,6 +551,55 @@ export default function MaterialLineSettingsPage({ params }: Props) {
                   </p>
                 </div>
               </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-6">
+              <h3 className="text-lg font-medium text-slate-900 mb-2">CRM</h3>
+              {ghlAvailable === null ? (
+                <p className="text-sm text-slate-500">
+                  Checking integration status…
+                </p>
+              ) : ghlAvailable ? (
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-700 font-medium">
+                      Push leads to GoHighLevel
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      When a lead is submitted on this material line, a contact
+                      will be upserted in your org&apos;s GHL location and a
+                      note with lead details will be attached.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleGhlToggle(!ghlEnabled)}
+                    disabled={ghlSaving}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+                      ghlEnabled ? "bg-blue-600" : "bg-slate-300"
+                    }`}
+                    aria-pressed={ghlEnabled}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        ghlEnabled ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <p>
+                    No active GoHighLevel integration for this organization.{" "}
+                    <Link
+                      href={`/dashboard/organizations/${orgId}/integrations`}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Set one up →
+                    </Link>
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4 pt-4 border-t border-slate-200">
