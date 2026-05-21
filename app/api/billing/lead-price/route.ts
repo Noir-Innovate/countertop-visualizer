@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 interface LeadPriceRequestBody {
   organizationId: string;
@@ -46,7 +46,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase
+    const service = await createServiceClient();
+    const { error } = await service
       .from("organization_billing_pricing")
       .insert({
         organization_id: organizationId,
