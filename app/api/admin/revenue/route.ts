@@ -5,7 +5,7 @@ import { getStripeServerClient } from "@/lib/stripe";
 import {
   startOfCurrentUtcMonth,
   DEFAULT_LEAD_PRICE_CENTS,
-  subscriptionMonthlyCents,
+  subscriptionMonthlyCentsAfterDiscount,
 } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +64,10 @@ async function backfillMonthlyCents(
     }
     if (!subscription) return { monthlyCents: 0, status: null };
 
-    const monthlyCents = subscriptionMonthlyCents(subscription);
+    const monthlyCents = await subscriptionMonthlyCentsAfterDiscount(
+      stripe,
+      subscription,
+    );
     const status: string = subscription.status;
 
     // Persist so subsequent requests stay snappy.

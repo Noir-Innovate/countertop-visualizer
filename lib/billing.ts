@@ -37,8 +37,10 @@ function lineToMonthlyCents(
   }
 }
 
-// Sum the monthly recurring cost (cents) across every item on a Stripe
-// subscription, normalizing yearly/weekly/daily intervals to monthly.
+// Sum the monthly recurring list-price cost (cents) across every item on a
+// Stripe subscription, normalizing yearly/weekly/daily intervals to monthly.
+// Does NOT account for discounts/coupons — see
+// subscriptionMonthlyCentsAfterDiscount for that.
 export function subscriptionMonthlyCents(subscription: any): number {
   if (!subscription || typeof subscription !== "object") return 0;
   let total = 0;
@@ -52,4 +54,41 @@ export function subscriptionMonthlyCents(subscription: any): number {
     );
   }
   return total;
+}
+
+// Same as subscriptionMonthlyCents but applies the discount ratio from the
+// upcoming Stripe invoice — so a 100% off coupon resolves to $0, a 20% off
+// coupon resolves to 80% of list, etc. Falls back to list price if the
+// preview can't be fetched.
+export async function subscriptionMonthlyCentsAfterDiscount(
+  stripe: any,
+  subscription: any,
+): Promise<number> {
+  const listMonthly = subscriptionMonthlyCents(subscription);
+  if (listMonthly <= 0) return 0;
+  if (!subscription?.id || !stripe?.invoices?.createPreview) {
+    return listMonthly;
+  }
+  try {
+    const preview = await stripe.invoices.createPreview({
+      subscription: subscription.id,
+    });
+    // subtotal: pre-discount, pre-tax line items.
+    // total_excluding_tax: post-discount, pre-tax (preferred).
+    // total: post-discount, post-tax (fallback when total_excluding_tax absent).
+    const subtotal = Number(preview?.subtotal ?? 0);
+    const postDiscount =
+      preview?.total_excluding_tax != null
+        ? Number(preview.total_excluding_tax)
+        : Number(preview?.total ?? 0);
+    if (subtotal <= 0) return listMonthly;
+    const ratio = Math.max(0, postDiscount / subtotal);
+    return Math.round(listMonthly * ratio);
+  } catch (err) {
+    console.error(
+      `[billing] invoice preview failed for sub=${subscription.id}:`,
+      err,
+    );
+    return listMonthly;
+  }
 }

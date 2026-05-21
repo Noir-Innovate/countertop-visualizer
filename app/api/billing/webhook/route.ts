@@ -6,7 +6,7 @@ import {
   activateReferralForOrg,
   recordCommissionForInvoice,
 } from "@/lib/referrals";
-import { subscriptionMonthlyCents } from "@/lib/billing";
+import { subscriptionMonthlyCentsAfterDiscount } from "@/lib/billing";
 
 function normalizeInternalPlanStatus(status: string | null | undefined) {
   if (!status) return "inactive";
@@ -82,6 +82,12 @@ async function upsertSubscriptionState(
     internal_plan_cancel_at_period_end: subscription.cancel_at_period_end,
   });
 
+  const stripe = getStripeServerClient();
+  const monthlyCents = await subscriptionMonthlyCentsAfterDiscount(
+    stripe,
+    subscription,
+  );
+
   await supabase.from("organization_billing_subscriptions").upsert(
     {
       organization_id: organizationId,
@@ -90,7 +96,7 @@ async function upsertSubscriptionState(
       current_period_start: unixToIso(subscription.current_period_start),
       current_period_end: unixToIso(subscription.current_period_end),
       cancel_at_period_end: subscription.cancel_at_period_end,
-      monthly_recurring_cents: subscriptionMonthlyCents(subscription),
+      monthly_recurring_cents: monthlyCents,
     },
     {
       onConflict: "stripe_subscription_id",
