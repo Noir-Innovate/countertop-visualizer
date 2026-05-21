@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/client";
 
 export const MATERIAL_CATEGORIES = [
-  "Cabinets",
   "Countertops",
+  "Cabinets",
   "Backsplash",
   "Flooring",
 ] as const;

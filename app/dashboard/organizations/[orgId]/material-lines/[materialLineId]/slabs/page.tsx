@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -24,6 +24,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Toaster } from "react-hot-toast";
+import {
+  MATERIAL_TYPES,
+  MATERIAL_TYPE_FILTER_OPTIONS,
+} from "@/lib/materials/types";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -78,6 +82,10 @@ export default function MaterialsPage({ params }: Props) {
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [activeCategory, setActiveCategory] = useState("Countertops");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [pageSize, setPageSize] = useState(50);
+  const [pageIndex, setPageIndex] = useState(0);
 
   const MATERIAL_CATEGORIES = ["Cabinets", "Countertops"];
 
@@ -101,19 +109,6 @@ export default function MaterialsPage({ params }: Props) {
       .replace(/\b\w/g, (c) => c.toUpperCase()); // Capitalize words
   };
 
-  // Material type options
-  const MATERIAL_TYPES = [
-    { value: "none", label: "None" },
-    { value: "Granite", label: "Granite" },
-    { value: "Quartz", label: "Quartz" },
-    { value: "Quartzite", label: "Quartzite" },
-    { value: "Marble", label: "Marble" },
-    { value: "Soapstone", label: "Soapstone" },
-    { value: "Porcelain", label: "Porcelain" },
-    { value: "Solid Surface", label: "Solid Surface" },
-    { value: "Laminate", label: "Laminate" },
-    { value: "Other", label: "Other" },
-  ];
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -645,9 +640,57 @@ export default function MaterialsPage({ params }: Props) {
     }
   };
 
-  const filteredMaterials = materials.filter(
-    (m) => (m.material_category || "Countertops") === activeCategory,
+  // Materials in the active category (this is the source of truth for
+  // drag-reorder — reorder must operate on the full unfiltered category).
+  const filteredMaterials = useMemo(
+    () =>
+      materials.filter(
+        (m) => (m.material_category || "Countertops") === activeCategory,
+      ),
+    [materials, activeCategory],
   );
+
+  const trimmedSearch = searchQuery.trim();
+  const isFiltered = trimmedSearch.length > 0 || typeFilter.length > 0;
+
+  // Type-filter dropdown only offers types that actually exist in the
+  // current category — keep the menu tight even if the upload form
+  // supports more values.
+  const availableTypeOptions = useMemo(() => {
+    const present = new Set<string>();
+    for (const m of filteredMaterials) {
+      const t = (m.material_type ?? "").trim();
+      if (t && t !== "none") present.add(t);
+    }
+    return MATERIAL_TYPE_FILTER_OPTIONS.filter((o) => present.has(o.value));
+  }, [filteredMaterials]);
+
+  // Layer search + type filter on top of the category list.
+  const visibleMaterials = useMemo(() => {
+    if (!isFiltered) return filteredMaterials;
+    const q = trimmedSearch.toLowerCase();
+    return filteredMaterials.filter((m) => {
+      if (typeFilter && (m.material_type ?? "") !== typeFilter) return false;
+      if (!q) return true;
+      const title = (m.title ?? "").toLowerCase();
+      const filename = (m.name ?? "").toLowerCase();
+      return title.includes(q) || filename.includes(q);
+    });
+  }, [filteredMaterials, trimmedSearch, typeFilter, isFiltered]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleMaterials.length / pageSize));
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+  const pageStart = safePageIndex * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const pagedMaterials = useMemo(
+    () => visibleMaterials.slice(pageStart, pageEnd),
+    [visibleMaterials, pageStart, pageEnd],
+  );
+
+  // Reset to first page whenever the filter inputs or category change.
+  useEffect(() => {
+    setPageIndex(0);
+  }, [trimmedSearch, typeFilter, activeCategory, pageSize]);
 
   const categoryCountMap = MATERIAL_CATEGORIES.reduce(
     (acc, cat) => {
@@ -667,6 +710,11 @@ export default function MaterialsPage({ params }: Props) {
   );
 
   const handleReorderMaterials = async (event: DragEndEvent) => {
+    // Reorder is only safe against the full category list. While search/type
+    // filters are active the visible slice doesn't correspond to underlying
+    // order indices, so just ignore drags.
+    if (isFiltered) return;
+
     const { active, over } = event;
 
     if (!over || active.id === over.id) {
@@ -1154,28 +1202,74 @@ export default function MaterialsPage({ params }: Props) {
               <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
             </div>
           ) : filteredMaterials.length > 0 ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleReorderMaterials}
-            >
-              <SortableContext items={filteredMaterials.map((m) => m.id)}>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filteredMaterials.map((material) => (
-                    <SortableMaterialCard
-                      key={material.id}
-                      material={material}
-                      isReordering={isReordering}
-                      onEdit={() => setEditingMaterial(material)}
-                      onDelete={() => setDeletingMaterial(material)}
-                      getImageUrl={getImageUrl}
-                      generateTitleFromFilename={generateTitleFromFilename}
-                      isLocalDev={isLocalDev}
-                    />
-                  ))}
+            <>
+              <MaterialFilterToolbar
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                typeFilter={typeFilter}
+                onTypeFilterChange={setTypeFilter}
+                typeOptions={availableTypeOptions}
+                pageSize={pageSize}
+                onPageSizeChange={setPageSize}
+                isFiltered={isFiltered}
+                onClear={() => {
+                  setSearchQuery("");
+                  setTypeFilter("");
+                }}
+                visibleCount={visibleMaterials.length}
+                totalCount={filteredMaterials.length}
+              />
+              {visibleMaterials.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-1">
+                    No materials match your search
+                  </h2>
+                  <p className="text-slate-600 text-sm">
+                    Clear filters to see all {filteredMaterials.length}{" "}
+                    materials in this category.
+                  </p>
                 </div>
-              </SortableContext>
-            </DndContext>
+              ) : (
+                <>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleReorderMaterials}
+                  >
+                    <SortableContext items={pagedMaterials.map((m) => m.id)}>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {pagedMaterials.map((material) => (
+                          <SortableMaterialCard
+                            key={material.id}
+                            material={material}
+                            isReordering={isReordering}
+                            dragEnabled={!isFiltered}
+                            onEdit={() => setEditingMaterial(material)}
+                            onDelete={() => setDeletingMaterial(material)}
+                            getImageUrl={getImageUrl}
+                            generateTitleFromFilename={generateTitleFromFilename}
+                            isLocalDev={isLocalDev}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                  <PaginationBar
+                    pageIndex={safePageIndex}
+                    pageCount={pageCount}
+                    pageStart={pageStart}
+                    pageEnd={Math.min(pageEnd, visibleMaterials.length)}
+                    totalCount={visibleMaterials.length}
+                    onPrev={() =>
+                      setPageIndex((i) => Math.max(0, i - 1))
+                    }
+                    onNext={() =>
+                      setPageIndex((i) => Math.min(pageCount - 1, i + 1))
+                    }
+                  />
+                </>
+              )}
+            </>
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1477,6 +1571,7 @@ export default function MaterialsPage({ params }: Props) {
 function SortableMaterialCard({
   material,
   isReordering,
+  dragEnabled = true,
   onEdit,
   onDelete,
   getImageUrl,
@@ -1485,6 +1580,7 @@ function SortableMaterialCard({
 }: {
   material: MaterialFile;
   isReordering: boolean;
+  dragEnabled?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   getImageUrl: (fileName: string) => string;
@@ -1540,11 +1636,15 @@ function SortableMaterialCard({
             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
           />
         )}
-        {/* Drag Handle - Always visible on mobile, hover on desktop */}
+        {/* Drag Handle - hidden while search/type filters are active. */}
         <div
-          {...attributes}
-          {...listeners}
-          className="absolute top-2 left-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-2 bg-white rounded-lg shadow-md hover:bg-slate-50 z-10"
+          {...(dragEnabled ? attributes : {})}
+          {...(dragEnabled ? listeners : {})}
+          className={`absolute top-2 left-2 transition-opacity cursor-grab active:cursor-grabbing p-2 bg-white rounded-lg shadow-md hover:bg-slate-50 z-10 ${
+            dragEnabled
+              ? "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+              : "hidden"
+          }`}
           title="Drag to reorder"
         >
           <svg
@@ -1650,7 +1750,7 @@ function EditMaterialForm({
   onCancel,
 }: {
   material: MaterialFile;
-  materialTypes: Array<{ value: string; label: string }>;
+  materialTypes: ReadonlyArray<{ value: string; label: string }>;
   materialCategories: string[];
   onSave: (
     title: string,
@@ -1865,7 +1965,7 @@ function EditAllForm({
   onCancel,
   saving,
 }: {
-  materialTypes: Array<{ value: string; label: string }>;
+  materialTypes: ReadonlyArray<{ value: string; label: string }>;
   onSave: (title: string, materialType: string) => void;
   onCancel: () => void;
   saving: boolean;
@@ -1934,5 +2034,138 @@ function EditAllForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function MaterialFilterToolbar({
+  searchQuery,
+  onSearchChange,
+  typeFilter,
+  onTypeFilterChange,
+  typeOptions,
+  pageSize,
+  onPageSizeChange,
+  isFiltered,
+  onClear,
+  visibleCount,
+  totalCount,
+}: {
+  searchQuery: string;
+  onSearchChange: (v: string) => void;
+  typeFilter: string;
+  onTypeFilterChange: (v: string) => void;
+  typeOptions: ReadonlyArray<{ value: string; label: string }>;
+  pageSize: number;
+  onPageSizeChange: (v: number) => void;
+  isFiltered: boolean;
+  onClear: () => void;
+  visibleCount: number;
+  totalCount: number;
+}) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search by name…"
+          className="flex-1 min-w-[200px] px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {typeOptions.length > 0 && (
+          <select
+            value={typeFilter}
+            onChange={(e) => onTypeFilterChange(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white"
+          >
+            <option value="">All types</option>
+            {typeOptions.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        )}
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white"
+          aria-label="Page size"
+        >
+          {[24, 50, 100].map((n) => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </select>
+        {isFiltered && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {isFiltered && (
+        <p className="text-xs text-slate-500 mt-2">
+          Showing {visibleCount.toLocaleString()} of{" "}
+          {totalCount.toLocaleString()} materials in this category. Clear
+          filters to reorder.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PaginationBar({
+  pageIndex,
+  pageCount,
+  pageStart,
+  pageEnd,
+  totalCount,
+  onPrev,
+  onNext,
+}: {
+  pageIndex: number;
+  pageCount: number;
+  pageStart: number;
+  pageEnd: number;
+  totalCount: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  if (totalCount === 0) return null;
+  const showing = totalCount > 0 ? `${pageStart + 1}–${pageEnd}` : "0";
+  return (
+    <div className="flex items-center justify-between gap-4 mt-4 px-1 text-sm">
+      <span className="text-slate-600">
+        Showing {showing} of {totalCount.toLocaleString()}
+      </span>
+      {pageCount > 1 && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onPrev}
+            disabled={pageIndex === 0}
+            className="px-3 py-1.5 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ‹ Prev
+          </button>
+          <span className="text-slate-700 tabular-nums">
+            Page {pageIndex + 1} of {pageCount}
+          </span>
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={pageIndex >= pageCount - 1}
+            className="px-3 py-1.5 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Next ›
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

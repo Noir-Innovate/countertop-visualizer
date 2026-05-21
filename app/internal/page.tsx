@@ -98,6 +98,7 @@ export default function InternalVisualizerPage() {
             kitchenImage={kitchenImage}
             sessionId={sessionId}
             onChangePhoto={handleChangePhoto}
+            enableMaterialSearch
           />
         )}
       </div>

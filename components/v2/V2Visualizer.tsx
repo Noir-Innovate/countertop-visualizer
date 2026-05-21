@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { MATERIAL_TYPE_FILTER_OPTIONS } from "@/lib/materials/types";
 import imageCompression from "browser-image-compression";
 import V2ImageDisplay from "./V2ImageDisplay";
 import V2VersionHistory from "./V2VersionHistory";
@@ -24,14 +25,28 @@ interface V2VisualizerProps {
   kitchenImage: string;
   sessionId: string;
   onChangePhoto: () => void;
+  // Force-enable the search + type filter above the grid. Useful for the
+  // /internal route where the material line may not have resolved through
+  // middleware (e.g. dev hostnames like *.nip.io) but the route itself
+  // unambiguously means "internal sales tool". When unset, the toolbar
+  // still auto-appears whenever the resolved material line is internal.
+  enableMaterialSearch?: boolean;
 }
 
 export default function V2Visualizer({
   kitchenImage,
   sessionId,
   onChangePhoto,
+  enableMaterialSearch: enableMaterialSearchProp,
 }: V2VisualizerProps) {
   const materialLine = useMaterialLine();
+  // Internal lines (showroom / sales tool) get the search + type filter
+  // above the grid; external customer-facing lines stay clean. This covers
+  // /demo (which points at an internal line) and any other surface that
+  // renders an internal material line. The /internal route forces it on
+  // via the prop above for the nip.io / non-resolving-hostname case.
+  const enableMaterialSearch =
+    enableMaterialSearchProp || materialLine?.lineKind === "internal";
 
   const [activeCategory, setActiveCategory] = useState("Countertops");
   const [materialsGrouped, setMaterialsGrouped] = useState<
@@ -54,6 +69,15 @@ export default function V2Visualizer({
     "success" | "error" | null
   >(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [materialTypeFilter, setMaterialTypeFilter] = useState("");
+
+  // Reset the search/filter when the user switches category so a stale
+  // "Granite" filter doesn't silently empty out the Cabinets grid.
+  useEffect(() => {
+    setMaterialSearch("");
+    setMaterialTypeFilter("");
+  }, [activeCategory]);
 
   const isLocalDev =
     typeof window !== "undefined" &&
@@ -74,18 +98,16 @@ export default function V2Visualizer({
         setMaterialsGrouped(grouped);
         const hasContent = (g: MaterialsByCategory) =>
           g.count > 0 || g.colors.length > 0;
-        const firstWithContent = grouped.find(hasContent);
-        const preferCountertops =
-          materialLine?.lineKind === "internal";
+        // Always prefer Countertops on load if it has content; fall back to
+        // the first category that does. Applies to every surface (/internal,
+        // /demo, /v2) so the page opens on the same tab every time.
         const countertopsEntry = grouped.find(
           (g) => g.category === "Countertops",
         );
-        const countertopsAvailable =
-          countertopsEntry && hasContent(countertopsEntry);
         const chosen =
-          preferCountertops && countertopsAvailable
+          countertopsEntry && hasContent(countertopsEntry)
             ? countertopsEntry
-            : firstWithContent;
+            : grouped.find(hasContent);
         if (chosen) {
           setActiveCategory(chosen.category);
         }
@@ -755,6 +777,44 @@ export default function V2Visualizer({
   const activeMaterials = activeGroup?.materials || [];
   const activeCategoryColors = activeGroup?.colors || [];
 
+  const trimmedMaterialSearch = materialSearch.trim();
+  const isMaterialFiltered =
+    enableMaterialSearch &&
+    (trimmedMaterialSearch.length > 0 || materialTypeFilter.length > 0);
+
+  // Only surface type-filter options for types that actually exist in the
+  // current category — no point offering "Marble" when nobody uploaded any.
+  const availableTypeOptions = useMemo(() => {
+    const present = new Set<string>();
+    for (const m of activeMaterials) {
+      const t = (m.material_type ?? "").trim();
+      if (t && t !== "none") present.add(t);
+    }
+    return MATERIAL_TYPE_FILTER_OPTIONS.filter((o) => present.has(o.value));
+  }, [activeMaterials]);
+
+  const filteredActiveMaterials = useMemo(() => {
+    if (!isMaterialFiltered) return activeMaterials;
+    const q = trimmedMaterialSearch.toLowerCase();
+    return activeMaterials.filter((m) => {
+      if (
+        materialTypeFilter &&
+        (m.material_type ?? "") !== materialTypeFilter
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      const name = (m.name ?? "").toLowerCase();
+      const filename = (m.filename ?? "").toLowerCase();
+      return name.includes(q) || filename.includes(q);
+    });
+  }, [
+    activeMaterials,
+    trimmedMaterialSearch,
+    materialTypeFilter,
+    isMaterialFiltered,
+  ]);
+
   const editMaterialContextLabel = activeVersion
     ? activeVersion.materialName
     : null;
@@ -810,6 +870,23 @@ export default function V2Visualizer({
         categoryCounts={materialsGrouped}
       />
 
+      {enableMaterialSearch && !materialsLoading && activeMaterials.length > 0 && (
+        <V2MaterialSearchToolbar
+          search={materialSearch}
+          onSearchChange={setMaterialSearch}
+          typeFilter={materialTypeFilter}
+          onTypeFilterChange={setMaterialTypeFilter}
+          typeOptions={availableTypeOptions}
+          isFiltered={isMaterialFiltered}
+          onClear={() => {
+            setMaterialSearch("");
+            setMaterialTypeFilter("");
+          }}
+          visibleCount={filteredActiveMaterials.length}
+          totalCount={activeMaterials.length}
+        />
+      )}
+
       {activeCategory === "Backsplash" ? (
         materialsLoading ? (
           <div className="flex justify-center py-12">
@@ -817,7 +894,7 @@ export default function V2Visualizer({
           </div>
         ) : (
           <V2BacksplashSelector
-            materials={activeMaterials}
+            materials={filteredActiveMaterials}
             onGenerate={handleBacksplashGenerate}
             disabled={isGenerating}
             isLocalDev={isLocalDev}
@@ -847,7 +924,7 @@ export default function V2Visualizer({
                 </div>
               )}
               <V2MaterialGrid
-                materials={activeMaterials}
+                materials={filteredActiveMaterials}
                 generatingMaterialId={generatingMaterialId}
                 onMaterialClick={handleMaterialClick}
                 isLocalDev={isLocalDev}
@@ -862,6 +939,72 @@ export default function V2Visualizer({
             />
           ) : null}
         </>
+      )}
+    </div>
+  );
+}
+
+function V2MaterialSearchToolbar({
+  search,
+  onSearchChange,
+  typeFilter,
+  onTypeFilterChange,
+  typeOptions,
+  isFiltered,
+  onClear,
+  visibleCount,
+  totalCount,
+}: {
+  search: string;
+  onSearchChange: (v: string) => void;
+  typeFilter: string;
+  onTypeFilterChange: (v: string) => void;
+  typeOptions: ReadonlyArray<{ value: string; label: string }>;
+  isFiltered: boolean;
+  onClear: () => void;
+  visibleCount: number;
+  totalCount: number;
+}) {
+  return (
+    <div className="w-full max-w-4xl mx-auto mt-4 px-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search slabs…"
+          className="flex-1 min-w-[160px] px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+        />
+        {typeOptions.length > 0 && (
+          <select
+            value={typeFilter}
+            onChange={(e) => onTypeFilterChange(e.target.value)}
+            className="px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)]"
+            aria-label="Filter by material type"
+          >
+            <option value="">All types</option>
+            {typeOptions.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {isFiltered && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {isFiltered && (
+        <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+          Showing {visibleCount.toLocaleString()} of{" "}
+          {totalCount.toLocaleString()} slabs in this category.
+        </p>
       )}
     </div>
   );
