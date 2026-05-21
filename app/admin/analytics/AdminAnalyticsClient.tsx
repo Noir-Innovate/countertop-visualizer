@@ -142,14 +142,26 @@ function StepCard({
   count,
   loading,
   description,
+  onClick,
 }: {
   label: string;
   count: number | null;
   loading: boolean;
   description: string;
+  onClick?: () => void;
 }) {
+  const interactive = !!onClick;
+  const Wrapper: React.ElementType = interactive ? "button" : "div";
   return (
-    <div className="bg-slate-50 rounded-lg p-4">
+    <Wrapper
+      type={interactive ? "button" : undefined}
+      onClick={onClick}
+      className={`w-full text-left bg-slate-50 rounded-lg p-4 ${
+        interactive
+          ? "hover:bg-slate-100 hover:ring-2 hover:ring-blue-300 transition cursor-pointer"
+          : ""
+      }`}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-slate-700">{label}</span>
         <span className="text-2xl font-bold text-slate-900">
@@ -157,6 +169,180 @@ function StepCard({
         </span>
       </div>
       <p className="text-xs text-slate-500">{description}</p>
+      {interactive && (
+        <p className="text-[11px] text-blue-600 mt-2">Click to view emails →</p>
+      )}
+    </Wrapper>
+  );
+}
+
+interface FreeResourceRecord {
+  id: string;
+  created_at: string;
+  email: string | null;
+  organization_id: string | null;
+  material_line_id: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  referrer: string | null;
+}
+
+function FreeResourceEmailsModal({
+  open,
+  onClose,
+  filters,
+  orgName,
+  lineName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  filters: AdminEventCountFilters;
+  orgName: (id: string) => string;
+  lineName: (id: string) => string;
+}) {
+  const [records, setRecords] = useState<FreeResourceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const ctrl = new AbortController();
+    const params = new URLSearchParams();
+    params.set("days", String(filters.days));
+    if (filters.organizationId)
+      params.set("organizationId", filters.organizationId);
+    if (filters.materialLineId)
+      params.set("materialLineId", filters.materialLineId);
+    if (filters.utm_source) params.set("utm_source", filters.utm_source);
+    if (filters.utm_medium) params.set("utm_medium", filters.utm_medium);
+    if (filters.utm_campaign) params.set("utm_campaign", filters.utm_campaign);
+
+    setLoading(true);
+    setError(null);
+    fetch(`/api/admin/analytics/free-resource-emails?${params.toString()}`, {
+      signal: ctrl.signal,
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => setRecords(d.records ?? []))
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(String(e.message ?? e));
+      })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, [
+    open,
+    filters.days,
+    filters.organizationId,
+    filters.materialLineId,
+    filters.utm_source,
+    filters.utm_medium,
+    filters.utm_campaign,
+  ]);
+
+  const copyAll = useCallback(() => {
+    const emails = records
+      .map((r) => r.email)
+      .filter((e): e is string => !!e)
+      .join("\n");
+    if (emails) navigator.clipboard.writeText(emails);
+  }, [records]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-slate-200">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">
+              Free Resource — submitted emails
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Last {filters.days} days · {records.length} record
+              {records.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={copyAll}
+              disabled={records.length === 0}
+              className="px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Copy emails
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 text-sm rounded border border-slate-300 hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto">
+          {loading && (
+            <div className="p-6 text-sm text-slate-500">Loading…</div>
+          )}
+          {error && !loading && (
+            <div className="p-6 text-sm text-red-600">Error: {error}</div>
+          )}
+          {!loading && !error && records.length === 0 && (
+            <div className="p-6 text-sm text-slate-500">
+              No emails captured in this period.
+            </div>
+          )}
+          {!loading && !error && records.length > 0 && (
+            <table className="w-full text-sm">
+              <thead className="text-left text-slate-500 text-xs uppercase tracking-wide bg-slate-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Email</th>
+                  <th className="px-4 py-2 font-medium">Organization</th>
+                  <th className="px-4 py-2 font-medium">Material line</th>
+                  <th className="px-4 py-2 font-medium">UTM source</th>
+                  <th className="px-4 py-2 font-medium">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="border-t border-slate-100 hover:bg-slate-50"
+                  >
+                    <td className="px-4 py-2 text-slate-900 font-medium">
+                      {r.email ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-slate-700">
+                      {r.organization_id ? orgName(r.organization_id) : "—"}
+                    </td>
+                    <td className="px-4 py-2 text-slate-700">
+                      {r.material_line_id ? lineName(r.material_line_id) : "—"}
+                    </td>
+                    <td className="px-4 py-2 text-slate-600">
+                      {r.utm_source ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-slate-500 whitespace-nowrap">
+                      {new Date(r.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -205,6 +391,7 @@ export default function AdminAnalyticsClient() {
     }>
   >([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [freeResourceModalOpen, setFreeResourceModalOpen] = useState(false);
 
   const filters: AdminEventCountFilters = {
     days,
@@ -613,6 +800,7 @@ export default function AdminAnalyticsClient() {
               count={freeResourceAccepted.count}
               loading={freeResourceAccepted.loading}
               description="Users submitted email to receive the free resource"
+              onClick={() => setFreeResourceModalOpen(true)}
             />
             <StepCard
               label="Free Resource Rejected"
@@ -698,6 +886,14 @@ export default function AdminAnalyticsClient() {
           </div>
         )}
       </div>
+
+      <FreeResourceEmailsModal
+        open={freeResourceModalOpen}
+        onClose={() => setFreeResourceModalOpen(false)}
+        filters={filters}
+        orgName={orgName}
+        lineName={lineName}
+      />
     </div>
   );
 }

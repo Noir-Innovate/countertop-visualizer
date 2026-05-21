@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getStripeServerClient } from "@/lib/stripe";
 import {
   startOfCurrentUtcMonth,
-  INTERNAL_LINE_MONTHLY_PRICE_CENTS,
   DEFAULT_LEAD_PRICE_CENTS,
+  subscriptionMonthlyCents,
 } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ type BillingAccount = {
   organization_id: string;
   internal_plan_status: string;
   internal_plan_cancel_at_period_end: boolean;
+  internal_plan_subscription_id: string | null;
+  stripe_customer_id: string | null;
 };
 
 type PricingRow = {
@@ -27,7 +30,77 @@ type UsageRow = {
   excluded_from_billing: boolean;
 };
 
+type SubscriptionRow = {
+  organization_id: string;
+  stripe_subscription_id: string;
+  status: string;
+  monthly_recurring_cents: number | null;
+  updated_at: string;
+};
+
 const SUBSCRIBED_STATUSES = new Set(["active", "trialing"]);
+
+async function backfillMonthlyCents(
+  supabase: any,
+  organizationId: string,
+  subscriptionId: string | null,
+  customerId: string | null,
+): Promise<{ monthlyCents: number; status: string | null }> {
+  if (!subscriptionId && !customerId) {
+    return { monthlyCents: 0, status: null };
+  }
+  try {
+    const stripe = getStripeServerClient();
+    let subscription: any = null;
+    if (subscriptionId) {
+      subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    } else if (customerId) {
+      const list = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 1,
+      });
+      subscription = list.data[0] ?? null;
+    }
+    if (!subscription) return { monthlyCents: 0, status: null };
+
+    const monthlyCents = subscriptionMonthlyCents(subscription);
+    const status: string = subscription.status;
+
+    // Persist so subsequent requests stay snappy.
+    await supabase
+      .from("organization_billing_subscriptions")
+      .upsert(
+        {
+          organization_id: organizationId,
+          stripe_subscription_id: subscription.id,
+          status,
+          current_period_start: subscription.current_period_start
+            ? new Date(subscription.current_period_start * 1000).toISOString()
+            : null,
+          current_period_end: subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000).toISOString()
+            : null,
+          cancel_at_period_end: subscription.cancel_at_period_end,
+          monthly_recurring_cents: monthlyCents,
+        },
+        { onConflict: "stripe_subscription_id" },
+      )
+      .then(
+        () => {},
+        (err: unknown) =>
+          console.error("[admin/revenue] backfill upsert failed:", err),
+      );
+
+    return { monthlyCents, status };
+  } catch (err) {
+    console.error(
+      `[admin/revenue] Stripe backfill failed for org=${organizationId} sub=${subscriptionId}:`,
+      err,
+    );
+    return { monthlyCents: 0, status: null };
+  }
+}
 
 export async function GET() {
   const admin = await requireSuperAdmin();
@@ -38,26 +111,37 @@ export async function GET() {
   const supabase = await createServiceClient();
   const monthStart = startOfCurrentUtcMonth();
 
-  const [orgsRes, billingRes, pricingRes, usageRes] = await Promise.all([
-    supabase.from("organizations").select("id, name").order("name"),
-    supabase
-      .from("organization_billing_accounts")
-      .select(
-        "organization_id, internal_plan_status, internal_plan_cancel_at_period_end",
-      ),
-    supabase
-      .from("organization_billing_pricing")
-      .select("organization_id, lead_price_cents, effective_at")
-      .order("effective_at", { ascending: false }),
-    supabase
-      .from("organization_billing_usage")
-      .select("organization_id, billed_amount_cents, excluded_from_billing")
-      .gte("occurred_at", monthStart)
-      .range(0, 99999),
-  ]);
+  const [orgsRes, billingRes, pricingRes, usageRes, subsRes] =
+    await Promise.all([
+      supabase.from("organizations").select("id, name").order("name"),
+      supabase
+        .from("organization_billing_accounts")
+        .select(
+          "organization_id, internal_plan_status, internal_plan_cancel_at_period_end, internal_plan_subscription_id, stripe_customer_id",
+        ),
+      supabase
+        .from("organization_billing_pricing")
+        .select("organization_id, lead_price_cents, effective_at")
+        .order("effective_at", { ascending: false }),
+      supabase
+        .from("organization_billing_usage")
+        .select("organization_id, billed_amount_cents, excluded_from_billing")
+        .gte("occurred_at", monthStart)
+        .range(0, 99999),
+      supabase
+        .from("organization_billing_subscriptions")
+        .select(
+          "organization_id, stripe_subscription_id, status, monthly_recurring_cents, updated_at",
+        )
+        .order("updated_at", { ascending: false }),
+    ]);
 
   const firstError =
-    orgsRes.error || billingRes.error || pricingRes.error || usageRes.error;
+    orgsRes.error ||
+    billingRes.error ||
+    pricingRes.error ||
+    usageRes.error ||
+    subsRes.error;
   if (firstError) {
     return NextResponse.json(
       { error: "Failed to fetch revenue", detail: firstError.message },
@@ -91,17 +175,65 @@ export async function GET() {
     );
   }
 
-  const subscriptionPriceCents = INTERNAL_LINE_MONTHLY_PRICE_CENTS;
+  // Build a per-org map of the most recently-updated stored subscription row.
+  const storedSubByOrg = new Map<string, SubscriptionRow>();
+  for (const row of (subsRes.data ?? []) as SubscriptionRow[]) {
+    if (!storedSubByOrg.has(row.organization_id)) {
+      storedSubByOrg.set(row.organization_id, row);
+    }
+  }
 
-  const customers = (orgsRes.data ?? []).map((org) => {
+  const orgs = orgsRes.data ?? [];
+
+  // Resolve each org's monthly subscription amount:
+  //  1. Prefer the stored value in organization_billing_subscriptions.
+  //  2. If missing (or value is null) AND the account points at a Stripe
+  //     subscription, query Stripe once and persist the result so future
+  //     requests stay fast.
+  //  3. Otherwise treat as $0 — covers comped/demo accounts whose internal
+  //     status is "active" but never had a real Stripe subscription.
+  const monthlyCentsByOrg = new Map<string, number>();
+  await Promise.all(
+    orgs.map(async (org) => {
+      const billing = billingByOrg.get(org.id);
+      if (!billing) return;
+      if (!SUBSCRIBED_STATUSES.has(billing.internal_plan_status)) return;
+
+      const stored = storedSubByOrg.get(org.id);
+      if (stored && stored.monthly_recurring_cents != null) {
+        if (SUBSCRIBED_STATUSES.has(stored.status)) {
+          monthlyCentsByOrg.set(org.id, stored.monthly_recurring_cents);
+        }
+        return;
+      }
+
+      const { monthlyCents, status } = await backfillMonthlyCents(
+        supabase,
+        org.id,
+        billing.internal_plan_subscription_id,
+        billing.stripe_customer_id,
+      );
+      if (
+        monthlyCents > 0 &&
+        status &&
+        SUBSCRIBED_STATUSES.has(status)
+      ) {
+        monthlyCentsByOrg.set(org.id, monthlyCents);
+      }
+    }),
+  );
+
+  const customers = orgs.map((org) => {
     const billing = billingByOrg.get(org.id);
     const planStatus = billing?.internal_plan_status ?? null;
-    const subscribed = planStatus ? SUBSCRIBED_STATUSES.has(planStatus) : false;
+    const subscriptionRevenueCents = monthlyCentsByOrg.get(org.id) ?? 0;
+    // Count as "subscribed" only if there's a real, paying Stripe sub backing
+    // this org — excludes comped/demo orgs whose local status is active.
+    const subscribed = subscriptionRevenueCents > 0;
     const pricePerLeadCents =
       priceByOrg.get(org.id) ?? DEFAULT_LEAD_PRICE_CENTS;
     const leadsThisMonth = leadCountByOrg.get(org.id) ?? 0;
     const leadRevenueCents = leadCentsByOrg.get(org.id) ?? 0;
-    const subscriptionRevenueCents = subscribed ? subscriptionPriceCents : 0;
     return {
       id: org.id,
       name: org.name,
@@ -137,7 +269,6 @@ export async function GET() {
 
   return NextResponse.json({
     month_start: monthStart,
-    subscription_price_cents: subscriptionPriceCents,
     customers,
     totals,
   });

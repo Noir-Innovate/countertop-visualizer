@@ -6,6 +6,7 @@ import {
   activateReferralForOrg,
   recordCommissionForInvoice,
 } from "@/lib/referrals";
+import { subscriptionMonthlyCents } from "@/lib/billing";
 
 function normalizeInternalPlanStatus(status: string | null | undefined) {
   if (!status) return "inactive";
@@ -89,6 +90,7 @@ async function upsertSubscriptionState(
       current_period_start: unixToIso(subscription.current_period_start),
       current_period_end: unixToIso(subscription.current_period_end),
       cancel_at_period_end: subscription.cancel_at_period_end,
+      monthly_recurring_cents: subscriptionMonthlyCents(subscription),
     },
     {
       onConflict: "stripe_subscription_id",

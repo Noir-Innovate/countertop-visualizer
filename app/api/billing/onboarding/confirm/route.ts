@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAuthedClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getStripeServerClient } from "@/lib/stripe";
+import { subscriptionMonthlyCents } from "@/lib/billing";
 
 function normalizeInternalPlanStatus(status: string | null | undefined) {
   if (!status) return "inactive";
@@ -216,6 +217,7 @@ export async function GET(request: NextRequest) {
             ? new Date(subscription.current_period_end * 1000).toISOString()
             : null,
           cancel_at_period_end: subscription.cancel_at_period_end,
+          monthly_recurring_cents: subscriptionMonthlyCents(subscription),
         },
         { onConflict: "stripe_subscription_id" },
       );

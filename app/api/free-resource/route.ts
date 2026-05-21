@@ -136,6 +136,32 @@ export async function POST(request: NextRequest) {
           console.error("[analytics] free_resource_email_sent insert:", err),
       );
 
+    // Best-effort lead insert. Free-resource acceptance is a soft lead
+    // (email only); record it so it shows up in the leads view. Tag the
+    // row so it can be distinguished from full quote-form submissions.
+    const leadTags = {
+      ...(typeof data.tags === "object" && data.tags ? data.tags : {}),
+      source: "free_resource",
+    };
+    supabase
+      .from("leads")
+      .insert({
+        email: data.email,
+        material_line_id: materialLine.id,
+        organization_id: materialLine.organization_id,
+        utm_source: data.utm_source ?? null,
+        utm_medium: data.utm_medium ?? null,
+        utm_campaign: data.utm_campaign ?? null,
+        utm_term: data.utm_term ?? null,
+        utm_content: data.utm_content ?? null,
+        referrer: data.referrer ?? null,
+        tags: leadTags,
+      })
+      .then(
+        () => {},
+        (err) => console.error("[leads] free_resource lead insert:", err),
+      );
+
     // Awaited so it runs reliably in serverless. Errors never fail the request.
     try {
       const result = await pushFreeResourceToGhl({

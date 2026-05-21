@@ -25,7 +25,6 @@ interface RevenueTotals {
 
 interface RevenueResponse {
   month_start: string;
-  subscription_price_cents: number;
   customers: RevenueCustomer[];
   totals: RevenueTotals;
 }
@@ -154,12 +153,10 @@ export default function AdminRevenueClient() {
           <p className="text-sm text-slate-500 mt-1">
             Projected revenue for {monthLabel || "the current month"}. Lead
             revenue is the sum of billable usage so far this month;
-            subscription revenue counts active and trialing organizations at
-            the standard monthly price
-            {data
-              ? ` (${formatUsd(data.subscription_price_cents)}/mo)`
-              : ""}
-            .
+            subscription revenue is read from the cached monthly amount on
+            each org's Stripe subscription (back-filled from Stripe the first
+            time it's missing). Orgs without a real Stripe subscription
+            contribute $0.
           </p>
         </div>
       </div>
