@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -34,6 +34,23 @@ export default function DashboardNav({
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const orgMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showUserMenu && !showOrgMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (showUserMenu && userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setShowUserMenu(false);
+      }
+      if (showOrgMenu && orgMenuRef.current && !orgMenuRef.current.contains(target)) {
+        setShowOrgMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showUserMenu, showOrgMenu]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -84,7 +101,7 @@ export default function DashboardNav({
           )}
 
           {organizations.length > 0 && (
-            <div className="relative">
+            <div className="relative" ref={orgMenuRef}>
               <button
                 onClick={() => setShowOrgMenu(!showOrgMenu)}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
@@ -145,7 +162,7 @@ export default function DashboardNav({
           )}
         </div>
 
-        <div className="relative">
+        <div className="relative" ref={userMenuRef}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"

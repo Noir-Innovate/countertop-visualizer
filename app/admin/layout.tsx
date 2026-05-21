@@ -45,6 +45,12 @@ export default async function AdminLayout({
               Customers
             </Link>
             <Link
+              href="/admin/revenue"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Revenue
+            </Link>
+            <Link
               href="/admin/referrals"
               className="text-sm text-slate-600 hover:text-slate-900"
             >
