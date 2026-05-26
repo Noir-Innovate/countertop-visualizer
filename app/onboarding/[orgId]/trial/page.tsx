@@ -5,6 +5,11 @@ import {
   onboardingStepUrl,
 } from "@/lib/onboarding-state";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getStripeServerClient } from "@/lib/stripe";
+import {
+  INTERNAL_LINE_MONTHLY_PRICE_CENTS,
+  lineToMonthlyCents,
+} from "@/lib/billing";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
 import { EmbeddedTrialForm } from "./EmbeddedTrialForm";
 
@@ -36,6 +41,29 @@ export default async function OnboardingTrialPage({ params }: Props) {
     .select("name")
     .eq("id", orgId)
     .single();
+
+  // Pull the actual list price from Stripe so the UI matches whatever's
+  // configured. Fall back to the INTERNAL_LINE_MONTHLY_PRICE_CENTS constant
+  // if the env var is missing or the lookup fails.
+  let baseMonthlyCents = INTERNAL_LINE_MONTHLY_PRICE_CENTS;
+  let currency = "usd";
+  const priceId = process.env.STRIPE_INTERNAL_PLAN_PRICE_ID;
+  if (priceId) {
+    try {
+      const stripe = getStripeServerClient();
+      const price = await stripe.prices.retrieve(priceId);
+      const monthly = lineToMonthlyCents(
+        price.unit_amount,
+        1,
+        price.recurring?.interval ?? null,
+        price.recurring?.interval_count ?? null,
+      );
+      if (monthly > 0) baseMonthlyCents = monthly;
+      if (price.currency) currency = price.currency;
+    } catch (err) {
+      console.error("[trial] price lookup failed:", err);
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
@@ -72,12 +100,18 @@ export default async function OnboardingTrialPage({ params }: Props) {
           <li className="flex items-start gap-2">
             <span className="text-emerald-600">✓</span>
             <span>
-              <strong>$0 today</strong> — billed $250/month after the trial
+              <strong>$0 today</strong> — billed after your {TRIAL_DAYS}-day
+              trial
             </span>
           </li>
         </ul>
 
-        <EmbeddedTrialForm orgId={orgId} trialDays={TRIAL_DAYS} />
+        <EmbeddedTrialForm
+          orgId={orgId}
+          trialDays={TRIAL_DAYS}
+          baseMonthlyCents={baseMonthlyCents}
+          currency={currency}
+        />
       </div>
     </div>
   );

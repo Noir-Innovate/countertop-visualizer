@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { hasW9OnFile } from "@/lib/referrals";
-import { submitPayoutBatch } from "@/lib/paypal-payouts";
+import { sendAffiliatePayout } from "@/lib/stripe-connect";
 
 export async function POST(req: NextRequest) {
   const admin = await requireSuperAdmin();
@@ -21,61 +20,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  if (!(await hasW9OnFile(referrerProfileId))) {
-    return NextResponse.json({ error: "w9_required" }, { status: 400 });
-  }
-
   const service = await createServiceClient();
 
   const { data: payoutProfile } = await service
     .from("referrer_payout_profiles")
-    .select("payout_method, payout_handle")
+    .select("stripe_account_id, stripe_payouts_enabled")
     .eq("profile_id", referrerProfileId)
     .maybeSingle();
 
   if (
-    !payoutProfile ||
-    payoutProfile.payout_method !== "paypal" ||
-    !payoutProfile.payout_handle
+    !payoutProfile?.stripe_account_id ||
+    !payoutProfile.stripe_payouts_enabled
   ) {
     return NextResponse.json(
-      { error: "paypal_email_missing" },
+      { error: "stripe_onboarding_required" },
       { status: 400 },
     );
   }
 
-  const senderItemId = `${referrerProfileId}_${Date.now()}`;
+  const idempotencyKey = `payout-${referrerProfileId}-${Date.now()}`;
 
-  let batchResult;
+  let transfer;
   try {
-    batchResult = await submitPayoutBatch([
-      {
-        recipientEmail: payoutProfile.payout_handle,
-        amountCents,
-        senderItemId,
-        note: note ?? "Affiliate commission payout",
-      },
-    ]);
+    transfer = await sendAffiliatePayout({
+      stripeAccountId: payoutProfile.stripe_account_id,
+      amountCents,
+      profileId: referrerProfileId,
+      idempotencyKey,
+      note: note ?? "Affiliate commission payout",
+    });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "paypal_failed";
+    const message = err instanceof Error ? err.message : "stripe_failed";
     return NextResponse.json({ error: message }, { status: 502 });
-  }
-
-  const { data: batchRow, error: batchError } = await service
-    .from("paypal_payout_batches")
-    .insert({
-      paypal_batch_id: batchResult.batchId,
-      status: "pending",
-      total_cents: amountCents,
-      item_count: 1,
-      created_by_admin_id: admin.userId,
-      raw_response: batchResult.raw as object,
-    })
-    .select("id")
-    .single();
-
-  if (batchError) {
-    return NextResponse.json({ error: batchError.message }, { status: 500 });
   }
 
   const { data: payoutRow, error: payoutError } = await service
@@ -83,12 +59,11 @@ export async function POST(req: NextRequest) {
     .insert({
       referrer_profile_id: referrerProfileId,
       amount_cents: amountCents,
-      method: "paypal",
+      method: "stripe",
       note: note ?? null,
       created_by_admin_id: admin.userId,
-      paypal_batch_id: batchRow.id,
-      paypal_item_id: senderItemId,
-      paypal_status: batchResult.batchStatus,
+      stripe_transfer_id: transfer.id,
+      stripe_status: "paid",
     })
     .select("id")
     .single();
@@ -99,7 +74,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     payoutId: payoutRow.id,
-    paypalBatchId: batchResult.batchId,
-    paypalStatus: batchResult.batchStatus,
+    stripeTransferId: transfer.id,
   });
 }

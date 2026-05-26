@@ -13,6 +13,8 @@ import {
 interface Props {
   orgId: string;
   trialDays: number;
+  baseMonthlyCents: number;
+  currency: string;
 }
 
 interface IntentResponse {
@@ -20,11 +22,41 @@ interface IntentResponse {
   publishableKey: string;
 }
 
+interface AppliedCoupon {
+  percent_off: number | null;
+  amount_off: number | null;
+  currency: string | null;
+  duration: string;
+  duration_in_months: number | null;
+}
+
 interface PromoState {
   status: "idle" | "validating" | "applied" | "invalid";
   description?: string;
   promotionCodeId?: string;
   error?: string;
+  coupon?: AppliedCoupon;
+}
+
+function formatMoney(cents: number, currency: string): string {
+  return (cents / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  });
+}
+
+function applyCouponToCents(
+  baseCents: number,
+  coupon: AppliedCoupon,
+): number {
+  if (coupon.percent_off != null) {
+    const ratio = Math.max(0, 1 - coupon.percent_off / 100);
+    return Math.max(0, Math.round(baseCents * ratio));
+  }
+  if (coupon.amount_off != null) {
+    return Math.max(0, baseCents - coupon.amount_off);
+  }
+  return baseCents;
 }
 
 const STRIPE_FONTS = [
@@ -109,7 +141,12 @@ async function reportError(
   }
 }
 
-export function EmbeddedTrialForm({ orgId, trialDays }: Props) {
+export function EmbeddedTrialForm({
+  orgId,
+  trialDays,
+  baseMonthlyCents,
+  currency,
+}: Props) {
   const [intent, setIntent] = useState<IntentResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(
@@ -211,7 +248,12 @@ export function EmbeddedTrialForm({ orgId, trialDays }: Props) {
         loader: "auto",
       }}
     >
-      <InnerForm orgId={orgId} trialDays={trialDays} />
+      <InnerForm
+        orgId={orgId}
+        trialDays={trialDays}
+        baseMonthlyCents={baseMonthlyCents}
+        currency={currency}
+      />
     </Elements>
   );
 }
@@ -219,9 +261,13 @@ export function EmbeddedTrialForm({ orgId, trialDays }: Props) {
 function InnerForm({
   orgId,
   trialDays,
+  baseMonthlyCents,
+  currency,
 }: {
   orgId: string;
   trialDays: number;
+  baseMonthlyCents: number;
+  currency: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -249,6 +295,7 @@ function InnerForm({
           status: "applied",
           description: body.description,
           promotionCodeId: body.promotionCodeId,
+          coupon: body.coupon,
         });
       } else {
         setPromo({
@@ -342,8 +389,70 @@ function InnerForm({
     }
   };
 
+  const discountedCents =
+    promo.status === "applied" && promo.coupon
+      ? applyCouponToCents(baseMonthlyCents, promo.coupon)
+      : null;
+  const showDiscount =
+    discountedCents != null && discountedCents !== baseMonthlyCents;
+  // For 'once' duration the discount only hits the first invoice; recurring
+  // price after that reverts to base. For 'repeating' the discount lasts N
+  // months. For 'forever' the discount sticks.
+  const duration = promo.coupon?.duration ?? null;
+  const durationMonths = promo.coupon?.duration_in_months ?? null;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <div
+        className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+        data-testid="pricing-block"
+      >
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm font-medium text-slate-700">
+            After {trialDays}-day trial
+          </span>
+          <div className="text-right">
+            {showDiscount ? (
+              <>
+                <span
+                  className="text-sm text-slate-400 line-through mr-2"
+                  data-testid="base-price-strikethrough"
+                >
+                  {formatMoney(baseMonthlyCents, currency)}
+                </span>
+                <span
+                  className="text-xl font-bold text-slate-900"
+                  data-testid="discounted-price"
+                >
+                  {formatMoney(discountedCents!, currency)}
+                </span>
+                <span className="text-sm text-slate-600"> / month</span>
+              </>
+            ) : (
+              <>
+                <span
+                  className="text-xl font-bold text-slate-900"
+                  data-testid="base-price"
+                >
+                  {formatMoney(baseMonthlyCents, currency)}
+                </span>
+                <span className="text-sm text-slate-600"> / month</span>
+              </>
+            )}
+          </div>
+        </div>
+        {showDiscount && (
+          <p className="text-xs text-emerald-700 mt-2">
+            {duration === "once" &&
+              `Discount applies to your first invoice only. ${formatMoney(baseMonthlyCents, currency)}/mo after that.`}
+            {duration === "repeating" &&
+              durationMonths != null &&
+              `Discount applies for ${durationMonths} month${durationMonths === 1 ? "" : "s"}. ${formatMoney(baseMonthlyCents, currency)}/mo after that.`}
+            {duration === "forever" && "Discount applies for the lifetime of your subscription."}
+          </p>
+        )}
+      </div>
+
       <PaymentElement options={{ layout: "tabs" }} />
 
       <div>
@@ -381,13 +490,18 @@ function InnerForm({
               </button>
             </div>
             {promo.status === "invalid" && (
-              <p className="text-sm text-red-600">{promo.error}</p>
+              <p className="text-sm text-red-600" data-testid="promo-error">
+                {promo.error}
+              </p>
             )}
           </div>
         )}
 
         {promo.status === "applied" && (
-          <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+          <div
+            className="flex items-center justify-between p-3 rounded-lg bg-emerald-50 border border-emerald-200"
+            data-testid="promo-applied-banner"
+          >
             <div className="text-sm">
               <span className="font-semibold text-emerald-800">
                 {promoCode.trim().toUpperCase()}

@@ -218,19 +218,3 @@ export async function recordCommissionForInvoice(
   }
 }
 
-/**
- * Whether a profile has submitted a W9. Required before any payout can be
- * recorded — we can't 1099 someone without it.
- */
-export async function hasW9OnFile(
-  profileId: string,
-  client?: SupabaseLike,
-): Promise<boolean> {
-  const service = (await getClient(client)) as any;
-  const { data } = await service
-    .from("referrer_payout_profiles")
-    .select("w9_collected_at")
-    .eq("profile_id", profileId)
-    .maybeSingle();
-  return Boolean(data?.w9_collected_at);
-}

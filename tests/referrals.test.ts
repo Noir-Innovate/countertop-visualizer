@@ -6,7 +6,6 @@ import {
   ensureReferralCodeForProfile,
   generateReferralCode,
   getCommissionRateBps,
-  hasW9OnFile,
   isOrgPaying,
   lookupReferrerByCode,
   recordCommissionForInvoice,
@@ -602,23 +601,6 @@ test("recordCommissionForInvoice: non-23505 error throws", async () => {
     ),
     /table missing/,
   );
-});
-
-// ---------- hasW9OnFile ----------
-
-test("hasW9OnFile: false when no row, true when w9_collected_at set", async () => {
-  const mock = new MockSupabase();
-  assert.equal(await hasW9OnFile("user-1", asClient(mock)), false);
-
-  mock.payoutProfiles = [
-    { profile_id: "user-1", w9_collected_at: null },
-  ];
-  assert.equal(await hasW9OnFile("user-1", asClient(mock)), false);
-
-  mock.payoutProfiles = [
-    { profile_id: "user-1", w9_collected_at: new Date().toISOString() },
-  ];
-  assert.equal(await hasW9OnFile("user-1", asClient(mock)), true);
 });
 
 // ---------- end-to-end: full referral lifecycle ----------

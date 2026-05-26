@@ -6,15 +6,13 @@ import { useRouter } from "next/navigation";
 interface Props {
   profileId: string;
   defaultAmountCents: number;
-  w9OnFile: boolean;
-  paypalEmail: string | null;
+  stripePayoutsEnabled: boolean;
 }
 
 export function PayoutForm({
   profileId,
   defaultAmountCents,
-  w9OnFile,
-  paypalEmail,
+  stripePayoutsEnabled,
 }: Props) {
   const router = useRouter();
   const [amountUsd, setAmountUsd] = useState(
@@ -32,7 +30,11 @@ export function PayoutForm({
       setError("Enter an amount > $0");
       return;
     }
-    if (!confirm(`Send $${(cents / 100).toFixed(2)} to ${paypalEmail} via PayPal?`)) {
+    if (
+      !confirm(
+        `Send $${(cents / 100).toFixed(2)} to this affiliate via Stripe?`,
+      )
+    ) {
       return;
     }
     setSubmitting(true);
@@ -61,15 +63,11 @@ export function PayoutForm({
     }
   }
 
-  if (!w9OnFile) {
+  if (!stripePayoutsEnabled) {
     return (
-      <span className="text-xs text-amber-700">W9 required before payout</span>
-    );
-  }
-
-  if (!paypalEmail) {
-    return (
-      <span className="text-xs text-amber-700">PayPal email missing</span>
+      <span className="text-xs text-amber-700">
+        Awaiting Stripe onboarding
+      </span>
     );
   }
 
@@ -96,7 +94,7 @@ export function PayoutForm({
         disabled={submitting}
         className="px-3 py-1 bg-emerald-600 text-white text-sm font-medium rounded hover:bg-emerald-700 disabled:opacity-50"
       >
-        {submitting ? "Sending…" : "Send PayPal"}
+        {submitting ? "Sending…" : "Send Stripe payout"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </form>
@@ -105,12 +103,8 @@ export function PayoutForm({
 
 function humanizeError(code: string | undefined): string {
   switch (code) {
-    case "w9_required":
-      return "W9 required before payout";
-    case "paypal_email_missing":
-      return "Affiliate has no PayPal email on file";
-    case "paypal_credentials_missing":
-      return "Server missing PayPal API credentials";
+    case "stripe_onboarding_required":
+      return "Affiliate hasn't finished Stripe onboarding";
     default:
       return code ?? "Failed to send payout";
   }

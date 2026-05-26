@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { PayoutForm } from "./PayoutForm";
+import { StripeAdminActions } from "./StripeAdminActions";
 
 export default async function AdminReferralsPage() {
   const service = await createServiceClient();
@@ -18,8 +19,10 @@ export default async function AdminReferralsPage() {
     string,
     { name: string; email: string | null }
   > = {};
-  const w9ByProfile: Record<string, boolean> = {};
-  const paypalByProfile: Record<string, string | null> = {};
+  const stripeByProfile: Record<
+    string,
+    { accountId: string | null; payoutsEnabled: boolean; status: string | null }
+  > = {};
 
   if (profileIds.length > 0) {
     const [{ data: profiles }, { data: payoutProfiles }] = await Promise.all([
@@ -29,7 +32,9 @@ export default async function AdminReferralsPage() {
         .in("id", profileIds),
       service
         .from("referrer_payout_profiles")
-        .select("profile_id, w9_collected_at, payout_method, payout_handle")
+        .select(
+          "profile_id, stripe_account_id, stripe_payouts_enabled, stripe_account_status",
+        )
         .in("profile_id", profileIds),
     ]);
     for (const p of profiles ?? []) {
@@ -39,21 +44,25 @@ export default async function AdminReferralsPage() {
       };
     }
     for (const pp of payoutProfiles ?? []) {
-      w9ByProfile[pp.profile_id] = Boolean(pp.w9_collected_at);
-      paypalByProfile[pp.profile_id] =
-        pp.payout_method === "paypal" ? pp.payout_handle ?? null : null;
+      stripeByProfile[pp.profile_id] = {
+        accountId: pp.stripe_account_id ?? null,
+        payoutsEnabled: Boolean(pp.stripe_payouts_enabled),
+        status: (pp.stripe_account_status as string | null) ?? null,
+      };
     }
   }
 
   const rows = (balances ?? []).map((b) => {
     const id = b.referrer_profile_id as string;
     const profile = profilesById[id];
+    const stripe = stripeByProfile[id];
     return {
       profileId: id,
       name: profile?.name ?? "(unknown)",
       email: profile?.email ?? null,
-      w9OnFile: w9ByProfile[id] ?? false,
-      paypalEmail: paypalByProfile[id] ?? null,
+      stripeAccountId: stripe?.accountId ?? null,
+      stripePayoutsEnabled: stripe?.payoutsEnabled ?? false,
+      stripeStatus: stripe?.status ?? null,
       lifetimeAccruedCents: Number(b.lifetime_accrued_cents),
       thisMonthCents: Number(b.this_month_accrued_cents),
       lifetimePaidCents: Number(b.lifetime_paid_cents),
@@ -67,8 +76,9 @@ export default async function AdminReferralsPage() {
         Referral payouts
       </h1>
       <p className="text-slate-600 text-sm mb-6">
-        Referrers with unpaid balances first. W9 must be on file before
-        recording a payout.
+        Referrers with unpaid balances first. Payouts go through Stripe Connect
+        — affiliates must complete Stripe-hosted onboarding before they can be
+        paid. Stripe issues 1099-NECs at year-end.
       </p>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -76,8 +86,7 @@ export default async function AdminReferralsPage() {
           <thead>
             <tr className="text-left text-slate-500 text-xs uppercase tracking-wide bg-slate-50">
               <th className="px-6 py-3 font-medium">Referrer</th>
-              <th className="px-6 py-3 font-medium">W9</th>
-              <th className="px-6 py-3 font-medium">PayPal</th>
+              <th className="px-6 py-3 font-medium">Stripe payouts</th>
               <th className="px-6 py-3 font-medium">This month</th>
               <th className="px-6 py-3 font-medium">Lifetime accrued</th>
               <th className="px-6 py-3 font-medium">Paid out</th>
@@ -89,7 +98,7 @@ export default async function AdminReferralsPage() {
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={7}
                   className="px-6 py-8 text-center text-slate-500"
                 >
                   No referral activity yet.
@@ -105,20 +114,21 @@ export default async function AdminReferralsPage() {
                     )}
                   </td>
                   <td className="px-6 py-3">
-                    {r.w9OnFile ? (
-                      <span className="text-xs text-emerald-700">On file</span>
-                    ) : (
-                      <span className="text-xs text-amber-700">Missing</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-3">
-                    {r.paypalEmail ? (
-                      <span className="text-xs text-slate-700 font-mono">
-                        {r.paypalEmail}
+                    {r.stripePayoutsEnabled ? (
+                      <span className="text-xs text-emerald-700">Active</span>
+                    ) : r.stripeAccountId ? (
+                      <span className="text-xs text-amber-700">
+                        Onboarding incomplete
                       </span>
                     ) : (
-                      <span className="text-xs text-amber-700">Missing</span>
+                      <span className="text-xs text-amber-700">
+                        Not started
+                      </span>
                     )}
+                    <StripeAdminActions
+                      profileId={r.profileId}
+                      stripeAccountId={r.stripeAccountId}
+                    />
                   </td>
                   <td className="px-6 py-3 text-slate-600">
                     {usd(r.thisMonthCents)}
@@ -142,8 +152,7 @@ export default async function AdminReferralsPage() {
                     <PayoutForm
                       profileId={r.profileId}
                       defaultAmountCents={r.unpaidBalanceCents}
-                      w9OnFile={r.w9OnFile}
-                      paypalEmail={r.paypalEmail}
+                      stripePayoutsEnabled={r.stripePayoutsEnabled}
                     />
                   </td>
                 </tr>

@@ -13,7 +13,7 @@ export function centsToUsd(cents: number): number {
 }
 
 // Normalize any Stripe recurring price line into a monthly amount in cents.
-function lineToMonthlyCents(
+export function lineToMonthlyCents(
   unitAmount: number | null | undefined,
   quantity: number | null | undefined,
   interval: string | null | undefined,

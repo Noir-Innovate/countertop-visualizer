@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { ensureReferralCodeForProfile, hasW9OnFile } from "@/lib/referrals";
+import { ensureReferralCodeForProfile } from "@/lib/referrals";
+import { syncAccountStatus } from "@/lib/stripe-connect";
 import { ShareCodeBlock } from "@/components/referrals/ShareCodeBlock";
 import { ReferralKPIs } from "@/components/referrals/ReferralKPIs";
 import { ReferralsTable } from "@/components/referrals/ReferralsTable";
 import { PayoutsTable } from "@/components/referrals/PayoutsTable";
-import { W9Status } from "@/components/referrals/W9Status";
 import { CommissionMRR } from "@/components/referrals/CommissionMRR";
-import { PayoutProfileForm } from "@/components/referrals/PayoutProfileForm";
+import { StripeConnectStatus } from "@/components/referrals/StripeConnectStatus";
 
 export default async function AffiliatePage() {
   const supabase = await createClient();
@@ -17,9 +17,21 @@ export default async function AffiliatePage() {
   if (!user) redirect("/dashboard/login");
 
   const { code } = await ensureReferralCodeForProfile(user.id);
-  const w9OnFile = await hasW9OnFile(user.id);
 
   const service = await createServiceClient();
+
+  // Refresh Stripe Connect status on every visit so the UI reflects reality
+  // even if the v2.core.account.updated webhook is delayed or hasn't been
+  // configured yet. Cheap (one Stripe API call) and only runs if onboarding
+  // has been started.
+  const { data: payoutProfile } = await service
+    .from("referrer_payout_profiles")
+    .select("stripe_account_id")
+    .eq("profile_id", user.id)
+    .maybeSingle();
+  if (payoutProfile?.stripe_account_id) {
+    await syncAccountStatus(payoutProfile.stripe_account_id).catch(() => {});
+  }
   const [{ data: referrals }, { data: payouts }, { data: balanceRow }] =
     await Promise.all([
       service
@@ -110,8 +122,7 @@ export default async function AffiliatePage() {
         lifetimeAccruedCents={Number(balance.lifetime_accrued_cents)}
         unpaidBalanceCents={Number(balance.unpaid_balance_cents)}
       />
-      <W9Status onFile={w9OnFile} />
-      <PayoutProfileForm />
+      <StripeConnectStatus />
       <ReferralsTable rows={referralRows} />
       <PayoutsTable
         rows={(payouts ?? []).map((p) => ({

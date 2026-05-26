@@ -97,6 +97,37 @@ async function runScrapeJob(scrapeId: string, websiteUrl: string) {
       .eq("id", scrapeId);
   };
 
+  // Test-only short-circuit. Avoids hitting FireCrawl + Gemini during e2e
+  // runs while still exercising the state machine (pending → running →
+  // complete) so the UI's polling logic is properly tested.
+  if (process.env.SCRAPE_MOCK_FIXTURES === "1") {
+    await setProgress("scraping", "Scanning your website…");
+    await new Promise((r) => setTimeout(r, 250));
+    await service
+      .from("org_onboarding_scrapes")
+      .update({
+        status: "complete",
+        progress: null,
+        result: {
+          logoCandidates: [`${websiteUrl}/logo.png`],
+          imageCandidates: [`${websiteUrl}/quartz.jpg`],
+          colorCandidates: ["#2563eb"],
+          primaryColor: "#2563eb",
+          title: "Mock Stone Co",
+          candidateMaterials: [
+            {
+              imageUrl: `${websiteUrl}/quartz.jpg`,
+              category: "Countertops",
+              materialName: "Mock Quartz",
+              confidence: 0.99,
+            },
+          ],
+        },
+      })
+      .eq("id", scrapeId);
+    return;
+  }
+
   await setProgress("scraping", "Scanning your website…");
 
   try {

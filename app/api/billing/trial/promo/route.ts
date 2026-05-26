@@ -51,8 +51,12 @@ export async function POST(request: NextRequest) {
     }
 
     const stripe = getStripeServerClient();
+    // Stripe stores promo codes as configured but the `code` filter is
+    // exact-match. Normalize to uppercase since that's the dominant Stripe
+    // convention — otherwise "save50" misses a code stored as "SAVE50".
+    const normalized = code.trim().toUpperCase();
     const promoList = await stripe.promotionCodes.list({
-      code: code.trim(),
+      code: normalized,
       active: true,
       limit: 1,
       expand: ["data.coupon"],
@@ -78,6 +82,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       valid: true,
       promotionCodeId: promo.id,
+      code: normalized,
       description: describeCoupon({
         percent_off: coupon.percent_off,
         amount_off: coupon.amount_off,
@@ -85,6 +90,13 @@ export async function POST(request: NextRequest) {
         duration: coupon.duration,
         duration_in_months: coupon.duration_in_months,
       }),
+      coupon: {
+        percent_off: coupon.percent_off,
+        amount_off: coupon.amount_off,
+        currency: coupon.currency,
+        duration: coupon.duration,
+        duration_in_months: coupon.duration_in_months,
+      },
     });
   } catch (error) {
     console.error("Trial promo lookup error:", error);
