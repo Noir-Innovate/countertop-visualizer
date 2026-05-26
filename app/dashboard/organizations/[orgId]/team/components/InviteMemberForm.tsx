@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 interface InviteMemberFormProps {
   orgId: string;
   onSuccess?: () => void;
+}
+
+interface OrgMaterialLine {
+  id: string;
+  name: string;
+  line_kind: "external" | "internal";
 }
 
 export default function InviteMemberForm({
@@ -20,20 +27,62 @@ export default function InviteMemberForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [lines, setLines] = useState<OrgMaterialLine[]>([]);
+  const [linesLoading, setLinesLoading] = useState(false);
+  const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set());
+
+  // Lazy-load the org's material lines when role becomes sales_person.
+  useEffect(() => {
+    if (role !== "sales_person" || lines.length > 0) return;
+    let cancelled = false;
+    setLinesLoading(true);
+    const supabase = createClient();
+    supabase
+      .from("material_lines")
+      .select("id, name, line_kind")
+      .eq("organization_id", orgId)
+      .order("name")
+      .then(({ data }) => {
+        if (cancelled) return;
+        setLines((data as OrgMaterialLine[]) || []);
+        setLinesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role, orgId, lines.length]);
+
+  const toggleLine = (id: string) => {
+    setSelectedLineIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (role === "sales_person" && selectedLineIds.size === 0) {
+      setError("Select at least one material line to assign this salesperson to.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const response = await fetch(`/api/organizations/${orgId}/invite`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, role }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          role,
+          assignedMaterialLineIds:
+            role === "sales_person" ? Array.from(selectedLineIds) : [],
+        }),
       });
 
       const data = await response.json();
@@ -45,13 +94,12 @@ export default function InviteMemberForm({
       setSuccess(`Invitation sent to ${email}`);
       setEmail("");
       setRole("member");
+      setSelectedLineIds(new Set());
       router.refresh();
 
-      // Call onSuccess callback if provided (for modal)
       if (onSuccess) {
         onSuccess();
       } else {
-        // Clear success message after 3 seconds if not in modal
         setTimeout(() => setSuccess(null), 3000);
       }
     } catch (err) {
@@ -122,10 +170,51 @@ export default function InviteMemberForm({
             {role === "owner" &&
               "Full access, can manage owners and all settings"}
             {role === "admin" && "Can manage team members and material lines"}
-            {role === "sales_person" && "Can view and manage leads"}
+            {role === "sales_person" &&
+              "Limited to the /sales portal for assigned material lines"}
             {role === "member" && "Can view organization content"}
           </p>
         </div>
+
+        {role === "sales_person" && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Assigned Material Lines
+            </label>
+            <p className="text-xs text-slate-500 mb-2">
+              The salesperson will only see and create jobs for these lines.
+            </p>
+            {linesLoading ? (
+              <p className="text-sm text-slate-500">Loading lines…</p>
+            ) : lines.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                This organization has no material lines yet.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                {lines.map((line) => (
+                  <label
+                    key={line.id}
+                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedLineIds.has(line.id)}
+                      onChange={() => toggleLine(line.id)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">{line.name}</span>
+                    {line.line_kind === "internal" && (
+                      <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                        internal
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"

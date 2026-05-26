@@ -13,6 +13,8 @@
     "test:slab-image": "node --import tsx --test tests/slab-image.test.ts tests/generate-countertop-route.test.ts",
     "test:material-inventory": "node --import tsx --test tests/material-inventory.test.ts",
     "test": "node --import tsx --test tests/billing-usage.test.ts tests/lead-invoicing.test.ts tests/lead-billing-service.test.ts tests/lead-billing-identity.test.ts tests/invoice-lead-usage-loader.test.ts tests/onboarding-flow.test.ts tests/onboarding-e2e.test.ts tests/referrals.test.ts tests/slab-image.test.ts tests/generate-countertop-route.test.ts tests/material-inventory.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:seed": "tsx e2e/support/seed.ts",
     "takeoff:test": "tsx scripts/takeoff-testbed.ts"
   },
   "dependencies": {
@@ -40,6 +42,7 @@
     "twilio": "^5.11.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

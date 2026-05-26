@@ -97,7 +97,7 @@ export default async function TeamPage({ params }: Props) {
     const { data: invitationsData, error: invitationsError } =
       await serviceClient
         .from("organization_invitations")
-        .select("id, email, role, expires_at, accepted_at")
+        .select("id, email, role, expires_at, accepted_at, token")
         .eq("organization_id", orgId)
         .is("accepted_at", null)
         .order("created_at", { ascending: false });

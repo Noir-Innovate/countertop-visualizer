@@ -31,6 +31,10 @@ interface V2VisualizerProps {
   // unambiguously means "internal sales tool". When unset, the toolbar
   // still auto-appears whenever the resolved material line is internal.
   enableMaterialSearch?: boolean;
+  // Versions hydrated from the DB so the user sees their prior renders the
+  // moment they re-enter a workspace. Entries may have an imageUrl instead of
+  // imageData; the visualizer fetches & converts lazily when one is selected.
+  initialVersions?: VersionEntry[];
 }
 
 export default function V2Visualizer({
@@ -38,6 +42,7 @@ export default function V2Visualizer({
   sessionId,
   onChangePhoto,
   enableMaterialSearch: enableMaterialSearchProp,
+  initialVersions,
 }: V2VisualizerProps) {
   const materialLine = useMaterialLine();
   // Internal lines (showroom / sales tool) get the search + type filter
@@ -55,7 +60,9 @@ export default function V2Visualizer({
   const [materialsLoading, setMaterialsLoading] = useState(true);
 
   const [currentImage, setCurrentImage] = useState<string>(kitchenImage);
-  const [versions, setVersions] = useState<VersionEntry[]>([]);
+  const [versions, setVersions] = useState<VersionEntry[]>(
+    initialVersions ?? [],
+  );
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingMaterialId, setGeneratingMaterialId] = useState<
@@ -667,11 +674,36 @@ export default function V2Visualizer({
   );
 
   const handleSelectVersion = useCallback(
-    (index: number) => {
-      if (index >= 0 && index < versions.length) {
-        setCurrentVersionIndex(index);
-        const version = versions[index];
+    async (index: number) => {
+      if (index < 0 || index >= versions.length) return;
+      setCurrentVersionIndex(index);
+      const version = versions[index];
+      if (version.imageData) {
         setCurrentImage(`data:image/png;base64,${version.imageData}`);
+        return;
+      }
+      if (version.imageUrl) {
+        try {
+          const res = await fetch(version.imageUrl);
+          const blob = await res.blob();
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject(reader.error ?? new Error("read"));
+            reader.readAsDataURL(blob);
+          });
+          setCurrentImage(dataUrl);
+          // Cache the resolved imageData so the next select is instant and
+          // generate() can use it as base64 input without refetching.
+          const base64 = dataUrl.includes(",")
+            ? dataUrl.split(",")[1]
+            : dataUrl;
+          setVersions((prev) =>
+            prev.map((v, i) => (i === index ? { ...v, imageData: base64 } : v)),
+          );
+        } catch (err) {
+          console.error("Failed to load prior version image:", err);
+        }
       }
     },
     [versions],

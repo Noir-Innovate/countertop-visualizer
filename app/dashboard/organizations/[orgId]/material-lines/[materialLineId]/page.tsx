@@ -5,6 +5,7 @@ import Link from "next/link";
 import NotificationButton from "./components/NotificationButton";
 import NotificationList from "./components/NotificationList";
 import DuplicateLineButton from "./components/DuplicateLineButton";
+import SalespersonJobsPreview from "./components/SalespersonJobsPreview";
 import {
   getMaterialLineBasePath,
   getPublicVisualizerUrl,
@@ -62,11 +63,17 @@ export default async function MaterialLinePage({ params }: Props) {
     .select("*", { count: "exact", head: true })
     .eq("material_line_id", materialLineId);
 
-  // Fetch total leads count
-  const { count: totalLeads } = await db
+  // Fetch total leads count (external lines) or salesperson-job count
+  // (internal lines). Both surface in the same "View …" quick action card
+  // depending on line_kind.
+  const isInternal = materialLine.line_kind === "internal";
+  const leadsCountQuery = db
     .from("leads")
     .select("*", { count: "exact", head: true })
     .eq("material_line_id", materialLineId);
+  const { count: totalLeads } = isInternal
+    ? await leadsCountQuery.eq("source", "salesperson")
+    : await leadsCountQuery;
 
   const appDomain =
     process.env.NEXT_PUBLIC_APP_DOMAIN || "countertopvisualizer.com";
@@ -186,7 +193,9 @@ export default async function MaterialLinePage({ params }: Props) {
                 Analytics Dashboard
               </h3>
               <p className="text-sm text-slate-600">
-                View conversion rates and performance metrics
+                {isInternal
+                  ? "Jobs, workspaces, and generations"
+                  : "View conversion rates and performance metrics"}
               </p>
             </div>
             <svg
@@ -205,14 +214,19 @@ export default async function MaterialLinePage({ params }: Props) {
           </div>
         </Link>
         <Link
-          href={`${materialLineBasePath}/leads`}
+          href={`${materialLineBasePath}/${isInternal ? "jobs" : "leads"}`}
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:border-blue-300 transition-colors"
         >
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-slate-900 mb-1">View Leads</h3>
+              <h3 className="font-semibold text-slate-900 mb-1">
+                {isInternal ? "View Jobs" : "View Leads"}
+              </h3>
               <p className="text-sm text-slate-600">
-                {totalLeads || 0} total lead{totalLeads !== 1 ? "s" : ""}
+                {totalLeads || 0}{" "}
+                {isInternal
+                  ? `total job${totalLeads !== 1 ? "s" : ""}`
+                  : `total lead${totalLeads !== 1 ? "s" : ""}`}
               </p>
             </div>
             <svg
@@ -232,26 +246,35 @@ export default async function MaterialLinePage({ params }: Props) {
         </Link>
       </div>
 
-      {/* Lead Notifications - Only visible to owners/admins/super_admins */}
+      {/* Internal lines: salespeople create leads in the field, so the inbound
+          notifications panel is replaced by a preview of recent jobs. External
+          lines still need Lead Notifications. */}
       {(access.role === "owner" ||
         access.role === "admin" ||
-        access.role === "super_admin") && (
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Lead Notifications
-              </h2>
-              <p className="text-sm text-slate-600 mt-1">
-                Assign team members to receive SMS and/or email notifications
-                when new leads are created for this material line.
-              </p>
+        access.role === "super_admin") &&
+        (materialLine.line_kind === "internal" ? (
+          <SalespersonJobsPreview
+            orgId={orgId}
+            materialLineId={materialLineId}
+            materialLineBasePath={materialLineBasePath}
+          />
+        ) : (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Lead Notifications
+                </h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Assign team members to receive SMS and/or email notifications
+                  when new leads are created for this material line.
+                </p>
+              </div>
+              <NotificationButton materialLineId={materialLineId} orgId={orgId} />
             </div>
-            <NotificationButton materialLineId={materialLineId} orgId={orgId} />
+            <NotificationList materialLineId={materialLineId} />
           </div>
-          <NotificationList materialLineId={materialLineId} />
-        </div>
-      )}
+        ))}
 
       {/* Quick Links */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

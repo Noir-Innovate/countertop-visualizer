@@ -109,8 +109,11 @@ export default function AcceptInvitationForm({
         throw new Error(data.error || "Failed to accept invitation");
       }
 
-      // Redirect to organization page
-      router.push(`/dashboard/organizations/${data.organization_id}`);
+      // Redirect to organization page (or /sales for salespeople)
+      router.push(
+        data.redirect_to ||
+          `/dashboard/organizations/${data.organization_id}`,
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to accept invitation",

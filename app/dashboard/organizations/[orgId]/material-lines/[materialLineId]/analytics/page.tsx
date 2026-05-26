@@ -4,7 +4,9 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import MaterialLineAnalyticsClient from "./MaterialLineAnalyticsClient";
+import InternalAnalyticsView from "./components/InternalAnalyticsView";
 import { getOrgAccess } from "@/lib/admin-auth";
+import { getMaterialLineBasePath } from "@/lib/material-line-path";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -84,37 +86,50 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Analytics</h1>
           <p className="text-slate-600 mt-1">
-            Conversion funnel and event metrics for this material line
+            {materialLine.line_kind === "internal"
+              ? "Usage by your sales team on this internal line"
+              : "Conversion funnel and event metrics for this material line"}
           </p>
         </div>
       </div>
 
-      <Suspense
-        fallback={
-          <div className="animate-pulse">
-            <div className="h-24 bg-slate-200 rounded mb-6" />
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-28 bg-slate-200 rounded" />
-              ))}
-            </div>
-            <div className="space-y-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-48 bg-slate-200 rounded" />
-              ))}
-            </div>
-          </div>
-        }
-      >
-        <MaterialLineAnalyticsClient
-          key={`${materialLineId}-${resolvedSearchParams.days ?? "30"}`}
+      {materialLine.line_kind === "internal" ? (
+        <InternalAnalyticsView
           materialLineId={materialLineId}
-          orgId={orgId}
-          orgName={org?.name ?? ""}
-          materialLineName={materialLine.name}
-          initialSearchParams={resolvedSearchParams}
+          materialLineBasePath={getMaterialLineBasePath(
+            orgId,
+            materialLineId,
+            materialLine.line_kind,
+          )}
         />
-      </Suspense>
+      ) : (
+        <Suspense
+          fallback={
+            <div className="animate-pulse">
+              <div className="h-24 bg-slate-200 rounded mb-6" />
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-28 bg-slate-200 rounded" />
+                ))}
+              </div>
+              <div className="space-y-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-48 bg-slate-200 rounded" />
+                ))}
+              </div>
+            </div>
+          }
+        >
+          <MaterialLineAnalyticsClient
+            key={`${materialLineId}-${resolvedSearchParams.days ?? "30"}`}
+            materialLineId={materialLineId}
+            orgId={orgId}
+            orgName={org?.name ?? ""}
+            materialLineName={materialLine.name}
+            initialSearchParams={resolvedSearchParams}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

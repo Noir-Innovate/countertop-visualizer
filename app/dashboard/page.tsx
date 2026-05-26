@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import DashboardContent from "./components/DashboardContent";
 import { getUserOnboardingEntry } from "@/lib/onboarding-state";
+import { isSalespersonOnly } from "@/lib/sales/assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,10 @@ export default async function DashboardPage() {
     .single();
 
   if (!profile?.is_super_admin) {
+    // Salespeople don't see the admin dashboard at all.
+    if (await isSalespersonOnly(user.id)) {
+      redirect("/sales");
+    }
     const entry = await getUserOnboardingEntry(user.id);
     if (entry) {
       redirect(entry.url);

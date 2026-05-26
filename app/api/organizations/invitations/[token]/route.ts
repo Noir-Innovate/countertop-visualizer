@@ -131,6 +131,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // If this is a sales_person invite with line assignments, create them now.
+    const lineIds: string[] = Array.isArray(invitation.assigned_material_line_ids)
+      ? invitation.assigned_material_line_ids.filter(
+          (v: unknown): v is string => typeof v === "string" && v.length > 0,
+        )
+      : [];
+    if (invitation.role === "sales_person" && lineIds.length > 0) {
+      const rows = lineIds.map((id) => ({
+        profile_id: user.id,
+        material_line_id: id,
+        organization_id: invitation.organization_id,
+        assigned_by: invitation.invited_by,
+      }));
+      const { error: assignError } = await serviceClient
+        .from("salesperson_line_assignments")
+        .upsert(rows, {
+          onConflict: "profile_id,material_line_id",
+          ignoreDuplicates: true,
+        });
+      if (assignError) {
+        console.error("Error creating line assignments:", assignError);
+        // Don't fail acceptance — membership is what matters; assignments can
+        // be added later by an admin.
+      }
+    }
+
     // Mark invitation as accepted
     const { error: updateError } = await serviceClient
       .from("organization_invitations")
@@ -146,6 +172,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         message: "Invitation accepted successfully",
         organization_id: invitation.organization_id,
+        redirect_to:
+          invitation.role === "sales_person"
+            ? "/sales"
+            : `/dashboard/organizations/${invitation.organization_id}`,
       },
       { status: 200 },
     );

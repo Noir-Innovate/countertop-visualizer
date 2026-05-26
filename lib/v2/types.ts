@@ -10,7 +10,11 @@ export type BacksplashHeightId = (typeof BACKSPLASH_HEIGHTS)[number]["id"];
 
 export interface VersionEntry {
   id: string;
+  /** Raw base64 (no data: prefix). Empty for hydrated entries — use imageUrl. */
   imageData: string;
+  /** Public URL to the rendered image. Set for entries hydrated from the DB
+   *  so we can render thumbnails without an upfront fetch. */
+  imageUrl?: string;
   materialCategory: string;
   materialName: string;
   materialId?: string;

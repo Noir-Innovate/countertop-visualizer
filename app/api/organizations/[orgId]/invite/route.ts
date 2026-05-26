@@ -44,6 +44,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get request body
     const body = await request.json();
     const { email, role } = body;
+    const assignedMaterialLineIds: string[] = Array.isArray(
+      body.assignedMaterialLineIds,
+    )
+      ? body.assignedMaterialLineIds.filter(
+          (v: unknown): v is string => typeof v === "string" && v.length > 0,
+        )
+      : [];
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -88,6 +95,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const serviceClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
+
+    // If line assignments were provided, validate they all belong to this org.
+    // Only meaningful for sales_person, but harmless to validate either way.
+    if (assignedMaterialLineIds.length > 0) {
+      const { data: orgLines } = await serviceClient
+        .from("material_lines")
+        .select("id")
+        .eq("organization_id", orgId)
+        .in("id", assignedMaterialLineIds);
+      const validIds = new Set((orgLines || []).map((l) => l.id));
+      const allValid = assignedMaterialLineIds.every((id) => validIds.has(id));
+      if (!allValid) {
+        return NextResponse.json(
+          { error: "One or more material lines do not belong to this organization" },
+          { status: 400 },
+        );
+      }
+    }
 
     // Check if user with this email already exists
     const { data: existingUser } = await serviceClient.auth.admin.listUsers();
@@ -142,6 +167,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         invited_by: user.id,
         token,
         expires_at: expiresAt.toISOString(),
+        assigned_material_line_ids: assignedMaterialLineIds,
       })
       .select()
       .single();

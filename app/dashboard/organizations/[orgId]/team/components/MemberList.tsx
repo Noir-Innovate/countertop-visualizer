@@ -22,6 +22,7 @@ interface Invitation {
   role: string;
   expires_at: string;
   accepted_at: string | null;
+  token: string;
 }
 
 interface MemberListProps {
@@ -48,10 +49,27 @@ export default function MemberList({
   const [resendingInvitationId, setResendingInvitationId] = useState<
     string | null
   >(null);
+  const [copiedInvitationId, setCopiedInvitationId] = useState<string | null>(
+    null,
+  );
+
+  const handleCopyInvitation = async (invitation: Invitation) => {
+    const url = `${window.location.origin}/dashboard/invitations/${invitation.token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedInvitationId(invitation.id);
+      setTimeout(() => setCopiedInvitationId((id) => (id === invitation.id ? null : id)), 1500);
+    } catch {
+      setError("Could not copy invitation link");
+    }
+  };
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const canManage = currentUserRole === "owner" || currentUserRole === "admin";
+  const canManage =
+    currentUserRole === "owner" ||
+    currentUserRole === "admin" ||
+    currentUserRole === "super_admin";
 
   const handleRemove = async (
     memberId: string,
@@ -403,6 +421,15 @@ export default function MemberList({
                     </span>
                     {canManage && (
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleCopyInvitation(invitation)}
+                          className="px-3 py-1 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Copy invitation link"
+                        >
+                          {copiedInvitationId === invitation.id
+                            ? "Copied!"
+                            : "Copy link"}
+                        </button>
                         <button
                           onClick={() => handleResendInvitation(invitation.id)}
                           disabled={resendingInvitationId === invitation.id}

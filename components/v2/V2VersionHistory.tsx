@@ -22,6 +22,8 @@ export default function V2VersionHistory({
   const isBase64 = (img: string) => img.startsWith("data:");
   const toSrc = (img: string) =>
     isBase64(img) ? img : `data:image/png;base64,${img}`;
+  const versionSrc = (v: VersionEntry) =>
+    v.imageData ? toSrc(v.imageData) : v.imageUrl || "";
 
   const isOriginalSelected = currentIndex === -1;
 
@@ -75,7 +77,7 @@ export default function V2VersionHistory({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={toSrc(version.imageData)}
+              src={versionSrc(version)}
               alt={`Version ${idx + 1}`}
               className="w-full h-full object-cover"
             />
