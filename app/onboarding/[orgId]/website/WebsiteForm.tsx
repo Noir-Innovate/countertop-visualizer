@@ -2,6 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  ONBOARDING_EVENTS,
+  trackOnboarding,
+} from "@/lib/onboarding-track";
 
 interface Props {
   orgId: string;
@@ -57,6 +61,11 @@ export function WebsiteForm({ orgId }: Props) {
       }
 
       const { id } = (await res.json()) as { id: string };
+      trackOnboarding(ONBOARDING_EVENTS.websiteSubmitted, {
+        organizationId: orgId,
+        url: normalized,
+        scrape_id: id,
+      });
       router.push(
         `/onboarding/${orgId}/wizard?scrapeId=${encodeURIComponent(id)}`,
       );

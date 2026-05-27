@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { captureAndPersistAttribution } from "@/lib/attribution";
+import {
+  ONBOARDING_EVENTS,
+  trackOnboarding,
+} from "@/lib/onboarding-track";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -20,6 +24,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     captureAndPersistAttribution();
+    trackOnboarding(ONBOARDING_EVENTS.signupViewed);
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get("ref");
     if (!refCode) return;
@@ -51,13 +56,18 @@ export default function SignupPage() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
           },
+          // After confirmation: auth callback exchanges the code (auto-login)
+          // then the onboarding state machine routes new users to
+          // /dashboard/organizations/new. Falls back to the marketing root
+          // if Supabase's redirect-URL allowlist doesn't include this path
+          // — add the callback URL there in the Supabase Dashboard.
           emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
         },
       });
@@ -67,6 +77,11 @@ export default function SignupPage() {
         return;
       }
 
+      // Carry the new profile id so the funnel can dedup by user even
+      // before email confirmation closes the loop.
+      trackOnboarding(ONBOARDING_EVENTS.signupSubmitted, {
+        profileId: data.user?.id,
+      });
       setSuccess(true);
     } catch {
       setError("An unexpected error occurred");

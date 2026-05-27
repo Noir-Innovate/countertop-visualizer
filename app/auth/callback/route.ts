@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSalespersonOnly } from "@/lib/sales/assignments";
+import { recordEventServer } from "@/lib/analytics-server";
+import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -14,14 +16,22 @@ export async function GET(request: Request) {
       // Resolve the post-login destination. Respect explicit ?next= unless
       // it would dump a salesperson onto the admin dashboard.
       let next = nextParam ?? "/dashboard";
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const wantsDashboardRoot = !nextParam || nextParam === "/dashboard";
-      if (wantsDashboardRoot) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user && (await isSalespersonOnly(user.id))) {
-          next = "/sales";
-        }
+      if (wantsDashboardRoot && user && (await isSalespersonOnly(user.id))) {
+        next = "/sales";
+      }
+
+      // Onboarding funnel: this fires for every code exchange, including
+      // password resets. The dashboard filter is by event_type alone, so
+      // treating "code exchange success" as "email confirmed" is close
+      // enough — most code-exchanges *are* signup confirmations.
+      if (user) {
+        await recordEventServer(ONBOARDING_EVENTS.emailConfirmed, {
+          profile_id: user.id,
+        });
       }
 
       const forwardedHost = request.headers.get("x-forwarded-host");

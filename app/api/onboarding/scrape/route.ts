@@ -7,6 +7,8 @@ import {
   shortlistCandidateImages,
   type MaterialCandidate,
 } from "@/lib/scrape-classify";
+import { recordEventServer } from "@/lib/analytics-server";
+import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 
 export const maxDuration = 300;
 
@@ -82,6 +84,15 @@ export async function POST(req: NextRequest) {
 
 async function runScrapeJob(scrapeId: string, websiteUrl: string) {
   const service = await createServiceClient();
+  const startedAt = Date.now();
+
+  // Look up the org once for analytics context.
+  const { data: scrapeRow } = await service
+    .from("org_onboarding_scrapes")
+    .select("organization_id")
+    .eq("id", scrapeId)
+    .maybeSingle();
+  const organizationId = scrapeRow?.organization_id ?? null;
 
   const setProgress = async (
     stage: "scraping" | "extracting" | "classifying" | "finalizing",
@@ -125,6 +136,12 @@ async function runScrapeJob(scrapeId: string, websiteUrl: string) {
         },
       })
       .eq("id", scrapeId);
+    await recordEventServer(ONBOARDING_EVENTS.scrapeCompleted, {
+      organization_id: organizationId,
+      scrape_id: scrapeId,
+      duration_ms: Date.now() - startedAt,
+      mocked: true,
+    });
     return;
   }
 
@@ -172,6 +189,13 @@ async function runScrapeJob(scrapeId: string, websiteUrl: string) {
         },
       })
       .eq("id", scrapeId);
+    await recordEventServer(ONBOARDING_EVENTS.scrapeCompleted, {
+      organization_id: organizationId,
+      scrape_id: scrapeId,
+      duration_ms: Date.now() - startedAt,
+      image_count: homepage.imageCandidates.length,
+      material_count: candidateMaterials.length,
+    });
   } catch (err) {
     console.error("Scrape job failed", err);
     await service
@@ -181,5 +205,11 @@ async function runScrapeJob(scrapeId: string, websiteUrl: string) {
         error: err instanceof Error ? err.message : String(err),
       })
       .eq("id", scrapeId);
+    await recordEventServer(ONBOARDING_EVENTS.scrapeFailed, {
+      organization_id: organizationId,
+      scrape_id: scrapeId,
+      duration_ms: Date.now() - startedAt,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

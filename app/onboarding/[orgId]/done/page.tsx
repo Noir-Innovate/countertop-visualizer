@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getOrgAccess } from "@/lib/admin-auth";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPublicVisualizerUrl } from "@/lib/material-line-path";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
 import { OnboardingDoneActions } from "@/components/onboarding/OnboardingDoneActions";
+import { TrackView } from "@/components/analytics/TrackView";
+import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -57,8 +59,18 @@ export default async function OnboardingDonePage({
   const accent = line.accent_color || "#9CAF88";
   const background = line.background_color || "#FFFFFF";
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
+      <TrackView
+        event={ONBOARDING_EVENTS.doneViewed}
+        organizationId={orgId}
+        profileId={user?.id}
+      />
       <OnboardingStepper current="share" />
 
       <div

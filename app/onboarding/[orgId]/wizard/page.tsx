@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getOrgAccess } from "@/lib/admin-auth";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
+import { TrackView } from "@/components/analytics/TrackView";
+import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -46,8 +48,18 @@ export default async function OnboardingWizardPage({
     .eq("id", orgId)
     .single();
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
+      <TrackView
+        event={ONBOARDING_EVENTS.wizardViewed}
+        organizationId={orgId}
+        profileId={user?.id}
+      />
       <OnboardingStepper current="brand" />
       <div className="mb-6">
         <p className="text-sm text-slate-500 mb-1">

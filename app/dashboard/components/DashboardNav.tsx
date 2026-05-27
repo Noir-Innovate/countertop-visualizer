@@ -100,6 +100,28 @@ export default function DashboardNav({
             </Link>
           )}
 
+          {organizations.some((o) => o.role === "sales_person") && (
+            <Link
+              href="/sales"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"
+                />
+              </svg>
+              Sales
+            </Link>
+          )}
+
           {organizations.length > 0 && (
             <div className="relative" ref={orgMenuRef}>
               <button

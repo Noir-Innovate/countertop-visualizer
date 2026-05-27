@@ -8,6 +8,8 @@ import {
 import { createServiceClient } from "@/lib/supabase/server";
 import { WebsiteForm } from "./WebsiteForm";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
+import { TrackView } from "@/components/analytics/TrackView";
+import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -36,8 +38,18 @@ export default async function OnboardingWebsitePage({ params }: Props) {
     .eq("id", orgId)
     .single();
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
+      <TrackView
+        event={ONBOARDING_EVENTS.websiteViewed}
+        organizationId={orgId}
+        profileId={user?.id}
+      />
       <OnboardingStepper current="website" />
       <div className="mb-8">
         <p className="text-sm text-slate-500 mb-1">

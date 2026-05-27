@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { StepLogo } from "./StepLogo";
 import { StepColors } from "./StepColors";
 import { StepMaterials } from "./StepMaterials";
+import {
+  ONBOARDING_EVENTS,
+  trackOnboarding,
+} from "@/lib/onboarding-track";
 
 type Status = "pending" | "running" | "complete" | "failed";
 
@@ -252,6 +256,10 @@ export function OnboardingWizard({
         setSubmitting(false);
         return;
       }
+      trackOnboarding(ONBOARDING_EVENTS.wizardFinalized, {
+        organizationId: orgId,
+        materialLineId: body.materialLineId,
+      });
       router.push(
         `/onboarding/${orgId}/done?materialLineId=${encodeURIComponent(body.materialLineId)}`,
       );

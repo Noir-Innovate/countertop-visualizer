@@ -174,3 +174,28 @@ export async function getSupabaseEventData(
     return base;
   });
 }
+
+/**
+ * Server-side fire-and-forget insert into analytics_events. Use this from
+ * route handlers / background jobs where the client `trackEvent` helper
+ * isn't available. Failures are logged, never thrown — analytics is not
+ * critical-path.
+ */
+export async function recordEventServer(
+  eventType: string,
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    const supabase = getServiceClient();
+    await supabase.from("analytics_events").insert({
+      event_type: eventType,
+      metadata,
+      organization_id:
+        (metadata.organizationId as string | undefined) ??
+        (metadata.organization_id as string | undefined) ??
+        null,
+    });
+  } catch (err) {
+    console.warn("[analytics] recordEventServer failed", eventType, err);
+  }
+}

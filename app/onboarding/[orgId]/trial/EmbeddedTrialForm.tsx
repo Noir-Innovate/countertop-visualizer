@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import {
+  ONBOARDING_EVENTS,
+  trackOnboarding,
+} from "@/lib/onboarding-track";
+import {
   Elements,
   PaymentElement,
   useElements,
@@ -297,6 +301,13 @@ function InnerForm({
           promotionCodeId: body.promotionCodeId,
           coupon: body.coupon,
         });
+        trackOnboarding(ONBOARDING_EVENTS.promoApplied, {
+          organizationId: orgId,
+          code: body.code,
+          percent_off: body.coupon?.percent_off ?? null,
+          amount_off: body.coupon?.amount_off ?? null,
+          duration: body.coupon?.duration ?? null,
+        });
       } else {
         setPromo({
           status: "invalid",
@@ -377,6 +388,11 @@ function InnerForm({
       if (!res.ok) {
         throw new Error(body.error || "Failed to start trial");
       }
+      trackOnboarding(ONBOARDING_EVENTS.trialConfirmed, {
+        organizationId: orgId,
+        promotionCodeId:
+          promo.status === "applied" ? promo.promotionCodeId : undefined,
+      });
       router.push(`/onboarding/${orgId}/website`);
       router.refresh();
     } catch (err) {

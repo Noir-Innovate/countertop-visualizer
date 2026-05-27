@@ -49,6 +49,10 @@ test.describe("Onboarding · Promo codes", () => {
     expect(discountedValue).toBeLessThan(baseValue);
     // 20% off → discounted ≈ 80% of base (allow 1¢ rounding wiggle).
     expect(Math.abs(discountedValue - baseValue * 0.8)).toBeLessThan(0.02);
+
+    // Give fire-and-forget analytics tracks a beat to send before the
+    // browser closes — otherwise the events get lost mid-flight.
+    await page.waitForTimeout(1500);
   });
 
   test("unknown promo code shows a clear error", async ({ page, testUser }) => {

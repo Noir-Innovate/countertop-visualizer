@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Confirm your Countertop Visualizer account</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f8fafc;
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+        Arial, sans-serif;
+      color: #0f172a;
+      line-height: 1.5;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background-color: #f8fafc; padding: 32px 16px"
+    >
+      <tr>
+        <td align="center">
+          <table
+            role="presentation"
+            width="100%"
+            cellpadding="0"
+            cellspacing="0"
+            style="
+              max-width: 560px;
+              background-color: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 40px 32px;
+            "
+          >
+            <tr>
+              <td style="padding-bottom: 24px">
+                <h1
+                  style="
+                    margin: 0;
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #0f172a;
+                  "
+                >
+                  Confirm your email
+                </h1>
+                <p style="margin: 12px 0 0; font-size: 16px; color: #475569">
+                  Welcome to Countertop Visualizer — you're one click away
+                  from setting up your shop's account.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding-bottom: 24px">
+                <p style="margin: 0; font-size: 15px; color: #334155">
+                  Click the button below to verify
+                  <strong>{{ .Email }}</strong> and finish setting up your
+                  account. Once confirmed, we'll walk you through your trial
+                  and help you get your first material line online in minutes.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="padding-bottom: 28px">
+                <a
+                  href="{{ .ConfirmationURL }}"
+                  style="
+                    display: inline-block;
+                    background-color: #2563eb;
+                    color: #ffffff;
+                    text-decoration: none;
+                    padding: 14px 28px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 16px;
+                  "
+                  >Confirm my email</a
+                >
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding-bottom: 24px">
+                <p style="margin: 0 0 8px; font-size: 13px; color: #64748b">
+                  If the button doesn't work, paste this link into your
+                  browser:
+                </p>
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 12px;
+                    color: #2563eb;
+                    word-break: break-all;
+                  "
+                >
+                  {{ .ConfirmationURL }}
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                style="
+                  border-top: 1px solid #e2e8f0;
+                  padding-top: 20px;
+                  font-size: 13px;
+                  color: #64748b;
+                "
+              >
+                <p style="margin: 0 0 8px">
+                  Didn't sign up for Countertop Visualizer? You can safely
+                  ignore this email — your address won't be added to anything.
+                </p>
+                <p style="margin: 0">
+                  Questions? Just reply to this email and we'll help.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <p
+            style="
+              margin: 16px 0 0;
+              font-size: 12px;
+              color: #94a3b8;
+              text-align: center;
+            "
+          >
+            Countertop Visualizer · {{ .SiteURL }}
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

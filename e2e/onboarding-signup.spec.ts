@@ -18,14 +18,26 @@ test.describe("Onboarding · Signup", () => {
 
     try {
       await page.goto("/dashboard/signup");
-      await page.getByLabel(/email/i).fill(email);
-      await page.getByLabel(/password/i).fill(password);
-      await page.getByRole("button", { name: /sign up/i }).click();
+      // Page also has "Full Name" — be specific.
+      await page.getByLabel("Full Name").fill(`E2E Tester ${Date.now()}`);
+      await page.getByLabel("Email").fill(email);
+      await page.getByLabel("Password", { exact: true }).fill(password);
+      await page.getByLabel(/confirm password/i).fill(password);
+      await page.getByRole("button", { name: /create account/i }).click();
 
-      // After signup the onboarding state machine should put us on the
-      // create-organization page (the new user has no orgs yet).
+      // Signup page renders a "check your email" success screen. With local
+      // Supabase (enable_confirmations = false), the user is already signed
+      // in by this point — we just verify the screen appeared and the
+      // analytics event fired.
+      await expect(
+        page.getByRole("heading", { name: /check your email/i }),
+      ).toBeVisible({ timeout: 20_000 });
+
+      // Now hit /dashboard, which should bounce us through the onboarding
+      // state machine to /dashboard/organizations/new (no orgs yet).
+      await page.goto("/dashboard");
       await page.waitForURL(/\/dashboard\/organizations\/new/, {
-        timeout: 20_000,
+        timeout: 15_000,
       });
       await expect(
         page.getByRole("heading", { name: /create organization/i }),

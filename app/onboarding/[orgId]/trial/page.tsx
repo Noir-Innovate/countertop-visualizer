@@ -4,13 +4,15 @@ import {
   getOnboardingNextStep,
   onboardingStepUrl,
 } from "@/lib/onboarding-state";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getStripeServerClient } from "@/lib/stripe";
 import {
   INTERNAL_LINE_MONTHLY_PRICE_CENTS,
   lineToMonthlyCents,
 } from "@/lib/billing";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
+import { TrackView } from "@/components/analytics/TrackView";
+import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 import { EmbeddedTrialForm } from "./EmbeddedTrialForm";
 
 interface Props {
@@ -29,6 +31,12 @@ export default async function OnboardingTrialPage({ params }: Props) {
   if (!["owner", "admin", "super_admin"].includes(access.role)) {
     redirect(`/dashboard/organizations/${orgId}`);
   }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const profileId = user?.id;
 
   const state = await getOnboardingNextStep(orgId);
   if (state.step !== "needs_billing") {
@@ -67,6 +75,11 @@ export default async function OnboardingTrialPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
+      <TrackView
+        event={ONBOARDING_EVENTS.trialViewed}
+        organizationId={orgId}
+        profileId={profileId}
+      />
       <OnboardingStepper current="trial" />
 
       <div className="mb-8">

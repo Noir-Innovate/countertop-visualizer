@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getStoredAttribution } from "@/lib/attribution";
+import {
+  ONBOARDING_EVENTS,
+  trackOnboarding,
+} from "@/lib/onboarding-track";
 
 export default function NewOrganizationPage() {
   const router = useRouter();
@@ -11,6 +15,15 @@ export default function NewOrganizationPage() {
   const [slug, setSlug] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await createClient().auth.getUser();
+      trackOnboarding(ONBOARDING_EVENTS.orgCreateViewed, {
+        profileId: data.user?.id,
+      });
+    })();
+  }, []);
 
   const generateSlug = (name: string) => {
     return name
@@ -70,6 +83,11 @@ export default function NewOrganizationPage() {
         setLoading(false);
         return;
       }
+
+      trackOnboarding(ONBOARDING_EVENTS.orgCreated, {
+        organizationId: data.organization?.id,
+        profileId: user.id,
+      });
 
       // Redirect to the next onboarding step (or org dashboard if done).
       router.push(

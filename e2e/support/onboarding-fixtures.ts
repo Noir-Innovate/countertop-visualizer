@@ -47,6 +47,13 @@ export async function deleteOnboardingUser(user: OnboardingUser) {
     .eq("profile_id", user.id);
   for (const m of memberships ?? []) {
     if (m.organization_id) {
+      // analytics_events.organization_id has ON DELETE CASCADE — null it
+      // first so the rows survive for funnel/dashboard inspection after
+      // the test user is torn down.
+      await db
+        .from("analytics_events")
+        .update({ organization_id: null })
+        .eq("organization_id", m.organization_id);
       await db.from("organizations").delete().eq("id", m.organization_id);
     }
   }
