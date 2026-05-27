@@ -4,6 +4,7 @@
  */
 
 import { getStoredAttribution } from "./attribution";
+import { getVisitorId } from "./visitor-id";
 
 export function trackToSupabase(
   eventType: string,
@@ -26,7 +27,10 @@ export function trackToSupabase(
     metadata: properties ?? {},
     material_line_id: materialLineId,
     organization_id: organizationId,
-    session_id: null as string | null,
+    // Anonymous visitor id — populated on every client event so we can
+    // stitch pre-signup activity (landing page views, demo CTA clicks)
+    // to the same person who later signs up and gets a profile_id.
+    session_id: getVisitorId(),
     utm_source: attribution?.utm_source ?? null,
     utm_medium: attribution?.utm_medium ?? null,
     utm_campaign: attribution?.utm_campaign ?? null,

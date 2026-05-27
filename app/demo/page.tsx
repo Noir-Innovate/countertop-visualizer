@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { TrackView } from "@/components/analytics/TrackView";
+import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   MaterialLineProvider,
@@ -73,6 +75,7 @@ export default async function DemoPage() {
 
   return (
     <MaterialLineProvider materialLine={materialLine}>
+      <TrackView event={ONBOARDING_EVENTS.demoViewed} />
       <V2Page />
     </MaterialLineProvider>
   );

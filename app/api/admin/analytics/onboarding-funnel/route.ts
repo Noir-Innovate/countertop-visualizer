@@ -7,6 +7,16 @@ import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 // chart; conversion is measured between consecutive entries.
 const STAGES: Array<{ key: string; event: string; label: string }> = [
   {
+    key: "root_viewed",
+    event: ONBOARDING_EVENTS.rootViewed,
+    label: "Visited landing page",
+  },
+  {
+    key: "demo_viewed",
+    event: ONBOARDING_EVENTS.demoViewed,
+    label: "Viewed demo",
+  },
+  {
     key: "signup_submitted",
     event: ONBOARDING_EVENTS.signupSubmitted,
     label: "Signed up",
@@ -44,6 +54,16 @@ const STAGES: Array<{ key: string; event: string; label: string }> = [
 ];
 
 const ACTION_EVENTS: Array<{ key: string; event: string; label: string }> = [
+  {
+    key: "root_cta_clicked",
+    event: ONBOARDING_EVENTS.rootCtaClicked,
+    label: "Landing-page CTA clicks",
+  },
+  {
+    key: "demo_cta_clicked",
+    event: ONBOARDING_EVENTS.demoCtaClicked,
+    label: "Demo CTA clicks",
+  },
   {
     key: "signup_viewed",
     event: ONBOARDING_EVENTS.signupViewed,
@@ -90,6 +110,7 @@ interface EventRow {
   event_type: string;
   created_at: string;
   metadata: { profile_id?: string } | null;
+  session_id: string | null;
 }
 
 function median(nums: number[]): number | null {
@@ -124,7 +145,7 @@ export async function GET(req: NextRequest) {
 
   let query = service
     .from("analytics_events")
-    .select("event_type, created_at, metadata")
+    .select("event_type, created_at, metadata, session_id")
     .in("event_type", allEvents)
     .gte("created_at", from.toISOString())
     .lte("created_at", to.toISOString());
@@ -137,9 +158,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Group: per (event_type, profile_id), find earliest created_at.
-  // The funnel measures distinct profiles per stage; the time-to-next
-  // measures (stageN+1 earliest) - (stageN earliest) for users who hit both.
+  // Per (event_type, identity) → earliest created_at. Identity is the
+  // profile_id (post-signup) when known, otherwise the visitor's session_id
+  // (anonymous). That lets the funnel stitch landing-page views to the
+  // signup events that follow them: the visitor browses anonymously with a
+  // session_id, then once they sign up the post-signup events still carry
+  // the same session_id, so they line up as a single identity.
   const firstByStageByUser: Record<string, Map<string, number>> = {};
   for (const stage of STAGES) firstByStageByUser[stage.event] = new Map();
 
@@ -147,16 +171,16 @@ export async function GET(req: NextRequest) {
   for (const action of ACTION_EVENTS) actionCounts[action.event] = new Set();
 
   for (const row of (rows ?? []) as EventRow[]) {
-    const profileId = row.metadata?.profile_id;
-    if (!profileId) continue;
+    const identity = row.metadata?.profile_id ?? row.session_id;
+    if (!identity) continue;
     const ts = new Date(row.created_at).getTime();
     if (row.event_type in firstByStageByUser) {
       const map = firstByStageByUser[row.event_type];
-      const existing = map.get(profileId);
-      if (existing == null || ts < existing) map.set(profileId, ts);
+      const existing = map.get(identity);
+      if (existing == null || ts < existing) map.set(identity, ts);
     }
     if (row.event_type in actionCounts) {
-      actionCounts[row.event_type].add(profileId);
+      actionCounts[row.event_type].add(identity);
     }
   }
 

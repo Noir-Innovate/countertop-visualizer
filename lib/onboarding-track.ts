@@ -5,6 +5,10 @@ import { trackEvent } from "./track";
 // new step means adding the constant here and instrumenting the page.
 
 export const ONBOARDING_EVENTS = {
+  rootViewed: "landing_root_viewed",
+  rootCtaClicked: "landing_root_cta_clicked",
+  demoViewed: "landing_demo_viewed",
+  demoCtaClicked: "landing_demo_cta_clicked",
   signupViewed: "onboarding_signup_viewed",
   signupSubmitted: "onboarding_signup_submitted",
   emailConfirmed: "onboarding_email_confirmed",

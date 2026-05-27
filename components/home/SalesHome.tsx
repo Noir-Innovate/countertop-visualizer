@@ -3,14 +3,26 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { captureAndPersistAttribution } from "@/lib/attribution";
+import {
+  ONBOARDING_EVENTS,
+  trackOnboarding,
+} from "@/lib/onboarding-track";
 
 // Commission rate is configured via REFERRAL_COMMISSION_BPS in lib/referrals.ts.
 // Default is 4000 bps (40%) — kept in sync here for marketing copy.
 const COMMISSION_PERCENT = 40;
 
+function trackCta(destination: "demo" | "signup" | "login", placement: string) {
+  trackOnboarding(ONBOARDING_EVENTS.rootCtaClicked, {
+    destination,
+    placement,
+  });
+}
+
 export default function SalesHome() {
   useEffect(() => {
     captureAndPersistAttribution();
+    trackOnboarding(ONBOARDING_EVENTS.rootViewed);
   }, []);
 
   return (
@@ -24,18 +36,21 @@ export default function SalesHome() {
           <nav className="flex items-center gap-3 text-sm">
             <Link
               href="/demo"
+              onClick={() => trackCta("demo", "nav")}
               className="text-slate-600 hover:text-slate-900 transition-colors"
             >
               Try the demo
             </Link>
             <Link
               href="/dashboard"
+              onClick={() => trackCta("login", "nav")}
               className="text-slate-600 hover:text-slate-900 transition-colors"
             >
               Log in
             </Link>
             <Link
               href="/dashboard/signup"
+              onClick={() => trackCta("signup", "nav")}
               className="px-4 py-2 rounded-full bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors"
             >
               Start free trial
@@ -58,12 +73,14 @@ export default function SalesHome() {
         <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
           <Link
             href="/dashboard/signup"
+            onClick={() => trackCta("signup", "hero")}
             className="px-8 py-4 rounded-full bg-slate-900 text-white font-semibold text-lg hover:bg-slate-800 transition-colors shadow-lg"
           >
             Start free trial
           </Link>
           <Link
             href="/demo"
+            onClick={() => trackCta("demo", "hero")}
             className="px-8 py-4 rounded-full border border-slate-300 text-slate-900 font-semibold text-lg hover:bg-slate-50 transition-colors"
           >
             Try the demo first
@@ -135,12 +152,14 @@ export default function SalesHome() {
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <Link
                 href="/dashboard/signup?source=affiliate"
+                onClick={() => trackCta("signup", "affiliate")}
                 className="px-8 py-4 rounded-full bg-white text-slate-900 font-semibold hover:bg-slate-100 transition-colors"
               >
                 Become an affiliate
               </Link>
               <Link
                 href="/demo"
+                onClick={() => trackCta("demo", "affiliate")}
                 className="px-8 py-4 rounded-full border border-white/30 text-white font-semibold hover:bg-white/10 transition-colors"
               >
                 See it in action
