@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
       code: normalized,
       active: true,
       limit: 1,
-      expand: ["data.coupon"],
     });
 
     const promo = promoList.data[0];
@@ -70,11 +69,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const coupon = (promo as unknown as { coupon: Stripe.Coupon | null })
+    // Resolve the underlying coupon. The 2026-02-25.clover API moved the
+    // coupon reference from `promo.coupon` (legacy) to
+    // `promo.promotion.coupon` (new shape) — we accept either and follow up
+    // with a direct retrieve so we always have the full coupon object.
+    const legacyCoupon = (promo as unknown as { coupon?: string | Stripe.Coupon })
       .coupon;
-    if (!coupon || !coupon.valid) {
+    const newShape = (promo as unknown as {
+      promotion?: { coupon?: string };
+    }).promotion;
+    const couponRef = legacyCoupon ?? newShape?.coupon ?? null;
+    const couponId =
+      typeof couponRef === "string" ? couponRef : couponRef?.id ?? null;
+    if (!couponId) {
       return NextResponse.json(
-        { valid: false, error: "Promotion code is no longer valid" },
+        { valid: false, error: "Promotion code has no coupon attached" },
+        { status: 200 },
+      );
+    }
+    const coupon = await stripe.coupons.retrieve(couponId);
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (coupon.redeem_by != null && coupon.redeem_by <= nowSec) {
+      return NextResponse.json(
+        { valid: false, error: "Promotion code has expired" },
+        { status: 200 },
+      );
+    }
+    if (
+      coupon.max_redemptions != null &&
+      coupon.times_redeemed >= coupon.max_redemptions
+    ) {
+      return NextResponse.json(
+        { valid: false, error: "Promotion code has been fully redeemed" },
         { status: 200 },
       );
     }

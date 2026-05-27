@@ -13,6 +13,7 @@ import Stage1 from "./Stage1";
 import MobileQuickCapture, {
   type QuickCaptureResult,
 } from "./MobileQuickCapture";
+import ProfileMenu from "./ProfileMenu";
 import type { SalesView } from "../state";
 import type { VersionEntry } from "@/lib/v2/types";
 
@@ -287,7 +288,7 @@ export default function SalesPortalShell({
         onEdit={(job) => setEditingJob(job)}
         onJobsUpdate={setJobs}
       />
-      <div className="border-t border-slate-200 p-3">
+      <div className="border-t border-slate-200 p-3 space-y-2">
         <button
           onClick={() => setNewJobOpen(true)}
           className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
@@ -307,6 +308,7 @@ export default function SalesPortalShell({
           </svg>
           New Job
         </button>
+        <ProfileMenu />
       </div>
     </>
   );
