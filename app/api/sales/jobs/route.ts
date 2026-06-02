@@ -1,7 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { getMaterialLineAccess } from "@/lib/admin-auth";
 import { pushLeadToGhl } from "@/lib/integrations/push-lead-to-ghl";
+
+const MANAGER_ROLES = new Set(["super_admin", "owner", "admin"]);
+
+async function resolveLineAccess(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  materialLineId: string,
+): Promise<{ organizationId: string; isManager: boolean } | null> {
+  const access = await getMaterialLineAccess(materialLineId);
+  if (access?.allowed && MANAGER_ROLES.has(access.role)) {
+    return { organizationId: access.organizationId, isManager: true };
+  }
+  const { data: assignment } = await supabase
+    .from("salesperson_line_assignments")
+    .select("organization_id")
+    .eq("profile_id", userId)
+    .eq("material_line_id", materialLineId)
+    .maybeSingle();
+  if (assignment) {
+    return { organizationId: assignment.organization_id, isManager: false };
+  }
+  return null;
+}
 
 interface CreateJobBody {
   materialLineId: string;
@@ -37,15 +61,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the salesperson is assigned to this line and look up the org.
-  const { data: assignment } = await supabase
-    .from("salesperson_line_assignments")
-    .select("organization_id")
-    .eq("profile_id", user.id)
-    .eq("material_line_id", body.materialLineId)
-    .maybeSingle();
-
-  if (!assignment) {
+  const lineAccess = await resolveLineAccess(
+    supabase,
+    user.id,
+    body.materialLineId,
+  );
+  if (!lineAccess) {
     return NextResponse.json(
       { error: "You are not assigned to this material line" },
       { status: 403 },
@@ -66,7 +87,7 @@ export async function POST(request: NextRequest) {
       salesperson_id: user.id,
       source: "salesperson",
       material_line_id: body.materialLineId,
-      organization_id: assignment.organization_id,
+      organization_id: lineAccess.organizationId,
     })
     .select()
     .single();
@@ -148,29 +169,27 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { data: assignment } = await supabase
-    .from("salesperson_line_assignments")
-    .select("id")
-    .eq("profile_id", user.id)
-    .eq("material_line_id", materialLineId)
-    .maybeSingle();
-
-  if (!assignment) {
+  const lineAccess = await resolveLineAccess(supabase, user.id, materialLineId);
+  if (!lineAccess) {
     return NextResponse.json(
       { error: "You are not assigned to this material line" },
       { status: 403 },
     );
   }
 
-  let query = supabase
+  const service = await createServiceClient();
+  let query = service
     .from("leads")
     .select(
       "id, name, email, phone, address, notes, gps_lat, gps_lng, created_at, selected_image_url, original_image_url, v2_session_id",
     )
-    .eq("salesperson_id", user.id)
     .eq("material_line_id", materialLineId)
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  if (!lineAccess.isManager) {
+    query = query.eq("salesperson_id", user.id);
+  }
 
   if (search) {
     const escaped = search.replace(/[%,]/g, " ");

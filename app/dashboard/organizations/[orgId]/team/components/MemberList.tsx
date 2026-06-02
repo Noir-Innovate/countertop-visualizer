@@ -358,7 +358,8 @@ export default function MemberList({
                         <option value="member">Member</option>
                         <option value="sales_person">Sales Person</option>
                         <option value="admin">Admin</option>
-                        {currentUserRole === "owner" && (
+                        {(currentUserRole === "owner" ||
+                          currentUserRole === "super_admin") && (
                           <option value="owner">Owner</option>
                         )}
                       </select>

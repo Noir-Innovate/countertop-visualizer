@@ -14,10 +14,6 @@ export default async function SalesIndexPage() {
 
   const lines = await getAssignedLines(user.id);
 
-  if (lines.length === 1) {
-    redirect(`/sales/${lines[0].id}`);
-  }
-
   if (lines.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
@@ -40,39 +36,5 @@ export default async function SalesIndexPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">
-          Pick a material line
-        </h1>
-        <p className="text-slate-600 mb-6">
-          You&apos;re assigned to multiple lines. Choose which one to work in.
-        </p>
-        <div className="grid gap-3">
-          {lines.map((line) => (
-            <Link
-              key={line.id}
-              href={`/sales/${line.id}`}
-              className="block bg-white rounded-lg border border-slate-200 p-4 hover:border-blue-400 hover:shadow-sm transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-slate-900">{line.name}</p>
-                  <p className="text-sm text-slate-500">
-                    {line.organization_name}
-                  </p>
-                </div>
-                {line.line_kind === "internal" && (
-                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                    internal
-                  </span>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  redirect(`/sales/${lines[0].id}`);
 }

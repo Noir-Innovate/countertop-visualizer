@@ -22,7 +22,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user is owner or admin of the organization
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_super_admin")
+      .eq("id", user.id)
+      .single();
+    const isSuperAdmin = Boolean(profile?.is_super_admin);
+
     const { data: membership } = await supabase
       .from("organization_members")
       .select("role")
@@ -30,9 +36,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .eq("organization_id", orgId)
       .single();
 
+    const effectiveRole = isSuperAdmin
+      ? "super_admin"
+      : (membership?.role ?? null);
+
     if (
-      !membership ||
-      (membership.role !== "owner" && membership.role !== "admin")
+      effectiveRole !== "super_admin" &&
+      effectiveRole !== "owner" &&
+      effectiveRole !== "admin"
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to remove members" },
@@ -131,7 +142,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user is owner or admin of the organization
+    // Super admins can manage any org's members regardless of membership.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_super_admin")
+      .eq("id", user.id)
+      .single();
+    const isSuperAdmin = Boolean(profile?.is_super_admin);
+
     const { data: membership } = await supabase
       .from("organization_members")
       .select("role")
@@ -139,9 +157,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .eq("organization_id", orgId)
       .single();
 
+    const effectiveRole = isSuperAdmin
+      ? "super_admin"
+      : (membership?.role ?? null);
+
     if (
-      !membership ||
-      (membership.role !== "owner" && membership.role !== "admin")
+      effectiveRole !== "super_admin" &&
+      effectiveRole !== "owner" &&
+      effectiveRole !== "admin"
     ) {
       return NextResponse.json(
         { error: "You must be an owner or admin to update member roles" },
@@ -149,8 +172,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Only owners can assign owner role
-    if (role === "owner" && membership.role !== "owner") {
+    // Only owners or super admins can assign the owner role
+    if (
+      role === "owner" &&
+      effectiveRole !== "owner" &&
+      effectiveRole !== "super_admin"
+    ) {
       return NextResponse.json(
         { error: "Only owners can assign the owner role" },
         { status: 403 },

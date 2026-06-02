@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getAssignedLines } from "@/lib/sales/assignments";
+import { getMaterialLineAccess } from "@/lib/admin-auth";
 import SalesPortalShell from "./components/SalesPortalShell";
 import type { MaterialLineConfig } from "@/lib/material-line";
 
@@ -30,15 +31,24 @@ export default async function SalesPortalPage({ params }: PageProps) {
     .eq("material_line_id", active.id)
     .order("order", { ascending: true });
 
-  const { data: initialJobs } = await service
+  const access = await getMaterialLineAccess(active.id);
+  const isManager =
+    access?.role === "super_admin" ||
+    access?.role === "owner" ||
+    access?.role === "admin";
+
+  let jobsQuery = service
     .from("leads")
     .select(
       "id, name, email, phone, address, notes, gps_lat, gps_lng, created_at, selected_image_url, original_image_url, v2_session_id",
     )
-    .eq("salesperson_id", user.id)
     .eq("material_line_id", active.id)
     .order("created_at", { ascending: false })
     .limit(50);
+  if (!isManager) {
+    jobsQuery = jobsQuery.eq("salesperson_id", user.id);
+  }
+  const { data: initialJobs } = await jobsQuery;
 
   const materialLine: MaterialLineConfig = {
     id: active.id,

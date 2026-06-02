@@ -81,14 +81,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add the user as owner using service role (bypasses RLS)
+    // Add the user as owner using service role (bypasses RLS). Upsert on the
+    // (profile_id, organization_id) unique constraint so the creator is always
+    // recorded as 'owner' even if a prior insert (e.g. a trigger or retry)
+    // already added them with the default 'member' role.
     const { error: memberError } = await serviceClient
       .from("organization_members")
-      .insert({
-        profile_id: user.id,
-        organization_id: org.id,
-        role: "owner",
-      });
+      .upsert(
+        {
+          profile_id: user.id,
+          organization_id: org.id,
+          role: "owner",
+        },
+        { onConflict: "profile_id,organization_id" },
+      );
 
     if (memberError) {
       console.error("Error adding member:", memberError);
