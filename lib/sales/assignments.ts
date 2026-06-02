@@ -24,62 +24,82 @@ export async function getAssignedLines(
   profileId: string,
 ): Promise<AssignedLine[]> {
   const service = await createServiceClient();
-  const { data, error } = await service
-    .from("salesperson_line_assignments")
-    .select(
-      `
-      material_line_id,
-      organization_id,
-      material_lines!inner(
-        id,
-        name,
-        slug,
-        line_kind,
-        supabase_folder,
-        logo_url,
-        primary_color,
-        accent_color,
-        background_color
-      ),
-      organizations!inner(id, name)
-      `,
-    )
-    .eq("profile_id", profileId);
 
-  if (error || !data) return [];
+  const lineColumns =
+    "id, name, slug, organization_id, line_kind, supabase_folder, logo_url, primary_color, accent_color, background_color";
 
-  type Row = {
-    material_line_id: string;
+  type LineRow = {
+    id: string;
+    name: string;
+    slug: string;
     organization_id: string;
-    material_lines: {
-      id: string;
-      name: string;
-      slug: string;
-      line_kind: "internal" | "external";
-      supabase_folder: string;
-      logo_url: string | null;
-      primary_color: string;
-      accent_color: string;
-      background_color: string;
-    } | null;
-    organizations: { id: string; name: string } | null;
+    line_kind: "internal" | "external";
+    supabase_folder: string;
+    logo_url: string | null;
+    primary_color: string;
+    accent_color: string;
+    background_color: string;
   };
 
-  return (data as unknown as Row[])
-    .filter((r) => r.material_lines && r.organizations)
-    .map((r) => ({
-      id: r.material_lines!.id,
-      name: r.material_lines!.name,
-      slug: r.material_lines!.slug,
-      organization_id: r.organization_id,
-      organization_name: r.organizations!.name,
-      line_kind: r.material_lines!.line_kind,
-      supabase_folder: r.material_lines!.supabase_folder,
-      logo_url: r.material_lines!.logo_url,
-      primary_color: r.material_lines!.primary_color,
-      accent_color: r.material_lines!.accent_color,
-      background_color: r.material_lines!.background_color,
-    }));
+  const [assignedRes, adminOrgsRes] = await Promise.all([
+    service
+      .from("salesperson_line_assignments")
+      .select(`material_line_id, material_lines!inner(${lineColumns})`)
+      .eq("profile_id", profileId),
+    service
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("profile_id", profileId)
+      .in("role", ["owner", "admin"]),
+  ]);
+
+  const byLineId = new Map<string, LineRow>();
+
+  if (!assignedRes.error && assignedRes.data) {
+    for (const row of assignedRes.data as unknown as Array<{
+      material_lines: LineRow | null;
+    }>) {
+      if (row.material_lines) byLineId.set(row.material_lines.id, row.material_lines);
+    }
+  }
+
+  const adminOrgIds = (adminOrgsRes.data || []).map((m) => m.organization_id);
+  if (adminOrgIds.length > 0) {
+    const { data: internalLines } = await service
+      .from("material_lines")
+      .select(lineColumns)
+      .in("organization_id", adminOrgIds)
+      .eq("line_kind", "internal");
+    for (const line of (internalLines as LineRow[] | null) || []) {
+      byLineId.set(line.id, line);
+    }
+  }
+
+  const orgIds = Array.from(
+    new Set(Array.from(byLineId.values()).map((l) => l.organization_id)),
+  );
+  const orgNameById = new Map<string, string>();
+  if (orgIds.length > 0) {
+    const { data: orgs } = await service
+      .from("organizations")
+      .select("id, name")
+      .in("id", orgIds);
+    for (const o of orgs || []) orgNameById.set(o.id, o.name);
+  }
+
+  return Array.from(byLineId.values()).map((l) => ({
+    id: l.id,
+    name: l.name,
+    slug: l.slug,
+    organization_id: l.organization_id,
+    organization_name: orgNameById.get(l.organization_id) || "",
+    line_kind: l.line_kind,
+    supabase_folder: l.supabase_folder,
+    logo_url: l.logo_url,
+    primary_color: l.primary_color,
+    accent_color: l.accent_color,
+    background_color: l.background_color,
+  }));
 }
 
 /**

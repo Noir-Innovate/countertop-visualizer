@@ -57,37 +57,36 @@ export default function AcceptInvitationForm({
     setIsSigningUp(true);
 
     try {
+      // Create the account server-side with email auto-confirmed. The
+      // invitation email itself proves the recipient owns this address, so
+      // there's no need to send a second confirmation email.
+      const signupResponse = await fetch(
+        `/api/organizations/invitations/${token}/signup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password, fullName }),
+        },
+      );
+
+      const signupResult = await signupResponse.json();
+
+      if (!signupResponse.ok) {
+        throw new Error(signupResult.error || "Failed to create account");
+      }
+
+      // Sign the user in with the password they just set.
       const supabase = createClient();
-      const { data: signupData, error: signupError } =
-        await supabase.auth.signUp({
-          email: invitation.email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard/invitations/${token}`,
-          },
-        });
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: invitation.email,
+        password,
+      });
 
-      if (signupError) {
-        throw new Error(signupError.message);
+      if (signInError) {
+        throw new Error(signInError.message);
       }
 
-      // If email confirmation is required, show message
-      if (signupData.user && !signupData.session) {
-        setError(null);
-        // Show success message about email confirmation
-        alert(
-          "Please check your email to confirm your account, then return to this page to accept the invitation.",
-        );
-        return;
-      }
-
-      // If session is created immediately, accept invitation
-      if (signupData.session) {
-        await handleAcceptInvitation();
-      }
+      await handleAcceptInvitation();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
       setIsSigningUp(false);

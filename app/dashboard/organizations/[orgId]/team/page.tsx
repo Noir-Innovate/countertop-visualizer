@@ -58,6 +58,8 @@ export default async function TeamPage({ params }: Props) {
 
   let membersWithEmails: any[] = [];
   let invitations: any[] = [];
+  let materialLines: { id: string; name: string; line_kind: "internal" | "external" }[] = [];
+  let assignmentsByProfile: Record<string, string[]> = {};
   let fetchError: string | null = null;
 
   if (!supabaseUrl || !serviceRoleKey) {
@@ -108,6 +110,30 @@ export default async function TeamPage({ params }: Props) {
     } else {
       invitations = invitationsData || [];
     }
+
+    const { data: linesData } = await serviceClient
+      .from("material_lines")
+      .select("id, name, line_kind")
+      .eq("organization_id", orgId)
+      .order("name");
+    materialLines = (linesData || []) as typeof materialLines;
+
+    const salespersonProfileIds = membersWithEmails
+      .filter((m) => m.role === "sales_person")
+      .map((m) => m.profile_id);
+
+    if (salespersonProfileIds.length > 0) {
+      const { data: assignmentsData } = await serviceClient
+        .from("salesperson_line_assignments")
+        .select("profile_id, material_line_id")
+        .eq("organization_id", orgId)
+        .in("profile_id", salespersonProfileIds);
+      for (const row of assignmentsData || []) {
+        const list = assignmentsByProfile[row.profile_id] || [];
+        list.push(row.material_line_id);
+        assignmentsByProfile[row.profile_id] = list;
+      }
+    }
   }
 
   return (
@@ -154,6 +180,8 @@ export default async function TeamPage({ params }: Props) {
             invitations={invitations || []}
             currentUserId={user.id}
             currentUserRole={access.role}
+            materialLines={materialLines}
+            assignmentsByProfile={assignmentsByProfile}
           />
         </div>
       )}

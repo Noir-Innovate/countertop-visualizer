@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ManageLinesModal from "./ManageLinesModal";
 
 interface Member {
   id: string;
@@ -25,12 +26,20 @@ interface Invitation {
   token: string;
 }
 
+interface OrgMaterialLine {
+  id: string;
+  name: string;
+  line_kind: "internal" | "external";
+}
+
 interface MemberListProps {
   orgId: string;
   members: Member[];
   invitations: Invitation[];
   currentUserId: string;
   currentUserRole: string;
+  materialLines: OrgMaterialLine[];
+  assignmentsByProfile: Record<string, string[]>;
 }
 
 export default function MemberList({
@@ -39,7 +48,10 @@ export default function MemberList({
   invitations,
   currentUserId,
   currentUserRole,
+  materialLines,
+  assignmentsByProfile,
 }: MemberListProps) {
+  const [managingMember, setManagingMember] = useState<Member | null>(null);
   const router = useRouter();
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
@@ -359,6 +371,17 @@ export default function MemberList({
                         {formatRole(member.role)}
                       </span>
                     )}
+                    {canManage && member.role === "sales_person" && (
+                      <button
+                        onClick={() => setManagingMember(member)}
+                        className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        Manage lines
+                        <span className="ml-1 text-xs text-slate-500">
+                          ({(assignmentsByProfile[member.profile_id] || []).length})
+                        </span>
+                      </button>
+                    )}
                     {canRemove && (
                       <button
                         onClick={() =>
@@ -381,6 +404,24 @@ export default function MemberList({
           </div>
         )}
       </div>
+
+      {managingMember && (
+        <ManageLinesModal
+          orgId={orgId}
+          member={managingMember}
+          materialLines={materialLines}
+          initialAssignedIds={
+            assignmentsByProfile[managingMember.profile_id] || []
+          }
+          onClose={() => setManagingMember(null)}
+          onSaved={() => {
+            setManagingMember(null);
+            setSuccess("Assigned lines updated");
+            setTimeout(() => setSuccess(null), 3000);
+            router.refresh();
+          }}
+        />
+      )}
 
       {/* Pending Invitations */}
       {invitations.length > 0 && (
