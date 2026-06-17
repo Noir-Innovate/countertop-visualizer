@@ -26,6 +26,7 @@ interface MaterialLine {
   email_sender_name: string | null;
   email_reply_to: string | null;
   ghl_push_enabled: boolean;
+  access_locked: boolean;
 }
 
 export default function MaterialLineSettingsPage({ params }: Props) {
@@ -46,6 +47,7 @@ export default function MaterialLineSettingsPage({ params }: Props) {
   const [emailReplyTo, setEmailReplyTo] = useState("");
   const [orgSlug, setOrgSlug] = useState<string | null>(null);
   const [ghlEnabled, setGhlEnabled] = useState(false);
+  const [accessLocked, setAccessLocked] = useState(false);
   const [ghlAvailable, setGhlAvailable] = useState<boolean | null>(null);
   const [ghlSaving, setGhlSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -84,6 +86,7 @@ export default function MaterialLineSettingsPage({ params }: Props) {
         setEmailSenderName(data.email_sender_name || "");
         setEmailReplyTo(data.email_reply_to || "");
         setGhlEnabled(!!data.ghl_push_enabled);
+        setAccessLocked(!!data.access_locked);
       }
       if (org?.slug) setOrgSlug(org.slug);
       setLoading(false);
@@ -187,6 +190,9 @@ export default function MaterialLineSettingsPage({ params }: Props) {
           background_color: backgroundColor,
           email_sender_name: emailSenderName || null,
           email_reply_to: emailReplyTo || null,
+          // Only internal lines expose the lock; keep external lines unlocked.
+          access_locked:
+            materialLine?.line_kind === "internal" ? accessLocked : false,
         })
         .eq("id", materialLineId);
 
@@ -283,6 +289,32 @@ export default function MaterialLineSettingsPage({ params }: Props) {
                 Type is locked after creation.
               </p>
             </div>
+
+            {materialLine.line_kind === "internal" && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start gap-3">
+                  <input
+                    id="accessLocked"
+                    type="checkbox"
+                    checked={accessLocked}
+                    onChange={(e) => setAccessLocked(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="accessLocked" className="flex-1">
+                    <span className="block text-sm font-medium text-slate-700">
+                      Require sign-in to access this line
+                    </span>
+                    <span className="mt-1 block text-sm text-slate-500">
+                      When checked, the public visualizer is locked down.
+                      Visitors are forwarded to the <code>/sales</code> portal
+                      and must log in with an account that has been given access
+                      to this line. When unchecked, anyone can open the line
+                      directly.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div>
               <label

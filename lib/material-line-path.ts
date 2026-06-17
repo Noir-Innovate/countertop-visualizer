@@ -2,7 +2,9 @@ export type MaterialLineKind = "external" | "internal";
 
 /**
  * Canonical public URL for the material line visualizer (subdomain or verified custom domain).
- * Internal lines use the v2-based experience at `/internal`.
+ * Internal lines use the v2-based experience at `/internal`, unless the line is
+ * access-locked — locked internal lines forward to the authenticated `/sales`
+ * portal, so that is their canonical entry point.
  */
 export function getPublicVisualizerUrl(
   lineKind: MaterialLineKind | null | undefined,
@@ -10,13 +12,14 @@ export function getPublicVisualizerUrl(
   customDomain: string | null,
   customDomainVerified: boolean,
   appDomain: string,
+  accessLocked: boolean = false,
 ): string {
   const base =
     customDomain && customDomainVerified
       ? `https://${customDomain}`
       : `https://${slug}.${appDomain}`;
   if (lineKind === "internal") {
-    return `${base}/internal`;
+    return accessLocked ? `${base}/sales` : `${base}/internal`;
   }
   return base;
 }

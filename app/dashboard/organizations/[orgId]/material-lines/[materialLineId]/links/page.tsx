@@ -32,7 +32,7 @@ export default async function TrackingLinksPage({ params }: Props) {
   const { data: materialLine } = await db
     .from("material_lines")
     .select(
-      "id, name, slug, custom_domain, custom_domain_verified, line_kind",
+      "id, name, slug, custom_domain, custom_domain_verified, line_kind, access_locked",
     )
     .eq("id", materialLineId)
     .eq("organization_id", orgId)
@@ -56,6 +56,7 @@ export default async function TrackingLinksPage({ params }: Props) {
     materialLine.custom_domain,
     materialLine.custom_domain_verified,
     appDomain,
+    materialLine.access_locked,
   );
 
   return (

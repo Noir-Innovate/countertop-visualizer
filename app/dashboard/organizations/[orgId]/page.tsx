@@ -52,7 +52,7 @@ export default async function OrganizationPage({ params }: Props) {
       id,
       name,
       created_at,
-      material_lines(id, name, slug, custom_domain, custom_domain_verified, line_kind, created_at)
+      material_lines(id, name, slug, custom_domain, custom_domain_verified, line_kind, access_locked, created_at)
     `,
     )
     .eq("id", orgId)
@@ -280,6 +280,7 @@ export default async function OrganizationPage({ params }: Props) {
                       materialLine.custom_domain,
                       materialLine.custom_domain_verified,
                       appDomain,
+                      materialLine.access_locked,
                     ).replace(/^https:\/\//, "")}
                   </p>
                 </div>

@@ -83,6 +83,7 @@ export default async function MaterialLinePage({ params }: Props) {
     materialLine.custom_domain,
     materialLine.custom_domain_verified,
     appDomain,
+    materialLine.access_locked,
   );
   const materialLineBasePath = getMaterialLineBasePath(
     orgId,

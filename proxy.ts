@@ -31,6 +31,7 @@ interface MaterialLineConfig {
   free_resource_file_url: string | null;
   free_resource_file_name: string | null;
   line_kind: "internal" | "external";
+  access_locked: boolean;
 }
 
 interface MaterialLineWithKitchens extends MaterialLineConfig {
@@ -207,13 +208,24 @@ export async function proxy(request: NextRequest) {
         pathname.replace(/\/$/, "") === "" ? "/" : pathname.replace(/\/$/, "");
 
       if (!pathname.startsWith("/api")) {
-        if (
-          materialLine.line_kind === "internal" &&
-          normalizedPath === "/"
-        ) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/internal";
-          return NextResponse.redirect(url);
+        if (materialLine.line_kind === "internal") {
+          // Locked internal lines are not publicly reachable: forward both the
+          // root and the legacy /internal page to the authenticated /sales
+          // portal, which enforces login + line-assignment/admin access.
+          if (
+            materialLine.access_locked &&
+            (normalizedPath === "/" || normalizedPath === "/internal")
+          ) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/sales";
+            return NextResponse.redirect(url);
+          }
+          // Unlocked internal lines stay public at /internal.
+          if (!materialLine.access_locked && normalizedPath === "/") {
+            const url = request.nextUrl.clone();
+            url.pathname = "/internal";
+            return NextResponse.redirect(url);
+          }
         }
         if (
           materialLine.line_kind === "external" &&

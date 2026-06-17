@@ -29,7 +29,7 @@ export default async function OnboardingDonePage({
   const lineQuery = service
     .from("material_lines")
     .select(
-      "id, name, slug, line_kind, logo_url, primary_color, accent_color, background_color, custom_domain, custom_domain_verified",
+      "id, name, slug, line_kind, access_locked, logo_url, primary_color, accent_color, background_color, custom_domain, custom_domain_verified",
     )
     .eq("organization_id", orgId)
     .eq("line_kind", "internal");
@@ -53,6 +53,7 @@ export default async function OnboardingDonePage({
     line.custom_domain,
     line.custom_domain_verified,
     appDomain,
+    line.access_locked,
   );
 
   const primary = line.primary_color || "#1A1A1A";
