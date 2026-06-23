@@ -40,8 +40,13 @@ export default function SignupPage() {
       .catch(() => undefined);
   }, []);
 
+  // After confirming, send users to the login page (with a success flag) to
+  // sign in. The callback still runs first to exchange the code and record the
+  // funnel event. `next` is URL-encoded so its own query string survives.
   const emailRedirectTo = () =>
-    `${window.location.origin}/auth/callback?next=/dashboard`;
+    `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+      "/dashboard/login?confirmed=1",
+    )}`;
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();

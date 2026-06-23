@@ -9,6 +9,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/dashboard";
+  const justConfirmed = searchParams.get("confirmed") === "1";
 
   const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
@@ -60,7 +61,9 @@ export default function LoginPage() {
         type: "signup",
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+            "/dashboard/login?confirmed=1",
+          )}`,
         },
       });
       setResendState(error ? "error" : "sent");
@@ -77,6 +80,14 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-slate-900">Welcome Back</h1>
             <p className="text-slate-600 mt-2">Sign in to your dashboard</p>
           </div>
+
+          {justConfirmed && !error && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-700 text-sm">
+                Your email has been confirmed. Please sign in to continue.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
