@@ -63,10 +63,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Bail if a user with that email already exists — they should sign in.
-    const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
-    const existing = existingUsers.users.find(
-      (u) => u.email?.toLowerCase() === invitation.email.toLowerCase(),
-    );
+    // Look up via the `profiles` table (kept in sync with auth.users by the
+    // email trigger in migration 019) rather than auth.admin.listUsers(), which
+    // only returns the first page and silently misses users at scale.
+    const { data: existing } = await serviceClient
+      .from("profiles")
+      .select("id")
+      .ilike("email", invitation.email)
+      .limit(1)
+      .maybeSingle();
     if (existing) {
       return NextResponse.json(
         {

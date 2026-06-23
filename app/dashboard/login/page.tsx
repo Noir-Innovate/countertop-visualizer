@@ -10,14 +10,19 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/dashboard";
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resendState, setResendState] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNeedsConfirmation(false);
     setLoading(true);
 
     try {
@@ -28,6 +33,12 @@ export default function LoginPage() {
       });
 
       if (error) {
+        // Supabase returns "Email not confirmed" when the account exists but
+        // hasn't clicked the confirmation link. Offer a resend instead of a
+        // dead-end error.
+        if (/not confirmed/i.test(error.message)) {
+          setNeedsConfirmation(true);
+        }
         setError(error.message);
         return;
       }
@@ -38,6 +49,23 @@ export default function LoginPage() {
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    setResendState("sending");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        },
+      });
+      setResendState(error ? "error" : "sent");
+    } catch {
+      setResendState("error");
     }
   };
 
@@ -53,6 +81,23 @@ export default function LoginPage() {
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-700 text-sm">{error}</p>
+              {needsConfirmation &&
+                (resendState === "sent" ? (
+                  <p className="text-sm text-green-700 font-medium mt-2">
+                    Confirmation email resent. Please check your inbox.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resendState === "sending"}
+                    className="mt-2 text-sm font-medium text-red-800 underline hover:text-red-900 disabled:opacity-50"
+                  >
+                    {resendState === "sending"
+                      ? "Resending…"
+                      : "Resend confirmation email"}
+                  </button>
+                ))}
             </div>
           )}
 
@@ -76,12 +121,20 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-slate-700 mb-1"
-              >
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-slate-700"
+                >
+                  Password
+                </label>
+                <Link
+                  href="/dashboard/forgot-password"
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 id="password"
                 type="password"

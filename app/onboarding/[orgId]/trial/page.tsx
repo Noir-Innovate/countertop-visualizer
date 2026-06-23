@@ -108,7 +108,7 @@ export default async function OnboardingTrialPage({ params }: Props) {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-emerald-600">✓</span>
-            <span>Invite your sales team to share with customers</span>
+            <span>Invite your sales team to sell with it</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-emerald-600">✓</span>

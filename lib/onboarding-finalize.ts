@@ -89,6 +89,9 @@ export async function finalizeOnboarding(
       slug: input.materialLineSlug,
       supabase_folder: folder,
       line_kind: "internal",
+      // New internal lines require sign-in by default — the public visualizer
+      // forwards visitors to the authenticated /sales portal.
+      access_locked: true,
       logo_url: logoUrl,
       primary_color: input.colors.primary,
       accent_color: input.colors.accent,

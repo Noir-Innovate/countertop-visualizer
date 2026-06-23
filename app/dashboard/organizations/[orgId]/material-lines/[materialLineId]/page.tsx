@@ -6,6 +6,7 @@ import NotificationButton from "./components/NotificationButton";
 import NotificationList from "./components/NotificationList";
 import DuplicateLineButton from "./components/DuplicateLineButton";
 import SalespersonJobsPreview from "./components/SalespersonJobsPreview";
+import LineSalespeople from "./components/LineSalespeople";
 import {
   getMaterialLineBasePath,
   getPublicVisualizerUrl,
@@ -51,7 +52,7 @@ export default async function MaterialLinePage({ params }: Props) {
   // Fetch organization name
   const { data: org } = await supabase
     .from("organizations")
-    .select("name")
+    .select("name, slug")
     .eq("id", orgId)
     .single();
 
@@ -77,14 +78,15 @@ export default async function MaterialLinePage({ params }: Props) {
 
   const appDomain =
     process.env.NEXT_PUBLIC_APP_DOMAIN || "countertopvisualizer.com";
-  const visualizerUrl = getPublicVisualizerUrl(
-    materialLine.line_kind,
-    materialLine.slug,
-    materialLine.custom_domain,
-    materialLine.custom_domain_verified,
+  const visualizerUrl = getPublicVisualizerUrl({
+    lineKind: materialLine.line_kind,
+    slug: materialLine.slug,
+    customDomain: materialLine.custom_domain,
+    customDomainVerified: materialLine.custom_domain_verified,
     appDomain,
-    materialLine.access_locked,
-  );
+    accessLocked: materialLine.access_locked,
+    orgSlug: org?.slug,
+  });
   const materialLineBasePath = getMaterialLineBasePath(
     orgId,
     materialLineId,
@@ -254,11 +256,14 @@ export default async function MaterialLinePage({ params }: Props) {
         access.role === "admin" ||
         access.role === "super_admin") &&
         (materialLine.line_kind === "internal" ? (
-          <SalespersonJobsPreview
-            orgId={orgId}
-            materialLineId={materialLineId}
-            materialLineBasePath={materialLineBasePath}
-          />
+          <>
+            <SalespersonJobsPreview
+              orgId={orgId}
+              materialLineId={materialLineId}
+              materialLineBasePath={materialLineBasePath}
+            />
+            <LineSalespeople orgId={orgId} materialLineId={materialLineId} />
+          </>
         ) : (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">

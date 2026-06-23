@@ -51,6 +51,7 @@ export default async function OrganizationPage({ params }: Props) {
       `
       id,
       name,
+      slug,
       created_at,
       material_lines(id, name, slug, custom_domain, custom_domain_verified, line_kind, access_locked, created_at)
     `,
@@ -274,14 +275,15 @@ export default async function OrganizationPage({ params }: Props) {
                     </span>
                   </div>
                   <p className="text-sm text-slate-500">
-                    {getPublicVisualizerUrl(
-                      materialLine.line_kind,
-                      materialLine.slug,
-                      materialLine.custom_domain,
-                      materialLine.custom_domain_verified,
+                    {getPublicVisualizerUrl({
+                      lineKind: materialLine.line_kind,
+                      slug: materialLine.slug,
+                      customDomain: materialLine.custom_domain,
+                      customDomainVerified: materialLine.custom_domain_verified,
                       appDomain,
-                      materialLine.access_locked,
-                    ).replace(/^https:\/\//, "")}
+                      accessLocked: materialLine.access_locked,
+                      orgSlug: org.slug,
+                    }).replace(/^https?:\/\//, "")}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

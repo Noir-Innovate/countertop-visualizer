@@ -4,7 +4,6 @@ import { getOrgAccess } from "@/lib/admin-auth";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPublicVisualizerUrl } from "@/lib/material-line-path";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
-import { OnboardingDoneActions } from "@/components/onboarding/OnboardingDoneActions";
 import { TrackView } from "@/components/analytics/TrackView";
 import { ONBOARDING_EVENTS } from "@/lib/onboarding-track";
 
@@ -45,16 +44,23 @@ export default async function OnboardingDonePage({
     redirect(`/onboarding/${orgId}/website`);
   }
 
+  const { data: org } = await service
+    .from("organizations")
+    .select("slug")
+    .eq("id", orgId)
+    .maybeSingle();
+
   const appDomain =
     process.env.NEXT_PUBLIC_APP_DOMAIN || "countertopvisualizer.com";
-  const publicUrl = getPublicVisualizerUrl(
-    line.line_kind,
-    line.slug,
-    line.custom_domain,
-    line.custom_domain_verified,
+  const publicUrl = getPublicVisualizerUrl({
+    lineKind: line.line_kind,
+    slug: line.slug,
+    customDomain: line.custom_domain,
+    customDomainVerified: line.custom_domain_verified,
     appDomain,
-    line.access_locked,
-  );
+    accessLocked: line.access_locked,
+    orgSlug: org?.slug,
+  });
 
   const primary = line.primary_color || "#1A1A1A";
   const accent = line.accent_color || "#9CAF88";
@@ -94,8 +100,9 @@ export default async function OnboardingDonePage({
             You&apos;re live!
           </h1>
           <p className="mt-3 text-slate-600">
-            <strong>{line.name}</strong> is set up and ready to share with your
-            sales team. Use it in the showroom and on in-home visits.
+            <strong>{line.name}</strong> is set up and ready for your sales
+            team. Open it in the showroom or on in-home visits to show buyers
+            their kitchen with your slabs.
           </p>
           <div className="mt-5 flex items-center justify-center gap-2">
             <span
@@ -117,12 +124,16 @@ export default async function OnboardingDonePage({
         </div>
       </div>
 
-      <OnboardingDoneActions
-        orgId={orgId}
-        materialLineId={line.id}
-        materialLineName={line.name}
-        publicUrl={publicUrl}
-      />
+      <div className="mt-8">
+        <a
+          href={publicUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full px-5 py-4 rounded-xl bg-blue-600 text-white text-center text-lg font-semibold hover:bg-blue-700 transition-colors"
+        >
+          Go to your sales page →
+        </a>
+      </div>
 
       <div className="mt-10 text-center">
         <Link

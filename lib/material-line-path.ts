@@ -1,19 +1,56 @@
 export type MaterialLineKind = "external" | "internal";
 
+export interface PublicVisualizerUrlParams {
+  lineKind: MaterialLineKind | null | undefined;
+  slug: string;
+  customDomain: string | null;
+  customDomainVerified: boolean;
+  appDomain: string;
+  accessLocked?: boolean;
+  /**
+   * Organization slug — required to build the path-based sales URL for
+   * access-locked internal lines. When omitted, those lines fall back to the
+   * legacy subdomain `/sales` entry point.
+   */
+  orgSlug?: string | null;
+  /**
+   * Origin of the main app (e.g. https://www.countertopvisualizer.com).
+   * Defaults to NEXT_PUBLIC_APP_URL. Used for the path-based sales URL.
+   */
+  appBaseUrl?: string | null;
+}
+
 /**
- * Canonical public URL for the material line visualizer (subdomain or verified custom domain).
- * Internal lines use the v2-based experience at `/internal`, unless the line is
- * access-locked — locked internal lines forward to the authenticated `/sales`
- * portal, so that is their canonical entry point.
+ * Canonical public URL for the material line visualizer.
+ *
+ * - External lines → subdomain (or verified custom domain).
+ * - Internal lines that are NOT access-locked → subdomain `/internal` (legacy
+ *   public v2 experience).
+ * - Internal lines that ARE access-locked ("sales" lines) → the path-based
+ *   portal on the main app domain, `/{orgSlug}/{lineSlug}/sales`. This keeps
+ *   the user's existing session (subdomains have their own cookie scope and
+ *   would force a second sign-in). Falls back to the subdomain `/sales` only
+ *   when no orgSlug is available.
  */
 export function getPublicVisualizerUrl(
-  lineKind: MaterialLineKind | null | undefined,
-  slug: string,
-  customDomain: string | null,
-  customDomainVerified: boolean,
-  appDomain: string,
-  accessLocked: boolean = false,
+  params: PublicVisualizerUrlParams,
 ): string {
+  const {
+    lineKind,
+    slug,
+    customDomain,
+    customDomainVerified,
+    appDomain,
+    accessLocked = false,
+    orgSlug,
+    appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? null,
+  } = params;
+
+  if (lineKind === "internal" && accessLocked && orgSlug) {
+    const mainBase = (appBaseUrl || `https://${appDomain}`).replace(/\/+$/, "");
+    return `${mainBase}/${orgSlug}/${slug}/sales`;
+  }
+
   const base =
     customDomain && customDomainVerified
       ? `https://${customDomain}`

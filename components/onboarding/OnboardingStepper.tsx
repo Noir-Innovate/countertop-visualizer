@@ -4,6 +4,7 @@ type StepKey =
   | "trial"
   | "website"
   | "brand"
+  | "team"
   | "share";
 
 interface Props {
@@ -16,47 +17,32 @@ const STEPS: Array<{ key: StepKey; label: string }> = [
   { key: "trial", label: "Free Trial" },
   { key: "website", label: "Website" },
   { key: "brand", label: "Brand" },
+  { key: "team", label: "Sales Team" },
   { key: "share", label: "Share" },
 ];
 
 export function OnboardingStepper({ current }: Props) {
   const currentIdx = STEPS.findIndex((s) => s.key === current);
+  const total = STEPS.length;
+  const stepNumber = currentIdx + 1;
+  const step = STEPS[currentIdx];
+
+  if (!step) return null;
 
   return (
-    <ol className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm mb-8 overflow-x-auto">
-      {STEPS.map((s, i) => {
-        const done = i < currentIdx;
-        const active = i === currentIdx;
-        return (
-          <li key={s.key} className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <span
-              className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-[11px] font-semibold ${
-                active
-                  ? "bg-blue-600 text-white"
-                  : done
-                    ? "bg-emerald-500 text-white"
-                    : "bg-slate-200 text-slate-500"
-              }`}
-            >
-              {done ? "✓" : i + 1}
-            </span>
-            <span
-              className={`${active ? "inline" : "hidden sm:inline"} ${
-                active
-                  ? "text-slate-900 font-medium"
-                  : done
-                    ? "text-slate-600"
-                    : "text-slate-400"
-              }`}
-            >
-              {s.label}
-            </span>
-            {i < STEPS.length - 1 && (
-              <span className="text-slate-300 shrink-0">›</span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
+    <div className="mb-8">
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm font-medium text-slate-900">{step.label}</span>
+        <span className="text-xs font-medium text-slate-500">
+          {stepNumber}/{total}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-blue-600 transition-all"
+          style={{ width: `${(stepNumber / total) * 100}%` }}
+        />
+      </div>
+    </div>
   );
 }

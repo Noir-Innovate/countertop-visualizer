@@ -44,20 +44,21 @@ export default async function TrackingLinksPage({ params }: Props) {
 
   const { data: org } = await db
     .from("organizations")
-    .select("name")
+    .select("name, slug")
     .eq("id", orgId)
     .single();
 
   const appDomain =
     process.env.NEXT_PUBLIC_APP_DOMAIN || "countertopvisualizer.com";
-  const baseUrl = getPublicVisualizerUrl(
-    materialLine.line_kind,
-    materialLine.slug,
-    materialLine.custom_domain,
-    materialLine.custom_domain_verified,
+  const baseUrl = getPublicVisualizerUrl({
+    lineKind: materialLine.line_kind,
+    slug: materialLine.slug,
+    customDomain: materialLine.custom_domain,
+    customDomainVerified: materialLine.custom_domain_verified,
     appDomain,
-    materialLine.access_locked,
-  );
+    accessLocked: materialLine.access_locked,
+    orgSlug: org?.slug,
+  });
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">

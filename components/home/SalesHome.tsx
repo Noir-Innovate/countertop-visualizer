@@ -67,8 +67,9 @@ export default function SalesHome() {
           into a closing tool.
         </h1>
         <p className="mt-6 text-lg md:text-xl text-slate-600 max-w-2xl mx-auto">
-          Give your customers an AI visualizer that shows{" "}
-          <em>their</em> kitchen with <em>your</em> slabs. Usable in minutes.
+          Your sales team shows buyers <em>their</em> kitchen with{" "}
+          <em>your</em> slabs — right in the showroom or on in-home visits.
+          Set up in minutes.
         </p>
         <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
           <Link
@@ -92,29 +93,24 @@ export default function SalesHome() {
       <section className="bg-slate-50 border-y border-slate-200">
         <div className="container mx-auto max-w-5xl px-4 py-16">
           <h2 className="text-3xl font-bold text-center">
-            From signup to live visualizer in 4 steps
+            From signup to selling in 3 steps
           </h2>
-          <div className="mt-12 grid md:grid-cols-4 gap-6">
+          <div className="mt-12 grid md:grid-cols-3 gap-6">
             {[
               {
                 n: 1,
-                title: "Create your account",
-                body: "Email and password. Takes 30 seconds.",
+                title: "Set up your organization",
+                body: "Pick a name and a subdomain for your sales portal.",
               },
               {
                 n: 2,
-                title: "Set up your organization",
-                body: "Pick a name and a subdomain you'll share with customers.",
-              },
-              {
-                n: 3,
                 title: "Paste your website URL",
                 body: "We scrape your logo, colors, and slab catalog automatically. You confirm.",
               },
               {
-                n: 4,
-                title: "Share your visualizer",
-                body: "Drop the link in emails, on showroom QR codes, or anywhere your buyers are.",
+                n: 3,
+                title: "Sell with it",
+                body: "Open it on any device to show buyers their kitchen with your slabs — in the showroom or on in-home visits.",
               },
             ].map((step) => (
               <div

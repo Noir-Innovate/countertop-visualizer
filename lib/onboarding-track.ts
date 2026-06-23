@@ -23,6 +23,9 @@ export const ONBOARDING_EVENTS = {
   scrapeFailed: "onboarding_scrape_failed",
   wizardViewed: "onboarding_wizard_viewed",
   wizardFinalized: "onboarding_wizard_finalized",
+  teamViewed: "onboarding_team_viewed",
+  teamInvited: "onboarding_team_invited",
+  teamSkipped: "onboarding_team_skipped",
   doneViewed: "onboarding_done_viewed",
 } as const;
 

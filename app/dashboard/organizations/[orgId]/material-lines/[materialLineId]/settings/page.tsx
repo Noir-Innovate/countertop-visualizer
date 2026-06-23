@@ -290,7 +290,11 @@ export default function MaterialLineSettingsPage({ params }: Props) {
               </p>
             </div>
 
-            {materialLine.line_kind === "internal" && (
+            {/* Require sign-in is the default and a requirement going forward —
+                once a line is locked we no longer surface the toggle. It only
+                appears for legacy internal lines that are still unlocked, so
+                they can opt in. */}
+            {materialLine.line_kind === "internal" && !materialLine.access_locked && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-start gap-3">
                   <input

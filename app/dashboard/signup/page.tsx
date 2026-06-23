@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { captureAndPersistAttribution } from "@/lib/attribution";
@@ -11,7 +10,6 @@ import {
 } from "@/lib/onboarding-track";
 
 export default function SignupPage() {
-  const router = useRouter();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -20,7 +18,11 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const [referrerName, setReferrerName] = useState<string | null>(null);
+  const [resendState, setResendState] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
 
   useEffect(() => {
     captureAndPersistAttribution();
@@ -38,9 +40,13 @@ export default function SignupPage() {
       .catch(() => undefined);
   }, []);
 
+  const emailRedirectTo = () =>
+    `${window.location.origin}/auth/callback?next=/dashboard`;
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAlreadyRegistered(false);
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -55,6 +61,29 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
+      // Authoritative pre-check: signUp() silently no-ops for an existing email
+      // (returns an obfuscated user with empty identities and sends NO email),
+      // which would otherwise show a fake "check your email" screen. Catch it
+      // up front so we can tell the user to sign in instead.
+      try {
+        const res = await fetch("/api/auth/check-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const body = await res.json();
+        if (body?.exists) {
+          setAlreadyRegistered(true);
+          setError(
+            "An account with this email already exists. Please sign in instead.",
+          );
+          return;
+        }
+      } catch {
+        // Non-fatal: fall through to signUp, which still has the identities
+        // guard below as a backstop.
+      }
+
       const supabase = createClient();
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -68,12 +97,23 @@ export default function SignupPage() {
           // /dashboard/organizations/new. Falls back to the marketing root
           // if Supabase's redirect-URL allowlist doesn't include this path
           // — add the callback URL there in the Supabase Dashboard.
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+          emailRedirectTo: emailRedirectTo(),
         },
       });
 
       if (error) {
         setError(error.message);
+        return;
+      }
+
+      // Backstop for the existing-email case: when email confirmation is on,
+      // signUp() returns a user with an empty `identities` array for an address
+      // that already exists. Treat that as "already registered", not success.
+      if (data.user && (data.user.identities?.length ?? 0) === 0) {
+        setAlreadyRegistered(true);
+        setError(
+          "An account with this email already exists. Please sign in instead.",
+        );
         return;
       }
 
@@ -87,6 +127,21 @@ export default function SignupPage() {
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendState("sending");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: emailRedirectTo() },
+      });
+      setResendState(error ? "error" : "sent");
+    } catch {
+      setResendState("error");
     }
   };
 
@@ -123,6 +178,33 @@ export default function SignupPage() {
             >
               Back to Login
             </Link>
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <p className="text-sm text-slate-500 mb-2">
+                Didn&apos;t get the email? Check your spam folder, or
+              </p>
+              {resendState === "sent" ? (
+                <p className="text-sm text-green-600 font-medium">
+                  Confirmation email resent. Please check your inbox.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resendState === "sending"}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                >
+                  {resendState === "sending"
+                    ? "Resending…"
+                    : "Resend confirmation email"}
+                </button>
+              )}
+              {resendState === "error" && (
+                <p className="text-sm text-red-600 mt-2">
+                  Couldn&apos;t resend right now. Please wait a moment and try
+                  again.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -153,6 +235,14 @@ export default function SignupPage() {
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-700 text-sm">{error}</p>
+              {alreadyRegistered && (
+                <Link
+                  href={`/dashboard/login?email=${encodeURIComponent(email)}`}
+                  className="inline-block mt-2 text-sm font-medium text-red-800 underline hover:text-red-900"
+                >
+                  Go to sign in
+                </Link>
+              )}
             </div>
           )}
 

@@ -9,6 +9,7 @@ import {
   ONBOARDING_EVENTS,
   trackOnboarding,
 } from "@/lib/onboarding-track";
+import { deriveMaterialLineName } from "@/lib/material-line-name";
 
 type Status = "pending" | "running" | "complete" | "failed";
 
@@ -128,8 +129,13 @@ export function OnboardingWizard({
   // Materials drafts.
   const [materials, setMaterials] = useState<MaterialDraft[]>([]);
 
-  // Material line name + slug (seeded from org).
-  const defaultLineName = `${orgName} Internal`;
+  // Material line name + slug — seeded from the scraped website title when
+  // available (falls back to the org name), then re-seeded once the scrape
+  // completes below.
+  const defaultLineName = deriveMaterialLineName(
+    initialResult?.title ?? null,
+    orgName,
+  );
   const [lineName, setLineName] = useState(defaultLineName);
   const lineSlug = useMemo(() => slugify(lineName), [lineName]);
 
@@ -193,6 +199,7 @@ export function OnboardingWizard({
       setLogoMode("scraped");
     }
     if (result.primaryColor) setPrimary(result.primaryColor);
+    if (result.title) setLineName(deriveMaterialLineName(result.title, orgName));
     setMaterials(
       (result.candidateMaterials ?? []).map((c) => ({
         src_url: c.src_url,
@@ -261,7 +268,7 @@ export function OnboardingWizard({
         materialLineId: body.materialLineId,
       });
       router.push(
-        `/onboarding/${orgId}/done?materialLineId=${encodeURIComponent(body.materialLineId)}`,
+        `/onboarding/${orgId}/team?materialLineId=${encodeURIComponent(body.materialLineId)}`,
       );
       router.refresh();
     } catch (err) {
@@ -398,18 +405,27 @@ export function OnboardingWizard({
   );
 }
 
+// Visible progress steps. The backend "extracting" stage is intentionally
+// omitted — it's folded into "Scanning website" so we don't surface a
+// "Reading images" step to the user.
 const STAGE_ORDER: ScrapeProgress["stage"][] = [
   "scraping",
-  "extracting",
   "classifying",
   "finalizing",
 ];
 const STAGE_LABELS: Record<ScrapeProgress["stage"], string> = {
   scraping: "Scanning website",
-  extracting: "Reading images",
+  extracting: "Scanning website",
   classifying: "Identifying materials",
   finalizing: "Wrapping up",
 };
+
+// Map a (possibly hidden) backend stage to its position in STAGE_ORDER so the
+// right visible step stays highlighted. "extracting" maps to "scraping".
+function displayedStageIndex(stage: ScrapeProgress["stage"]): number {
+  const effective = stage === "extracting" ? "scraping" : stage;
+  return STAGE_ORDER.indexOf(effective);
+}
 
 const STUCK_AFTER_MS = 5 * 60 * 1000;
 
@@ -437,7 +453,7 @@ function ScrapeProgressView({
   const elapsedMs = now - new Date(startedAt).getTime();
   const stuck = elapsedMs >= STUCK_AFTER_MS;
 
-  const currentIdx = progress ? STAGE_ORDER.indexOf(progress.stage) : -1;
+  const currentIdx = progress ? displayedStageIndex(progress.stage) : -1;
   const message =
     progress?.message ?? "Scanning your website for logo, colors, and materials…";
 
