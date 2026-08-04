@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_CATEGORY_COLORS } from "@/lib/cabinet-colors";
 
 interface RouteParams {
   params: Promise<{ materialLineId: string }>;
@@ -149,6 +150,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       typeof customName === "string" && customName.trim()
         ? customName.trim()
         : `${sourceLine.name} (Copy)`;
+
+    // Carry category colors (e.g. the Cabinets swatches) forward so the copy
+    // shows the same visualizer options as the source. Fill in the default
+    // Cabinets swatches when the source itself is missing them, so a duplicate
+    // never lands without a Cabinets tab.
+    const sourceCategoryColors =
+      (sourceLine.category_colors as Record<string, unknown> | null) ?? {};
+    const category_colors = {
+      ...DEFAULT_CATEGORY_COLORS,
+      ...sourceCategoryColors,
+    };
+
     const { data: newLine, error: insertLineError } = await serviceClient
       .from("material_lines")
       .insert({
@@ -164,6 +177,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         display_title: sourceLine.display_title ?? sourceLine.name,
         email_sender_name: sourceLine.email_sender_name ?? null,
         email_reply_to: sourceLine.email_reply_to ?? null,
+        category_colors,
       })
       .select("id")
       .single();
