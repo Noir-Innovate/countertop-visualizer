@@ -7,6 +7,10 @@ import {
   DEFAULT_LEAD_PRICE_CENTS,
   subscriptionMonthlyCentsAfterDiscount,
 } from "@/lib/billing";
+import {
+  dedupeBillingUsageRowsForInvoice,
+  type BillingUsageRowWithLead,
+} from "@/lib/lead-billing-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +28,8 @@ type PricingRow = {
   effective_at: string;
 };
 
-type UsageRow = {
+type UsageRowWithOrg = BillingUsageRowWithLead & {
   organization_id: string;
-  billed_amount_cents: number;
-  excluded_from_billing: boolean;
 };
 
 type SubscriptionRow = {
@@ -128,7 +130,10 @@ export async function GET() {
         .order("effective_at", { ascending: false }),
       supabase
         .from("organization_billing_usage")
-        .select("organization_id, billed_amount_cents, excluded_from_billing")
+        .select(
+          "organization_id, id, lead_id, billed_amount_cents, occurred_at, leads(email, phone)",
+        )
+        .eq("excluded_from_billing", false)
         .gte("occurred_at", monthStart)
         .range(0, 99999),
       supabase
@@ -164,17 +169,26 @@ export async function GET() {
     }
   }
 
+  // Group usage rows by org, then collapse duplicate submissions the same way
+  // the billing page does: one billable lead per distinct identity
+  // (phone → email → lead_id), keeping the earliest row and its amount. Without
+  // this, a customer who submits twice inflates both the lead count and the
+  // lead revenue versus what is actually invoiced.
+  const usageByOrg = new Map<string, BillingUsageRowWithLead[]>();
+  for (const row of (usageRes.data ?? []) as UsageRowWithOrg[]) {
+    const list = usageByOrg.get(row.organization_id);
+    if (list) list.push(row);
+    else usageByOrg.set(row.organization_id, [row]);
+  }
+
   const leadCountByOrg = new Map<string, number>();
   const leadCentsByOrg = new Map<string, number>();
-  for (const row of (usageRes.data ?? []) as UsageRow[]) {
-    if (row.excluded_from_billing) continue;
-    leadCountByOrg.set(
-      row.organization_id,
-      (leadCountByOrg.get(row.organization_id) ?? 0) + 1,
-    );
+  for (const [orgId, rows] of usageByOrg) {
+    const deduped = dedupeBillingUsageRowsForInvoice(rows);
+    leadCountByOrg.set(orgId, deduped.length);
     leadCentsByOrg.set(
-      row.organization_id,
-      (leadCentsByOrg.get(row.organization_id) ?? 0) + row.billed_amount_cents,
+      orgId,
+      deduped.reduce((sum, r) => sum + (r.billedAmountCents || 0), 0),
     );
   }
 
