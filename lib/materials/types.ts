@@ -14,6 +14,7 @@ export const MATERIAL_TYPES: readonly MaterialTypeOption[] = [
   { value: "Marble", label: "Marble" },
   { value: "Soapstone", label: "Soapstone" },
   { value: "Porcelain", label: "Porcelain" },
+  { value: "Dekton", label: "Dekton" },
   { value: "Solid Surface", label: "Solid Surface" },
   { value: "Laminate", label: "Laminate" },
   { value: "Other", label: "Other" },
