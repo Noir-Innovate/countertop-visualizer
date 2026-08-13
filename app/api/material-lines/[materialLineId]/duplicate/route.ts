@@ -7,6 +7,10 @@ interface RouteParams {
   params: Promise<{ materialLineId: string }>;
 }
 
+// Copying a large line touches hundreds of storage objects; the default 10s
+// budget cut the copy off partway and left rows pointing at missing files.
+export const maxDuration = 60;
+
 function normalizeSlug(slug: string): string {
   return slug
     .toLowerCase()
@@ -264,19 +268,39 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Copy storage: list all files under source folder then fetch and upload to target
+    // Copy storage. The `materials` rows above are already written, so every
+    // file listed here must land in the target folder — a row whose file is
+    // missing renders as a dead tile in the visualizer.
     const sourceFolder = sourceLine.supabase_folder as string;
-    const publicBase = `${supabaseUrl}/storage/v1/object/public/public-assets`;
+
+    // storage.list() returns at most PAGE_SIZE rows per call, so page until a
+    // short batch comes back. Without this the tail of a large folder (sorted
+    // by name) is silently dropped.
+    const PAGE_SIZE = 100;
+
+    const listFolder = async (prefix: string) => {
+      const items: { name: string; id: string | null; metadata: unknown }[] = [];
+      for (let offset = 0; ; offset += PAGE_SIZE) {
+        const { data, error } = await serviceClient.storage
+          .from("public-assets")
+          .list(prefix, {
+            limit: PAGE_SIZE,
+            offset,
+            sortBy: { column: "name", order: "asc" },
+          });
+        if (error) throw error;
+        if (!data?.length) break;
+        items.push(...data);
+        if (data.length < PAGE_SIZE) break;
+      }
+      return items;
+    };
 
     const collectFilePaths = async (
       prefix: string,
       paths: string[],
     ): Promise<void> => {
-      const { data: items } = await serviceClient.storage
-        .from("public-assets")
-        .list(prefix, { limit: 500 });
-
-      if (!items?.length) return;
+      const items = await listFolder(prefix);
 
       for (const item of items) {
         const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
@@ -293,33 +317,56 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     };
 
     const filePaths: string[] = [];
-    await collectFilePaths(sourceFolder, filePaths);
+    const filesFailed: string[] = [];
 
-    for (const filePath of filePaths) {
-      try {
-        const url = `${publicBase}/${filePath}`;
-        const res = await fetch(url);
-        if (!res.ok) continue;
-        const blob = await res.blob();
+    try {
+      await collectFilePaths(sourceFolder, filePaths);
+    } catch (err) {
+      console.error("Storage list error for", sourceFolder, err);
+      return NextResponse.json(
+        {
+          error:
+            "Could not read the source line's files, so the copy was stopped before it could half-finish. The duplicate was created but has no images — delete it and try again.",
+          id: newMaterialLineId,
+          targetOrganizationId,
+        },
+        { status: 500 },
+      );
+    }
+
+    // Server-side copy: the bytes never travel through this function, which is
+    // what keeps a 250+ file line inside the request budget. The previous
+    // download-then-reupload loop timed out partway and left the alphabetical
+    // tail of large lines missing.
+    const COPY_CONCURRENCY = 8;
+    const queue = [...filePaths];
+
+    const copyWorker = async () => {
+      for (let filePath = queue.pop(); filePath; filePath = queue.pop()) {
         const suffix = filePath.startsWith(sourceFolder)
           ? filePath.slice(sourceFolder.length).replace(/^\//, "")
           : filePath;
         if (!suffix) continue;
         const targetPath = `${targetFolder}/${suffix}`;
-        await serviceClient.storage
+        const { error } = await serviceClient.storage
           .from("public-assets")
-          .upload(targetPath, blob, {
-            upsert: true,
-            contentType: res.headers.get("content-type") ?? undefined,
-          });
-      } catch (err) {
-        console.error("Storage copy error for", filePath, err);
+          .copy(filePath, targetPath);
+        if (error) {
+          console.error("Storage copy error for", filePath, error);
+          filesFailed.push(suffix);
+        }
       }
-    }
+    };
+
+    await Promise.all(
+      Array.from({ length: COPY_CONCURRENCY }, () => copyWorker()),
+    );
 
     return NextResponse.json({
       id: newMaterialLineId,
       targetOrganizationId,
+      filesCopied: filePaths.length - filesFailed.length,
+      filesFailed,
     });
   } catch (err) {
     console.error("Duplicate material line error:", err);

@@ -125,6 +125,20 @@ export default function DuplicateLineModal({
         setError(data.error ?? "Failed to duplicate");
         return;
       }
+      // A partial file copy leaves materials whose image is missing, which
+      // shows up as a dead tile in the visualizer. Surface it here rather than
+      // letting the copy look clean.
+      if (Array.isArray(data.filesFailed) && data.filesFailed.length > 0) {
+        setError(
+          `The line was created, but ${data.filesFailed.length} image${
+            data.filesFailed.length === 1 ? "" : "s"
+          } failed to copy and will show as broken: ${data.filesFailed
+            .slice(0, 5)
+            .join(", ")}${data.filesFailed.length > 5 ? ", …" : ""}. Re-upload them on the new line's Slabs page.`,
+        );
+        onSuccess?.();
+        return;
+      }
       onSuccess?.();
       onClose();
       router.push(
