@@ -72,6 +72,47 @@ function normalizeGeocodeResult(result: GeocodeResult): NormalizedAddress {
   };
 }
 
+interface PlaceAddressComponent {
+  longText: string;
+  shortText: string;
+  types: string[];
+}
+
+interface PlaceResult {
+  formattedAddress: string;
+  addressComponents?: PlaceAddressComponent[];
+  location?: { latitude: number; longitude: number };
+}
+
+/**
+ * Places API (New) returns the same address components under camelCase keys and
+ * a differently-shaped location, so it needs its own normalizer even though the
+ * output matches the Geocoding API's.
+ */
+function normalizePlaceResult(result: PlaceResult): NormalizedAddress {
+  const components = result.addressComponents || [];
+  const get = (type: string) => components.find((c) => c.types?.includes(type));
+
+  const street = [get("street_number")?.longText, get("route")?.longText]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return {
+    formatted: result.formattedAddress || "",
+    street: street || undefined,
+    city:
+      get("locality")?.longText ||
+      get("sublocality")?.longText ||
+      get("postal_town")?.longText,
+    region: get("administrative_area_level_1")?.shortText,
+    postalCode: get("postal_code")?.longText,
+    country: get("country")?.shortText,
+    lat: result.location?.latitude,
+    lng: result.location?.longitude,
+  };
+}
+
 export async function POST(request: NextRequest) {
   // Require auth — this is a paid API and we don't want it open to abuse.
   const supabase = await createClient();
@@ -123,58 +164,73 @@ export async function POST(request: NextRequest) {
     if (body.mode === "autocomplete") {
       const q = body.query?.trim();
       if (!q) return NextResponse.json({ predictions: [] });
-      const session = body.sessionToken
-        ? `&sessiontoken=${encodeURIComponent(body.sessionToken)}`
-        : "";
-      const url =
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json` +
-        `?input=${encodeURIComponent(q)}&types=address&key=${apiKey}${session}`;
-      const res = await fetch(url);
+
+      const res = await fetch(
+        "https://places.googleapis.com/v1/places:autocomplete",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+          },
+          body: JSON.stringify({
+            input: q,
+            includedPrimaryTypes: ["street_address", "premise", "subpremise"],
+            ...(body.sessionToken ? { sessionToken: body.sessionToken } : {}),
+          }),
+        },
+      );
       const json = await res.json();
-      if (json.status !== "OK" && json.status !== "ZERO_RESULTS") {
+      if (!res.ok) {
         return NextResponse.json(
-          { error: json.error_message || json.status },
+          { error: json.error?.message || "Address lookup failed" },
           { status: 502 },
         );
       }
-      interface Prediction {
-        place_id: string;
-        description: string;
-        structured_formatting?: {
-          main_text?: string;
-          secondary_text?: string;
+
+      interface Suggestion {
+        placePrediction?: {
+          placeId: string;
+          text?: { text?: string };
+          structuredFormat?: {
+            mainText?: { text?: string };
+            secondaryText?: { text?: string };
+          };
         };
       }
-      const predictions = ((json.predictions || []) as Prediction[]).map(
-        (p) => ({
-          placeId: p.place_id,
-          description: p.description,
-          mainText: p.structured_formatting?.main_text,
-          secondaryText: p.structured_formatting?.secondary_text,
-        }),
-      );
+      const predictions = ((json.suggestions || []) as Suggestion[])
+        .map((s) => s.placePrediction)
+        .filter((p): p is NonNullable<Suggestion["placePrediction"]> => !!p)
+        .map((p) => ({
+          placeId: p.placeId,
+          description: p.text?.text || "",
+          mainText: p.structuredFormat?.mainText?.text,
+          secondaryText: p.structuredFormat?.secondaryText?.text,
+        }));
       return NextResponse.json({ predictions });
     }
 
     if (body.mode === "place_details") {
-      const session = body.sessionToken
-        ? `&sessiontoken=${encodeURIComponent(body.sessionToken)}`
-        : "";
-      const url =
-        `https://maps.googleapis.com/maps/api/place/details/json` +
-        `?place_id=${encodeURIComponent(body.placeId)}` +
-        `&fields=formatted_address,address_components,geometry` +
-        `&key=${apiKey}${session}`;
-      const res = await fetch(url);
+      const res = await fetch(
+        `https://places.googleapis.com/v1/places/${encodeURIComponent(body.placeId)}` +
+          (body.sessionToken
+            ? `?sessionToken=${encodeURIComponent(body.sessionToken)}`
+            : ""),
+        {
+          headers: {
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": "formattedAddress,addressComponents,location",
+          },
+        },
+      );
       const json = await res.json();
-      if (json.status !== "OK" || !json.result) {
+      if (!res.ok || !json.formattedAddress) {
         return NextResponse.json(
-          { error: json.error_message || json.status || "No result" },
+          { error: json.error?.message || "No result" },
           { status: 502 },
         );
       }
-      const normalized = normalizeGeocodeResult(json.result);
-      return NextResponse.json({ address: normalized });
+      return NextResponse.json({ address: normalizePlaceResult(json) });
     }
 
     return NextResponse.json({ error: "Unknown mode" }, { status: 400 });

@@ -27,6 +27,35 @@ interface NormalizedAddress {
   lng?: number;
 }
 
+/**
+ * GeolocationPositionError is not an Error subclass, so `instanceof Error`
+ * misses it and every browser-side failure collapses into one message that
+ * tells the user nothing about what to do next. Read the code instead.
+ */
+function geolocationCode(e: unknown): number | null {
+  if (typeof e === "object" && e !== null && "code" in e) {
+    const code = (e as { code: unknown }).code;
+    if (typeof code === "number") return code;
+  }
+  return null;
+}
+
+function locationErrorMessage(e: unknown): string {
+  switch (geolocationCode(e)) {
+    case 1: // PERMISSION_DENIED
+      return "Location is blocked for this site. Allow it in your browser's site settings, or just type the address below.";
+    case 2: // POSITION_UNAVAILABLE
+      return "Your device couldn't get a location fix. Check that location services are on, or type the address below.";
+    case 3: // TIMEOUT
+      return "Locating took too long. Try again, or type the address below.";
+  }
+  // Anything else is our own failure (the reverse-geocode call), and those
+  // messages are already written for the user.
+  return e instanceof Error && e.message
+    ? e.message
+    : "Could not determine your location.";
+}
+
 export default function NewJobModal({
   materialLineId,
   existingJob,
@@ -47,6 +76,7 @@ export default function NewJobModal({
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [showPredictions, setShowPredictions] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [suggestionsDown, setSuggestionsDown] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(isEdit && (!!existingJob?.email || !!existingJob?.phone || !!existingJob?.notes));
@@ -78,12 +108,22 @@ export default function NewJobModal({
             sessionToken: sessionTokenRef.current,
           }),
         });
-        if (!res.ok) return;
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
         if (id !== reqIdRef.current) return;
+        if (!res.ok) {
+          // Don't hijack the error banner mid-typing, but don't fail silently
+          // either: a dead suggestions service looked like "no matches" for as
+          // long as it was broken.
+          console.error("[NewJobModal] address autocomplete failed:", json);
+          setPredictions([]);
+          setSuggestionsDown(true);
+          return;
+        }
+        setSuggestionsDown(false);
         setPredictions((json.predictions as Prediction[]) || []);
-      } catch {
-        // ignore network errors here
+      } catch (err) {
+        if (id !== reqIdRef.current) return;
+        console.error("[NewJobModal] address autocomplete failed:", err);
       }
     }, 250);
     return () => clearTimeout(handle);
@@ -94,16 +134,40 @@ export default function NewJobModal({
       if (!silent) setError("Geolocation is not available on this device.");
       return;
     }
+    if (!window.isSecureContext) {
+      if (!silent)
+        setError(
+          "Your browser only shares location over a secure (https) connection. Type the address instead.",
+        );
+      return;
+    }
     setLocating(true);
     if (!silent) setError(null);
     try {
-      const position = await new Promise<GeolocationPosition>(
-        (resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-          }),
-      );
+      // High accuracy waits on GPS, which laptops and desktops often don't
+      // have — that request just times out. Try it briefly, then fall back to
+      // the coarse network fix, which is plenty for filling in an address.
+      const getPosition = (options: PositionOptions) =>
+        new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, options),
+        );
+
+      let position: GeolocationPosition;
+      try {
+        position = await getPosition({
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 60000,
+        });
+      } catch (firstError) {
+        if (geolocationCode(firstError) === 1) throw firstError; // denied: retrying won't help
+        position = await getPosition({
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 300000,
+        });
+      }
+
       const { latitude, longitude } = position.coords;
       const res = await fetch("/api/sales/geocode", {
         method: "POST",
@@ -122,11 +186,7 @@ export default function NewJobModal({
       // Auto-focus the customer name now that address is filled.
       requestAnimationFrame(() => nameRef.current?.focus());
     } catch (e) {
-      if (!silent) {
-        setError(
-          e instanceof Error ? e.message : "Could not determine your location.",
-        );
-      }
+      if (!silent) setError(locationErrorMessage(e));
     } finally {
       setLocating(false);
     }
@@ -340,6 +400,12 @@ export default function NewJobModal({
                 </ul>
               )}
             </div>
+            {suggestionsDown && (
+              <p className="mt-1 text-xs text-amber-700">
+                Address suggestions aren&apos;t available right now — type the
+                full address.
+              </p>
+            )}
             {gps && (
               <p className="mt-1 text-xs text-slate-500">
                 GPS: {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}
