@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { filterSuppressedRecipients } from "@/lib/email-suppression";
 
 // Initialize Resend client
 function getResendClient() {
@@ -46,6 +47,26 @@ export async function sendEmail({
 }> {
   try {
     const resend = getResendClient();
+
+    // SUPPRESSION GUARD (Packet OD-2): every email in the app funnels through
+    // this function, so this single call is the one place the global do-not-
+    // email list is enforced. Never send to a suppressed address. If the check
+    // itself fails it throws (fail-closed) and is handled by the catch below.
+    const recipients = Array.isArray(to) ? to : [to];
+    const { allowed, suppressed } = await filterSuppressedRecipients(recipients);
+    if (suppressed.length > 0) {
+      console.warn(
+        `[email] skipping ${suppressed.length} suppressed recipient(s):`,
+        suppressed.join(", "),
+      );
+    }
+    if (allowed.length === 0) {
+      return {
+        success: false,
+        error: "All recipients are on the suppression list",
+      };
+    }
+
     const fromEmail =
       from ||
       process.env.RESEND_FROM_EMAIL ||
@@ -60,7 +81,7 @@ export async function sendEmail({
 
     const emailPayload: any = {
       from: fromWithName,
-      to: Array.isArray(to) ? to : [to],
+      to: allowed,
       subject,
       html,
     };
