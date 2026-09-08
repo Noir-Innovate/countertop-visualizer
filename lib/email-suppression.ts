@@ -1,5 +1,11 @@
 import { createServiceClient } from "@/lib/supabase/server";
 
+export type SuppressionReason =
+  | "unsubscribed"
+  | "hard_bounce"
+  | "manual"
+  | "complaint";
+
 /**
  * Normalise an email for storage and comparison: trim + lowercase.
  *
@@ -71,4 +77,34 @@ export async function filterSuppressedRecipients(
     (data ?? []).map((row) => normalizeEmail(row.email as string)),
   );
   return partitionRecipientsBySuppression(recipients, suppressedSet);
+}
+
+/**
+ * Idempotently add an address to the global suppression list. The single write
+ * path shared by unsubscribe (OD-5), bounce/complaint handling (OD-4), and
+ * manual admin adds (OD-6). Re-adding an already-suppressed address is a no-op
+ * success (the earliest reason is kept). The DB trigger normalises the stored
+ * email; we normalise here too so the caller's value is consistent.
+ */
+export async function addSuppression(
+  email: string,
+  reason: SuppressionReason,
+): Promise<{ ok: boolean; alreadySuppressed: boolean; error?: string }> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return { ok: false, alreadySuppressed: false, error: "empty email" };
+
+  const supabase = await createServiceClient();
+  const { error } = await supabase
+    .from("suppression")
+    .insert({ email: normalized, reason });
+
+  if (error) {
+    // 23505 = unique violation → already on the list. That is success for an
+    // idempotent operation, not an error.
+    if (error.code === "23505") {
+      return { ok: true, alreadySuppressed: true };
+    }
+    return { ok: false, alreadySuppressed: false, error: error.message };
+  }
+  return { ok: true, alreadySuppressed: false };
 }
