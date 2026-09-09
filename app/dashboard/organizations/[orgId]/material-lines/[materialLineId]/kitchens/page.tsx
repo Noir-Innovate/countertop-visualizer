@@ -97,14 +97,12 @@ export default function KitchenImagesPage({ params }: Props) {
 
       setMaterialLine(mlData);
 
-      // Fetch organization name
-      const { data: orgData } = await supabase
-        .from("organizations")
-        .select("name")
-        .eq("id", orgId)
-        .single();
-
-      if (orgData) {
+      // Via the API, not a direct select: RLS scopes `organizations` to
+      // members, so a super admin viewing another org's line reads null here
+      // and the breadcrumb renders blank.
+      const orgRes = await fetch(`/api/organizations/${orgId}`);
+      if (orgRes.ok) {
+        const orgData = await orgRes.json();
         setOrgName(orgData.name);
       }
 

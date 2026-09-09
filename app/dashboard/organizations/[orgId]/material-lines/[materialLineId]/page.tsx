@@ -49,8 +49,10 @@ export default async function MaterialLinePage({ params }: Props) {
     notFound();
   }
 
-  // Fetch organization name
-  const { data: org } = await supabase
+  // Read the org with `db`, not the user-scoped client: RLS limits
+  // `organizations` to members, so a super admin viewing another org's line
+  // would get null here and render a blank breadcrumb.
+  const { data: org } = await db
     .from("organizations")
     .select("name, slug")
     .eq("id", orgId)

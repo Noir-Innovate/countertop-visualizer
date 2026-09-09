@@ -59,6 +59,13 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
     .eq("id", orgId)
     .single();
 
+  // The jobs-based analytics only describe a locked-down internal line, where
+  // every visitor is a signed-in salesperson working a job. An internal line
+  // with the sign-in requirement off is reachable by the public exactly like an
+  // external line, so it needs the visitor funnel instead.
+  const showJobAnalytics =
+    materialLine.line_kind === "internal" && materialLine.access_locked === true;
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
@@ -86,14 +93,14 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Analytics</h1>
           <p className="text-slate-600 mt-1">
-            {materialLine.line_kind === "internal"
+            {showJobAnalytics
               ? "Usage by your sales team on this internal line"
               : "Conversion funnel and event metrics for this material line"}
           </p>
         </div>
       </div>
 
-      {materialLine.line_kind === "internal" ? (
+      {showJobAnalytics ? (
         <InternalAnalyticsView
           materialLineId={materialLineId}
           materialLineBasePath={getMaterialLineBasePath(

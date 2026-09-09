@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getOrgAccess } from "@/lib/admin-auth";
+import { getMaterialLineBasePath } from "@/lib/material-line-path";
 
 interface Props {
   params: Promise<{ orgId: string; materialLineId: string }>;
@@ -58,11 +59,15 @@ export default async function MaterialLineJobsPage({
 
   const { data: line } = await service
     .from("material_lines")
-    .select("name")
+    .select("name, line_kind")
     .eq("id", materialLineId)
     .eq("organization_id", orgId)
     .single();
   if (!line) notFound();
+
+  // Internal lines live under a different dashboard path, so build links from
+  // the line kind instead of hardcoding the external shape.
+  const basePath = getMaterialLineBasePath(orgId, materialLineId, line.line_kind);
 
   const { count: total } = await service
     .from("leads")
@@ -117,7 +122,7 @@ export default async function MaterialLineJobsPage({
           </Link>
           <span>/</span>
           <Link
-            href={`/dashboard/organizations/${orgId}/material-lines/${materialLineId}`}
+            href={basePath}
             className="hover:text-slate-700"
           >
             {line.name}
@@ -175,7 +180,14 @@ export default async function MaterialLineJobsPage({
                     <td className="px-4 py-2 text-slate-900 whitespace-nowrap">
                       {row.profiles?.full_name || "—"}
                     </td>
-                    <td className="px-4 py-2 text-slate-900">{row.address || "—"}</td>
+                    <td className="px-4 py-2">
+                      <Link
+                        href={`${basePath}/jobs/${row.id}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {row.address || "(no address)"}
+                      </Link>
+                    </td>
                     <td className="px-4 py-2 text-slate-600 whitespace-nowrap">
                       {row.name || "—"}
                     </td>
