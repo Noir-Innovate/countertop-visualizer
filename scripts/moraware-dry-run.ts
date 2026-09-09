@@ -1,22 +1,38 @@
 /**
  * Moraware read-only dry run.
  *
- * Opens a session, issues read-only queries, prints what came back, and logs
- * out. It never writes to Moraware — the client refuses any command that is
- * not a *Query.
+ * Reads only. The client refuses any command that is not a *Query, so this
+ * cannot modify the fabricator's system.
  *
- * Credentials come from the environment and are never written to disk:
- *
- *   MORAWARE_TENANT=acme \
+ *   MORAWARE_TENANT=asf \
  *   MORAWARE_USER=... \
  *   MORAWARE_PASSWORD=... \
  *   npx tsx scripts/moraware-dry-run.ts
  *
- * Use a dedicated integration account with the "Execute API Requests"
- * permission. Moraware is reported to permit one concurrent session per
- * account, so running this as a person can sign them out of their browser.
+ * ---------------------------------------------------------------------------
+ * jobQuery grammar, recovered from the server's own schema validator (Moraware
+ * publish no XML schema docs — only .NET SDK docs — so this is written down
+ * here to save the next person the discovery):
+ *
+ *   <jobQuery>
+ *     <filter>      one of: processes | account | job | process | purchaseOrders
+ *     <include>     any of: creationDate, jobStatus, account, notes, jobActivity,
+ *                           jobCustomField, salesperson, name, address,
+ *                           totalRecords, process, jobContact, jobPhase
+ *     <pagingSpec firstRecord="0" pageSize="30"/>
+ *   </jobQuery>
+ *
+ * Notes:
+ *   - <filter> is required; paging is required for filtered job queries.
+ *   - <jobCustomField> needs a child: name | dataType | id | allFieldTypes.
+ *   - The response carries firstRecord/moreRecords, and totalRecords when
+ *     <totalRecords/> is included.
+ * ---------------------------------------------------------------------------
  */
 import { MorawareClient, MorawareError } from "../lib/moraware/client";
+
+const PROCESS_IDS = ["1", "2", "4", "5", "6", "7"];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function required(name: string): string {
   const value = process.env[name];
@@ -27,11 +43,6 @@ function required(name: string): string {
   return value;
 }
 
-/** First N characters, with newlines collapsed, for readable logging. */
-function preview(xml: string, chars = 1500): string {
-  return xml.replace(/>\s+</g, "><").slice(0, chars);
-}
-
 async function main() {
   const client = new MorawareClient({
     tenant: required("MORAWARE_TENANT"),
@@ -39,41 +50,50 @@ async function main() {
     password: required("MORAWARE_PASSWORD"),
   });
 
-  console.log("Logging in…");
   await client.login();
-  console.log("Session established.\n");
+  console.log("Authenticated.\n");
 
   try {
-    // Moraware's schema is not publicly documented, so the first run is
-    // exploratory: issue each query bare and record the shape that comes back.
-    const probes: { label: string; command: string; body?: string }[] = [
-      { label: "Job phases (small, safe shape check)", command: "jobPhaseQuery" },
-      { label: "Job statuses", command: "jobStatusQuery" },
-      { label: "Accounts", command: "accountQuery" },
-      { label: "Jobs", command: "jobQuery" },
-    ];
-
-    for (const probe of probes) {
-      process.stdout.write(`── ${probe.label} (${probe.command})\n`);
+    console.log("Jobs per process");
+    let grandTotal = 0;
+    for (const id of PROCESS_IDS) {
       try {
-        const xml = await client.query(probe.command, probe.body ?? "");
-        const count = (xml.match(/<job\b|<account\b|<jobPhase\b/g) || []).length;
-        console.log(`   ok — ${xml.length} bytes, ~${count} records`);
-        console.log(`   ${preview(xml, 700)}\n`);
+        const xml = await client.query(
+          "jobQuery",
+          `<filter><process id="${id}"/></filter>` +
+            `<include><totalRecords/></include>` +
+            `<pagingSpec firstRecord="0" pageSize="1"/>`,
+        );
+        const total = Number(xml.match(/totalRecords="(\d+)"/)?.[1] ?? 0);
+        grandTotal += total;
+        console.log(`  process ${id}: ${total.toLocaleString()}`);
       } catch (err) {
-        if (err instanceof MorawareError) {
-          console.log(
-            `   refused — [${err.code}] ${err.codeDescription}: ${err.message}\n`,
-          );
-        } else {
-          throw err;
-        }
+        const e = err as MorawareError;
+        console.log(`  process ${id}: unavailable (${e.codeDescription})`);
       }
+      await sleep(200);
+    }
+    console.log(`  total: ${grandTotal.toLocaleString()}\n`);
+
+    console.log("Sample jobs (most recent page of process 1)");
+    const xml = await client.query(
+      "jobQuery",
+      `<filter><process id="1"/></filter>` +
+        `<include><name/><jobStatus/><creationDate/><salesperson/><account/>` +
+        `<address/><notes/></include>` +
+        `<pagingSpec firstRecord="0" pageSize="5"/>`,
+    );
+    for (const m of xml.matchAll(/<job\b[^>]*\bid="(\d+)"[^>]*>([\s\S]*?)<\/job>/g)) {
+      const body = m[2];
+      const field = (tag: string) =>
+        body.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))?.[1] ?? "—";
+      console.log(
+        `  #${m[1]}  ${field("creationDate")}  ${field("name").slice(0, 44)}`,
+      );
     }
   } finally {
-    console.log("Logging out…");
     await client.logout();
-    console.log("Session released.");
+    console.log("\nSession released.");
   }
 }
 
