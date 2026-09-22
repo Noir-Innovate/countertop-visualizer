@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import toast, { Toaster } from "react-hot-toast";
+import MorawareCard from "./MorawareCard";
 
 interface Props {
   params: Promise<{ orgId: string }>;
@@ -293,6 +294,8 @@ export default function IntegrationsPage({ params }: Props) {
             </div>
           </form>
         </div>
+
+        <MorawareCard orgId={orgId} />
       </div>
     </>
   );

@@ -56,6 +56,25 @@ function assertReadOnly(command: string): void {
   }
 }
 
+/**
+ * The ONLY mutating commands this client may send. Everything else stays
+ * read-only (assertReadOnly). This exists solely to stamp the visualizer marker
+ * note onto a matched job — adding to this set is a deliberate, reviewed
+ * decision, never a convenience, and keeps a coding mistake from mutating a
+ * customer's Moraware.
+ */
+const WRITE_WHITELIST = new Set<string>(["activityCreate"]);
+
+function assertWriteAllowed(command: string): void {
+  if (!WRITE_WHITELIST.has(command)) {
+    throw new MorawareError(
+      `Refusing to send "${command}": not in the write whitelist (${[...WRITE_WHITELIST].join(", ")}).`,
+      null,
+      null,
+    );
+  }
+}
+
 function escapeXml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -143,6 +162,44 @@ export class MorawareClient {
       `<${command}>${innerXml}</${command}>` +
       `</MorawareCommand>`;
     return this.post(xml);
+  }
+
+  /**
+   * Sends a WHITELISTED mutating command. Structurally identical to query() but
+   * gated by assertWriteAllowed instead of assertReadOnly.
+   */
+  async write(command: string, innerXml = ""): Promise<string> {
+    assertWriteAllowed(command);
+    if (!this.sessionId) {
+      throw new MorawareError("Not logged in — call login() first", null, null);
+    }
+    const xml =
+      `<MorawareCommand version="${SCHEMA_VERSION}"` +
+      ` sessionId="${escapeXml(this.sessionId)}">` +
+      `<${command}>${innerXml}</${command}>` +
+      `</MorawareCommand>`;
+    return this.post(xml);
+  }
+
+  /**
+   * Stamp a note/activity onto a job — the one write this integration makes:
+   * the "Generated Image on Sterling's Visualizer" marker Lauren reports on.
+   *
+   * NOTE: the exact activityCreate grammar (element/attribute names, whether an
+   * activity-type id is required, the date field) is NOT yet verified against a
+   * live tenant. The read grammar (jobQuery) was recovered from the server's own
+   * schema validator; this write grammar must be recovered the same way. Run
+   * `scripts/moraware-write-probe.ts` against the `asf` tenant with real
+   * credentials to confirm the body before this is enabled in production. The
+   * body below is the best-effort shape pending that probe.
+   */
+  async createJobActivity(jobId: string, text: string): Promise<string> {
+    const body =
+      `<activity>` +
+      `<job id="${escapeXml(jobId)}"/>` +
+      `<description>${escapeXml(text)}</description>` +
+      `</activity>`;
+    return this.write("activityCreate", body);
   }
 
   /** Always call this: it frees the single allowed session. */
