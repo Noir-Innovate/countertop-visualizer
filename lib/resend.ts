@@ -1,4 +1,10 @@
 import { Resend } from "resend";
+import {
+  filterSuppressedRecipients,
+  resolveMessageClass,
+  type MessageClass,
+} from "@/lib/email-suppression";
+import { checkSendCaps, recordSends } from "@/lib/send-rate-limit";
 
 // Initialize Resend client
 function getResendClient() {
@@ -20,6 +26,10 @@ interface SendEmailParams {
   from?: string;
   replyTo?: string;
   senderName?: string;
+  // How the suppression guard should treat this message. Omitting it is
+  // fail-closed: an unclassified send is treated as commercial (see
+  // resolveMessageClass). Existing transactional callers set this explicitly.
+  messageClass?: MessageClass;
 }
 
 function escapeHtml(value: string): string {
@@ -39,6 +49,7 @@ export async function sendEmail({
   from,
   replyTo,
   senderName,
+  messageClass,
 }: SendEmailParams): Promise<{
   success: boolean;
   error?: string;
@@ -46,6 +57,32 @@ export async function sendEmail({
 }> {
   try {
     const resend = getResendClient();
+
+    // SUPPRESSION GUARD (Packet OD-2): every email in the app funnels through
+    // this function, so this single call is the one place the global do-not-
+    // email list is enforced. The reason x class matrix decides each recipient
+    // (unsubscribe/complaint block commercial only; hard_bounce/manual block
+    // everything). Unclassified sends are treated as commercial (fail-closed).
+    // If the check itself throws it is handled by the catch below.
+    const cls = resolveMessageClass(messageClass);
+    const recipients = Array.isArray(to) ? to : [to];
+    const { allowed, blocked } = await filterSuppressedRecipients(
+      recipients,
+      cls,
+    );
+    if (blocked.length > 0) {
+      console.warn(
+        `[email] suppression blocked ${blocked.length} ${cls} recipient(s):`,
+        blocked.join(", "),
+      );
+    }
+    if (allowed.length === 0) {
+      return {
+        success: false,
+        error: "All recipients are suppressed for this message class",
+      };
+    }
+
     const fromEmail =
       from ||
       process.env.RESEND_FROM_EMAIL ||
@@ -58,9 +95,19 @@ export async function sendEmail({
       ? fromEmail
       : `${senderDisplayName} <${fromEmail}>`;
 
+    // RAMP GUARD (Packet OD-7b): part of the same shared send guard. Enforces
+    // the domain-wide daily ceiling and per-address hourly rate. Commercial
+    // only — transactional is never blocked by the ramp. Fail-closed (throws to
+    // the catch below on a counting error).
+    const cap = await checkSendCaps(fromEmail, cls);
+    if (cap.blocked) {
+      console.warn(`[email] send blocked by ramp cap: ${cap.reason}`);
+      return { success: false, error: `Send blocked: ${cap.reason}` };
+    }
+
     const emailPayload: any = {
       from: fromWithName,
-      to: Array.isArray(to) ? to : [to],
+      to: allowed,
       subject,
       html,
     };
@@ -79,6 +126,9 @@ export async function sendEmail({
         error: error.message || JSON.stringify(error) || "Failed to send email",
       };
     }
+
+    // Record what actually went out so the domain-wide counter stays accurate.
+    await recordSends(fromEmail, allowed, cls);
 
     return {
       success: true,
@@ -164,6 +214,9 @@ export async function sendInvitationEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject: `You've been invited to join ${organizationName}`,
     html,
   });
@@ -335,6 +388,9 @@ export async function sendLeadNotificationEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject: `New Lead: ${leadInfo.name} - ${
       materialLineName || "Countertop Visualizer"
     }`,
@@ -489,6 +545,9 @@ export async function sendUserQuoteConfirmationEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject: `Your Quote Request - ${
       materialLineName || "Countertop Visualizer"
     }`,
@@ -571,6 +630,9 @@ export async function sendFreeResourceEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject,
     html,
     senderName,
