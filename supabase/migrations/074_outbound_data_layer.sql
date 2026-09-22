@@ -92,43 +92,123 @@ CREATE TABLE IF NOT EXISTS public.prospects (
   email TEXT NOT NULL,
   role TEXT,
   website TEXT,
+  -- Role desk (info@/sales@) vs a named person: different tone, different bounce
+  -- risk. Owen wants to know which he's writing to before he writes.
+  email_kind TEXT
+    CHECK (email_kind IN ('role_info', 'role_sales', 'role_other', 'named_person')),
   -- tier/segment are OUTPUTS. 'unknown' is a first-class value: a row Owen
   -- can't qualify goes to 'unknown' rather than getting a guessed tier (SM-2).
   tier TEXT CHECK (tier IN ('A', 'B', 'C', 'unknown')),
   segment TEXT CHECK (segment IN ('warm', 'cold')),
-  -- OD-7a: the INPUTS tier/segment are derived from. Real columns (not a JSONB
-  -- blob) so import validation and /admin filtering can enforce/query them.
-  business_type TEXT NOT NULL
+  -- OD-7a/OD-8a: the INPUTS tier/segment are derived from. Real columns (not a
+  -- JSONB blob) so import validation and /admin filtering can query them.
+  -- Nullable per OD-8a + Mara's fold rule: the sourcing tool fills what it
+  -- observes and leaves the rest blank (a visible blank beats a guess).
+  -- "business_type present" for a MAILABLE row is enforced in the import path +
+  -- send guard, NOT by a NOT NULL that would trap the not-yet-built importer.
+  business_type TEXT
     CHECK (business_type IN ('fabricator', 'stone_yard', 'kb_dealer',
       'design_showroom', 'remodeler', 'builder', 'flooring', 'other')),
   serves_homeowners BOOLEAN,
   has_showroom BOOLEAN,
   employee_count INTEGER,
+  -- Which proxy the count came from (SM-2): a countable staff page is stronger
+  -- evidence than a square-footage inference. Makes the tier call auditable.
+  employee_count_basis TEXT
+    CHECK (employee_count_basis IN ('stated_site', 'linkedin_band',
+      'gbp_reviews', 'facility_evidence', 'none')),
   city TEXT,
   state TEXT,
-  tier_rationale TEXT NOT NULL,
+  -- IANA zone name (America/Chicago, America/Phoenix), resolved from city+state
+  -- with a tz database — never a state->offset lookup (Arizona ignores DST; DST
+  -- ends 2026-11-01 mid-campaign). Drives the prospect-local send window,
+  -- converted at send time.
+  timezone TEXT,
+  -- tier / tier_rationale / segment / relationship_note are HUMAN calls made
+  -- after sourcing (SM-2 Part 1); the sourcing tool must never populate them, so
+  -- tier_rationale is nullable — a NOT NULL here would reject every sourced row.
+  tier_rationale TEXT,
   relationship_note TEXT,
+  -- Which of the three distinct things 'warm' can mean; they are not equally
+  -- self-evidencing. 'referral_consented' is set ONLY from Jeremiah's per-person
+  -- confirmation (the importer rejects it otherwise, never infers it from note
+  -- text); an unconfirmed referral imports as cold.
+  relationship_kind TEXT
+    CHECK (relationship_kind IN ('direct_prior', 'inbound', 'referral_consented')),
   -- Provenance is mandatory (see OD-3): every prospect must record where it
   -- came from and when it was sourced. No defaulting these.
   source_url TEXT NOT NULL,
+  -- The literal text surrounding the address on source_url — the audit trail
+  -- that it was published for business contact. "Present for a mailable row" is
+  -- enforced in the import path, not by a constraint.
+  source_excerpt TEXT,
   sourced_at TIMESTAMPTZ NOT NULL,
+  -- robots.txt allowance recorded at fetch time. robots_allowed = false => never
+  -- mailed; that gate lives in the import path + send guard, not a constraint.
+  robots_allowed BOOLEAN,
   status TEXT NOT NULL DEFAULT 'new'
     CHECK (status IN ('new', 'queued', 'contacted', 'replied',
                       'bounced', 'unsubscribed', 'suppressed')),
   -- OD-7b: per-prospect send state so the four-touches-then-stop, one-thread-
   -- per-prospect (no re-adding a non-replier), and 90-day rest rules are
   -- enforced by data, not by Owen remembering.
+  -- sequence_step and last_touch_at advance ONLY on a confirmed send (the same
+  -- write that logs the send) — never on enqueue or schedule — so the touch
+  -- count and the 90-day rest clock can't drift toward contacting someone we
+  -- shouldn't. next_touch_due holds the SCHEDULED date separately, so
+  -- capacity-vs-cadence drift is measurable instead of invisible.
   sequence_step INTEGER NOT NULL DEFAULT 0,
   last_touch_at TIMESTAMPTZ,
+  next_touch_due TIMESTAMPTZ,
   last_reply_at TIMESTAMPTZ,
+  -- OD-8a personalisation OBSERVATIONS: the raw fact + the exact page it came
+  -- from. The sourcing tool returns observation + URL and MUST NOT draft prose —
+  -- a generated line reads as verified when nobody verified it.
+  personalization_observation TEXT,
+  personalization_url TEXT,
+  personalization_observed_at TIMESTAMPTZ,
+  personalization_kind TEXT
+    CHECK (personalization_kind IN ('gallery_project', 'catalogue_depth',
+      'written_commitment', 'equipment_process', 'none')),
+  -- OD-8a disqualification: returned MARKED, never silently dropped, so hit rate
+  -- is measurable and a dead shop isn't re-sourced next month.
+  disqualified BOOLEAN NOT NULL DEFAULT false,
+  disqualify_reason TEXT
+    CHECK (disqualify_reason IN ('commercial_only', 'trade_wholesale',
+      'no_website', 'unusable_site', 'franchise', 'installer_no_showroom',
+      'out_of_area')),
+  -- dedupe_key: derived from `website` (the business's registrable root domain),
+  -- NEVER from the email address's domain. Normalisation: lowercase, strip
+  -- scheme, strip leading 'www.', strip trailing dot/slash, registrable domain
+  -- (e.g. "https://WWW.AcmeStone.com/contact" -> "acmestone.com").
+  -- Why website, not email: a warm row may carry a personal address
+  -- (john@gmail.com) while a sourced row carries info@acmestone.com for the SAME
+  -- shop. Email-domain keys ('gmail.com' vs 'acmestone.com') don't collide, so
+  -- the same human would get a warm AND a cold thread in parallel — breaking
+  -- one-thread-per-prospect. Keying on the website domain collapses both.
+  -- Dedupe runs in the import path against prospects AND suppression (NOT a DB
+  -- unique constraint), so an import reports a collapse rather than erroring.
+  dedupe_key TEXT,
+  -- OD-8a address verification result, landed on the row at import (the check
+  -- itself is a separate step/vendor). Only 'valid' sends during the ramp —
+  -- enforced in the send guard, not here. Defaults to 'unknown' so an unverified
+  -- row is never mistaken for 'valid'.
+  email_verified TEXT NOT NULL DEFAULT 'unknown'
+    CHECK (email_verified IN ('valid', 'invalid', 'risky', 'unknown')),
+  verified_at TIMESTAMPTZ,
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- A warm prospect must document the existing relationship (SM-2). Enforced in
-  -- the DB, not only at import.
+  -- A warm prospect must document BOTH which kind of relationship it is and the
+  -- note (SM-2). Only triggers when a human sets segment='warm'; sourced rows
+  -- (segment NULL) pass untouched, so this never rejects a sourcing-only row.
   CONSTRAINT prospects_warm_requires_note CHECK (
     segment IS DISTINCT FROM 'warm'
-    OR (relationship_note IS NOT NULL AND btrim(relationship_note) <> '')
+    OR (
+      relationship_kind IS NOT NULL
+      AND relationship_note IS NOT NULL
+      AND btrim(relationship_note) <> ''
+    )
   )
 );
 
@@ -233,3 +313,55 @@ ALTER TABLE public.outbound_send_log ENABLE ROW LEVEL SECURITY;
 COMMENT ON TABLE public.outbound_send_log IS
   'Every outbound recipient send, domain-wide. Source of the daily ceiling and '
   'per-address hourly rate enforced in lib/send-rate-limit.ts.';
+
+-- ============================================================
+-- 5) outbound_events  (OD-4 / OD-9 — delivery-result + engagement)
+-- ============================================================
+-- What happened to a send AFTER it left: bounces, complaints, replies,
+-- unsubscribes. Domain-wide, never per-address: a HALT stops the whole domain,
+-- so the measurement must match the response (1 bounce in 28 is a HOLD to one
+-- sender while the domain is at 2 in 56, a HALT). The Resend webhook (OD-4) and
+-- the SMTP path (OD-9) both write here through the SAME classifier.
+--
+-- Bounce severity is classified by ENHANCED status code, not by 5xx bucketing:
+--   5.1.x addressing / no such user -> hard_bounce
+--   5.7.x policy / reputation / blocked -> policy_rejection (HALT path; NEVER a
+--         hard bounce — bucketing it as one silently downgrades our most severe
+--         trigger into our most lenient)
+--   5.2.2 mailbox full -> soft_bounce
+--   4.x.x -> soft_bounce
+--   ambiguous -> policy_rejection (severe side; a false halt costs two days, a
+--         silent downgrade costs the domain)
+-- raw_code and raw_text are stored so the classification is always re-derivable
+-- and auditable. The classifier itself lives in code (OD-4), shared by both
+-- transports.
+CREATE TABLE IF NOT EXISTS public.outbound_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id UUID REFERENCES public.prospects(id) ON DELETE SET NULL,
+  from_address TEXT,
+  to_address TEXT NOT NULL,
+  event_type TEXT NOT NULL
+    CHECK (event_type IN ('delivered', 'soft_bounce', 'hard_bounce',
+      'policy_rejection', 'complaint', 'reply', 'unsubscribe')),
+  -- The raw evidence the classification was derived from.
+  raw_code TEXT,
+  raw_text TEXT,
+  provider TEXT,
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Domain-wide trailing-window counts by type (bounce/complaint rate, HALT/HOLD).
+CREATE INDEX IF NOT EXISTS outbound_events_type_time_idx
+  ON public.outbound_events (event_type, occurred_at);
+CREATE INDEX IF NOT EXISTS outbound_events_to_idx
+  ON public.outbound_events (to_address);
+
+ALTER TABLE public.outbound_events ENABLE ROW LEVEL SECURITY;
+
+-- No client policies: service role only (webhook writes; admin/agent reads via
+-- service-role APIs).
+
+COMMENT ON TABLE public.outbound_events IS
+  'Domain-wide delivery-result + engagement events. Bounce severity derives from '
+  'the enhanced status code (raw_code), never 5xx bucketing; 5.7.x is '
+  'policy_rejection and halts, never counted as a hard bounce.';
