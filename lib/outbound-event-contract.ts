@@ -120,7 +120,18 @@ export interface CoreEventOutcome {
     | "complaint"
     | "reply"
     | "unsubscribe";
-  /** True for a permanent recipient-side failure (drives stop-on-DSN). */
+  /**
+   * Whether this event stops the prospect's sequence. Keyed on the
+   * CLASSIFICATION, never on `kind`. A delivery_failure that classifies to
+   * soft_bounce (4.x.x transient, or 5.2.2 mailbox-full) does NOT stop:
+   * greylisting is routine against a new IP and we tolerate deferrals, so
+   * stopping on transients would pause sequences en masse in week 1 (defect 46).
+   * Only a PERMANENT failure (hard_bounce / policy_rejection) stops — this is
+   * exactly `bounceStopsSequence(classifyBounce(rawCode, rawText))`. Replies and
+   * auto-replies/OOO stop regardless (any recipient-side inbound), dispositioned
+   * by the operator, never auto-classified. Transients feed the deferral rate
+   * only.
+   */
   stopsSequence: boolean;
   /** Suppression the core wants written, if any (address vs business scope). */
   suppress:
