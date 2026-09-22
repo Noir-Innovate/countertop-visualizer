@@ -4,6 +4,7 @@ import {
   resolveMessageClass,
   type MessageClass,
 } from "@/lib/email-suppression";
+import { checkSendCaps, recordSends } from "@/lib/send-rate-limit";
 
 // Initialize Resend client
 function getResendClient() {
@@ -94,6 +95,16 @@ export async function sendEmail({
       ? fromEmail
       : `${senderDisplayName} <${fromEmail}>`;
 
+    // RAMP GUARD (Packet OD-7b): part of the same shared send guard. Enforces
+    // the domain-wide daily ceiling and per-address hourly rate. Commercial
+    // only — transactional is never blocked by the ramp. Fail-closed (throws to
+    // the catch below on a counting error).
+    const cap = await checkSendCaps(fromEmail, cls);
+    if (cap.blocked) {
+      console.warn(`[email] send blocked by ramp cap: ${cap.reason}`);
+      return { success: false, error: `Send blocked: ${cap.reason}` };
+    }
+
     const emailPayload: any = {
       from: fromWithName,
       to: allowed,
@@ -115,6 +126,9 @@ export async function sendEmail({
         error: error.message || JSON.stringify(error) || "Failed to send email",
       };
     }
+
+    // Record what actually went out so the domain-wide counter stays accurate.
+    await recordSends(fromEmail, allowed, cls);
 
     return {
       success: true,

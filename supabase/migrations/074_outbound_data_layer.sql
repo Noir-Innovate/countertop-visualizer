@@ -115,6 +115,12 @@ CREATE TABLE IF NOT EXISTS public.prospects (
   status TEXT NOT NULL DEFAULT 'new'
     CHECK (status IN ('new', 'queued', 'contacted', 'replied',
                       'bounced', 'unsubscribed', 'suppressed')),
+  -- OD-7b: per-prospect send state so the four-touches-then-stop, one-thread-
+  -- per-prospect (no re-adding a non-replier), and 90-day rest rules are
+  -- enforced by data, not by Owen remembering.
+  sequence_step INTEGER NOT NULL DEFAULT 0,
+  last_touch_at TIMESTAMPTZ,
+  last_reply_at TIMESTAMPTZ,
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -193,3 +199,37 @@ ALTER TABLE public.suppression ENABLE ROW LEVEL SECURITY;
 COMMENT ON TABLE public.suppression IS
   'Global permanent do-not-email list. Matched on lower(email) by the shared '
   'send guard (lib/email-suppression.ts). Never tenant-scoped, never expires.';
+
+-- ============================================================
+-- 4) outbound_send_log  (OD-7b — domain-wide send counter)
+-- ============================================================
+-- One row per recipient actually sent to, across EVERY from-address on the
+-- domain. The warmup ramp is a whole-domain number (10/day = 10 from the box,
+-- not 10 each from rae@ and owen@), so the shared send guard counts this table
+-- to enforce the daily ceiling and the per-address hourly rate. Every send is
+-- logged (commercial and transactional) so the count reflects real volume;
+-- the guard only BLOCKS commercial sends once a cap is hit.
+CREATE TABLE IF NOT EXISTS public.outbound_send_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_address TEXT NOT NULL,
+  to_address TEXT NOT NULL,
+  message_class TEXT NOT NULL
+    CHECK (message_class IN ('commercial', 'transactional')),
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Domain-wide "today" total: a single index-backed count over sent_at.
+CREATE INDEX IF NOT EXISTS outbound_send_log_sent_at_idx
+  ON public.outbound_send_log (sent_at);
+-- Per-address hourly rate.
+CREATE INDEX IF NOT EXISTS outbound_send_log_from_sent_idx
+  ON public.outbound_send_log (from_address, sent_at);
+
+ALTER TABLE public.outbound_send_log ENABLE ROW LEVEL SECURITY;
+
+-- No client policies: service role only (the guard writes it; admin/agent
+-- reads go through service-role APIs).
+
+COMMENT ON TABLE public.outbound_send_log IS
+  'Every outbound recipient send, domain-wide. Source of the daily ceiling and '
+  'per-address hourly rate enforced in lib/send-rate-limit.ts.';
