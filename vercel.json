@@ -3,6 +3,10 @@
     {
       "path": "/api/billing/invoice-lead-usage",
       "schedule": "5 0 1 * *"
+    },
+    {
+      "path": "/api/cron/moraware-reconcile",
+      "schedule": "0 9 * * *"
     }
   ]
 }
