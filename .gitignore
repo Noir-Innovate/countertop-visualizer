@@ -59,4 +59,5 @@ SKILL.md
 .cursor/
 .opencode/
 .pi/
-.github/
+.github/*
+!.github/workflows/
