@@ -59,4 +59,6 @@ SKILL.md
 .cursor/
 .opencode/
 .pi/
-.github/
+# Ignore local .github tooling/config, but keep committed CI workflows.
+.github/*
+!.github/workflows/

@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Outbound safety-critical suite first, isolated so its pass/fail is
+      # unambiguous — includes the bypass test that fails if a new send path
+      # skips the suppression guard.
+      - name: Outbound safety tests
+        run: npm run test:outbound
+      # Full test suite.
+      - name: Full test suite
+        run: npm test
