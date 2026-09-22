@@ -92,8 +92,22 @@ CREATE TABLE IF NOT EXISTS public.prospects (
   email TEXT NOT NULL,
   role TEXT,
   website TEXT,
-  tier TEXT CHECK (tier IN ('A', 'B', 'C')),
+  -- tier/segment are OUTPUTS. 'unknown' is a first-class value: a row Owen
+  -- can't qualify goes to 'unknown' rather than getting a guessed tier (SM-2).
+  tier TEXT CHECK (tier IN ('A', 'B', 'C', 'unknown')),
   segment TEXT CHECK (segment IN ('warm', 'cold')),
+  -- OD-7a: the INPUTS tier/segment are derived from. Real columns (not a JSONB
+  -- blob) so import validation and /admin filtering can enforce/query them.
+  business_type TEXT NOT NULL
+    CHECK (business_type IN ('fabricator', 'stone_yard', 'kb_dealer',
+      'design_showroom', 'remodeler', 'builder', 'flooring', 'other')),
+  serves_homeowners BOOLEAN,
+  has_showroom BOOLEAN,
+  employee_count INTEGER,
+  city TEXT,
+  state TEXT,
+  tier_rationale TEXT NOT NULL,
+  relationship_note TEXT,
   -- Provenance is mandatory (see OD-3): every prospect must record where it
   -- came from and when it was sourced. No defaulting these.
   source_url TEXT NOT NULL,
@@ -103,7 +117,13 @@ CREATE TABLE IF NOT EXISTS public.prospects (
                       'bounced', 'unsubscribed', 'suppressed')),
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- A warm prospect must document the existing relationship (SM-2). Enforced in
+  -- the DB, not only at import.
+  CONSTRAINT prospects_warm_requires_note CHECK (
+    segment IS DISTINCT FROM 'warm'
+    OR (relationship_note IS NOT NULL AND btrim(relationship_note) <> '')
+  )
 );
 
 -- One prospect record per email per org. lower(email) so casing never defeats
