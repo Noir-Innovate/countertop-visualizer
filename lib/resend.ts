@@ -1,5 +1,9 @@
 import { Resend } from "resend";
-import { filterSuppressedRecipients } from "@/lib/email-suppression";
+import {
+  filterSuppressedRecipients,
+  resolveMessageClass,
+  type MessageClass,
+} from "@/lib/email-suppression";
 
 // Initialize Resend client
 function getResendClient() {
@@ -21,6 +25,10 @@ interface SendEmailParams {
   from?: string;
   replyTo?: string;
   senderName?: string;
+  // How the suppression guard should treat this message. Omitting it is
+  // fail-closed: an unclassified send is treated as commercial (see
+  // resolveMessageClass). Existing transactional callers set this explicitly.
+  messageClass?: MessageClass;
 }
 
 function escapeHtml(value: string): string {
@@ -40,6 +48,7 @@ export async function sendEmail({
   from,
   replyTo,
   senderName,
+  messageClass,
 }: SendEmailParams): Promise<{
   success: boolean;
   error?: string;
@@ -50,20 +59,26 @@ export async function sendEmail({
 
     // SUPPRESSION GUARD (Packet OD-2): every email in the app funnels through
     // this function, so this single call is the one place the global do-not-
-    // email list is enforced. Never send to a suppressed address. If the check
-    // itself fails it throws (fail-closed) and is handled by the catch below.
+    // email list is enforced. The reason x class matrix decides each recipient
+    // (unsubscribe/complaint block commercial only; hard_bounce/manual block
+    // everything). Unclassified sends are treated as commercial (fail-closed).
+    // If the check itself throws it is handled by the catch below.
+    const cls = resolveMessageClass(messageClass);
     const recipients = Array.isArray(to) ? to : [to];
-    const { allowed, suppressed } = await filterSuppressedRecipients(recipients);
-    if (suppressed.length > 0) {
+    const { allowed, blocked } = await filterSuppressedRecipients(
+      recipients,
+      cls,
+    );
+    if (blocked.length > 0) {
       console.warn(
-        `[email] skipping ${suppressed.length} suppressed recipient(s):`,
-        suppressed.join(", "),
+        `[email] suppression blocked ${blocked.length} ${cls} recipient(s):`,
+        blocked.join(", "),
       );
     }
     if (allowed.length === 0) {
       return {
         success: false,
-        error: "All recipients are on the suppression list",
+        error: "All recipients are suppressed for this message class",
       };
     }
 
@@ -185,6 +200,9 @@ export async function sendInvitationEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject: `You've been invited to join ${organizationName}`,
     html,
   });
@@ -356,6 +374,9 @@ export async function sendLeadNotificationEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject: `New Lead: ${leadInfo.name} - ${
       materialLineName || "Countertop Visualizer"
     }`,
@@ -510,6 +531,9 @@ export async function sendUserQuoteConfirmationEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject: `Your Quote Request - ${
       materialLineName || "Countertop Visualizer"
     }`,
@@ -592,6 +616,9 @@ export async function sendFreeResourceEmail({
 
   return sendEmail({
     to,
+    // Relationship mail the recipient is entitled to receive; not blocked by a
+    // campaign opt-out (unsubscribe/complaint). Still blocked by hard_bounce/manual.
+    messageClass: "transactional",
     subject,
     html,
     senderName,

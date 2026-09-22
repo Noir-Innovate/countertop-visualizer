@@ -7,6 +7,26 @@ export type SuppressionReason =
   | "complaint";
 
 /**
+ * The kind of email being sent. Determines which suppression reasons block it.
+ *  - commercial:    outbound campaign / marketing mail.
+ *  - transactional: relationship mail the recipient needs (password reset,
+ *                   login/verification, an invite they asked for, billing /
+ *                   receipt, a paying tenant's own lead notification).
+ */
+export type MessageClass = "commercial" | "transactional";
+
+/**
+ * Fail-closed resolution: anything not EXPLICITLY transactional is treated as
+ * commercial. A new send path that forgets to declare its class is therefore
+ * held to the stricter policy, never the looser one.
+ */
+export function resolveMessageClass(
+  cls: MessageClass | null | undefined,
+): MessageClass {
+  return cls === "transactional" ? "transactional" : "commercial";
+}
+
+/**
  * Normalise an email for storage and comparison: trim + lowercase.
  *
  * This is the ONE definition of "the same address" used across prospects,
@@ -19,24 +39,59 @@ export function normalizeEmail(raw: string | null | undefined): string {
 }
 
 /**
- * Pure partition of a recipient list into allowed vs suppressed, given the set
- * of normalised suppressed addresses. Extracted so the matching logic is unit
- * testable without a database. Comparison is on the normalised form.
+ * The suppression policy matrix (Packet OD-2 decision). Whether a suppressed
+ * address blocks a given message depends on WHY it was suppressed and WHAT kind
+ * of mail we're sending:
+ *
+ *   reason \ class    commercial    transactional
+ *   unsubscribed      BLOCK         allow
+ *   complaint         BLOCK         allow
+ *   hard_bounce       BLOCK         BLOCK
+ *   manual            BLOCK         BLOCK
+ *
+ * Opting out of our cold campaign (unsubscribed / complaint) must NOT stop a
+ * password reset or other relationship mail — CAN-SPAM opt-out is about
+ * commercial messages. A dead address (hard_bounce) or an explicit never-contact
+ * (manual) blocks everything, transactional included. Unknown reason → fail
+ * closed (block).
+ */
+export function isBlockedByReason(
+  reason: SuppressionReason,
+  messageClass: MessageClass,
+): boolean {
+  switch (reason) {
+    case "hard_bounce":
+    case "manual":
+      return true;
+    case "unsubscribed":
+    case "complaint":
+      return messageClass === "commercial";
+    default:
+      return true;
+  }
+}
+
+/**
+ * Pure partition of a recipient list into allowed vs blocked, given a map of
+ * normalised suppressed address -> reason and the message class. Extracted so
+ * the whole policy matrix is unit testable without a database.
  */
 export function partitionRecipientsBySuppression(
   recipients: string[],
-  suppressedNormalized: Set<string>,
-): { allowed: string[]; suppressed: string[] } {
+  suppressedReasons: Map<string, SuppressionReason>,
+  messageClass: MessageClass,
+): { allowed: string[]; blocked: string[] } {
   const allowed: string[] = [];
-  const suppressed: string[] = [];
+  const blocked: string[] = [];
   for (const r of recipients) {
-    if (suppressedNormalized.has(normalizeEmail(r))) {
-      suppressed.push(r);
+    const reason = suppressedReasons.get(normalizeEmail(r));
+    if (reason && isBlockedByReason(reason, messageClass)) {
+      blocked.push(r);
     } else {
       allowed.push(r);
     }
   }
-  return { allowed, suppressed };
+  return { allowed, blocked };
 }
 
 /**
@@ -46,23 +101,25 @@ export function partitionRecipientsBySuppression(
  * (tests/no-unguarded-send-paths.test.ts) enforces the single choke point.
  *
  * Queries the global suppression list (service role; the table has no client
- * policies) and returns which of the given recipients are suppressed and which
- * may be sent to. Matching is on the normalised email form.
+ * policies) and applies the reason x class matrix. Matching is on the
+ * normalised email form.
  */
 export async function filterSuppressedRecipients(
   recipients: string[],
-): Promise<{ allowed: string[]; suppressed: string[] }> {
+  messageClass: MessageClass,
+): Promise<{ allowed: string[]; blocked: string[] }> {
+  const cls = resolveMessageClass(messageClass);
   const unique = Array.from(
     new Set(recipients.map((r) => normalizeEmail(r)).filter((r) => r !== "")),
   );
   if (unique.length === 0) {
-    return { allowed: [], suppressed: [] };
+    return { allowed: [], blocked: [] };
   }
 
   const supabase = await createServiceClient();
   const { data, error } = await supabase
     .from("suppression")
-    .select("email")
+    .select("email, reason")
     .in("email", unique);
 
   if (error) {
@@ -73,10 +130,14 @@ export async function filterSuppressedRecipients(
     throw new Error(`suppression check failed: ${error.message}`);
   }
 
-  const suppressedSet = new Set(
-    (data ?? []).map((row) => normalizeEmail(row.email as string)),
-  );
-  return partitionRecipientsBySuppression(recipients, suppressedSet);
+  const reasons = new Map<string, SuppressionReason>();
+  for (const row of data ?? []) {
+    reasons.set(
+      normalizeEmail(row.email as string),
+      row.reason as SuppressionReason,
+    );
+  }
+  return partitionRecipientsBySuppression(recipients, reasons, cls);
 }
 
 /**
